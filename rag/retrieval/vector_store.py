@@ -210,13 +210,23 @@ class VectorStore:
             List of (chunk_id, cosine_score) tuples, sorted descending by score.
         """
         qdrant_filter = _build_filter(filter_) if filter_ else None
-        results = self._client.search(
-            collection_name=COLLECTION_NAME,
-            query_vector=query_vector.tolist(),
-            limit=top_k,
-            query_filter=qdrant_filter,
-            with_payload=True,
-        )
+        
+        if hasattr(self._client, "query_points"):
+            results = self._client.query_points(
+                collection_name=COLLECTION_NAME,
+                query=query_vector.tolist(),
+                limit=top_k,
+                query_filter=qdrant_filter,
+                with_payload=True,
+            ).points
+        else:
+            results = self._client.search(
+                collection_name=COLLECTION_NAME,
+                query_vector=query_vector.tolist(),
+                limit=top_k,
+                query_filter=qdrant_filter,
+                with_payload=True,
+            )
         return [(r.payload["chunk_id"], r.score) for r in results]  # type: ignore[index]
 
     def count(self) -> int:

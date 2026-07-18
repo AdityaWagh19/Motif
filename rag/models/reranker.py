@@ -92,7 +92,13 @@ class Reranker:
 
         # Find ONNX file — quantized preferred
         onnx_path: Optional[Path] = None
-        for name in ("model_quantized.onnx", "model.onnx"):
+        for name in (
+            "onnx/model_O3.onnx", 
+            "onnx/model_quantized.onnx", 
+            "onnx/model.onnx", 
+            "model_quantized.onnx", 
+            "model.onnx"
+        ):
             candidate = self._model_dir / name
             if candidate.exists():
                 onnx_path = candidate

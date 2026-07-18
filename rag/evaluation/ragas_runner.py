@@ -64,6 +64,12 @@ def run_evaluation(
         "n_evaluated", "timestamp"
     """
     try:
+        import sys
+        import langchain_community.chat_models
+        class DummyVertexAI: pass
+        langchain_community.chat_models.ChatVertexAI = DummyVertexAI  # type: ignore
+        sys.modules['langchain_community.chat_models.vertexai'] = type('DummyMod', (), {'ChatVertexAI': DummyVertexAI})  # type: ignore
+
         from ragas import evaluate  # type: ignore[import]
         from ragas.metrics import faithfulness, answer_relevancy, context_precision  # type: ignore[import]
         from datasets import Dataset as HFDataset  # type: ignore[import]
