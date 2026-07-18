@@ -136,6 +136,10 @@ These decisions are **final**. Revisiting them requires updating this file, `arc
 | HyDE | Adaptive (lightweight heuristic) for T2/T3; Off for T1 | Always on, always off, regex classifier | CPU too slow for HyDE; regex classifier was brittle; adaptive heuristic is robust |
 | Parent-document retrieval | Off (optional Phase 3 feature) | Default on | 2× index storage for +5% recall already largely covered by 64-token overlap |
 | RAPTOR | Phase 5, >500 pages, explicit opt-in | Default on | Doubles indexing time and storage; only beneficial for very large corpora |
+| **Primary interface** | **prompt_toolkit REPL** (`motif` launches interactive session) | One-shot CLI only, web UI | Models stay warm between queries; slash commands + plain-text queries in one loop; one-shot mode preserved for scripting |
+| **Conversation history** | **Rolling window (last 3 turns), persisted to `~/.ragdb/history.json`** | No history, full history | Single-user local system; history is a list + JSON file; no complex sessioning needed; rolling window prevents context budget exhaustion |
+| **Session persistence** | **JSON file at `~/.ragdb/history.json`**, loaded on startup | SQLite session DB, no persistence | Trivial to implement; allows resuming exploration without retyping context; `/clear` and `/new` reset it |
+| **Installer** | **uv + shell bootstrap scripts** (`install.sh` / `install.ps1`) | pip, pipx, Homebrew, Docker | uv manages Python version + venv + install in one binary; no pre-existing Python required; CUDA wheel detection built-in |
 
 ---
 
@@ -151,7 +155,7 @@ These decisions are **final**. Revisiting them requires updating this file, `arc
 | FLARE iterative retrieval | Phase 5 | Requires stable logit API in llama-cpp-python |
 | SQLCipher (encrypted cache) | User opt-in, advanced | Adds key management; not needed for most use cases |
 | NOUGAT academic PDF parser | T3 opt-in | Specialized; adds complexity for a narrow document type |
-| REST API / GUI | Post-Phase 4 | CLI-first is the stated interface requirement |
+| REST API / GUI | Post-Phase 4 | REPL-first is the primary interface; web UI is a non-goal until pipeline is stable |
 
 ---
 

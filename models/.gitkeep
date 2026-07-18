@@ -1,0 +1,3 @@
+# Models directory — contains downloaded .gguf and ONNX files.
+# Files in this directory are NOT tracked by Git (see .gitignore).
+# Run `motif setup` to download models for your hardware tier.

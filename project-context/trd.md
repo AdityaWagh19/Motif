@@ -161,23 +161,60 @@
 
 ---
 
-## 6. CLI Requirements
+## 6. REPL & Interface Requirements
+
+### 6.1 Interactive Session
+
+| Requirement | ID | Criterion |
+|---|---|---|
+| REPL launches correctly | REPL-01 | `motif` starts without error; welcome screen renders within 3s |
+| Welcome screen shows system info | REPL-02 | Welcome panel shows: version, tier, model name, chunk count, document count, working dir |
+| Prompt accepts plain-text queries | REPL-03 | Typing a non-slash string and pressing Enter triggers the query pipeline |
+| Prompt accepts slash commands | REPL-04 | Typing `/ingest ./docs` triggers the ingest command; output appears inline |
+| Arrow-key history works | REPL-05 | Up arrow recalls previous query; Down arrow moves forward (prompt_toolkit built-in) |
+| Tab completion for slash commands | REPL-06 | Typing `/i` + Tab completes to `/ingest` |
+| Ctrl+C exits gracefully | REPL-07 | Ctrl+C during a streaming answer stops generation cleanly; Ctrl+C at prompt exits after saving history |
+| `exit` / `quit` exits cleanly | REPL-08 | Typing `exit` or `quit` saves session history and exits with code 0 |
+| One-shot mode works | REPL-09 | `motif ask "query"` prints answer and exits (for scripting) |
+| One-shot ingest works | REPL-10 | `motif ingest ./docs` ingests and exits (for scripting) |
+
+### 6.2 Slash Commands
 
 | Command | ID | Criterion |
 |---|---|---|
-| `ingest PATH` | CLI-01 | Ingests all supported files in PATH; prints count of files processed |
-| `ingest PATH --recursive` | CLI-02 | Recursively ingests all supported files in subdirectories |
-| `ask QUERY` | CLI-03 | Returns streamed answer + citations |
-| `ask QUERY --no-hyde` | CLI-04 | Skips HyDE regardless of tier config |
-| `ask QUERY --file FILENAME` | CLI-05 | Restricts retrieval to specified file |
-| `ask QUERY --type TYPE` | CLI-06 | Restricts retrieval to specified source type |
-| `ask QUERY --pages MIN-MAX` | CLI-07 | Restricts retrieval to page range |
-| `ask QUERY --consistency` | CLI-08 | Runs 3× generation and selects majority answer |
-| `remove PATH` | CLI-09 | Removes all chunks for the file; prints count removed |
-| `sync DIR` | CLI-10 | Adds new files, removes deleted files, re-ingests changed files |
-| `status` | CLI-11 | Prints: document count, chunk count, index size, loaded models, detected tier |
-| Error on missing model | CLI-12 | If LLM file not found, prints actionable error: "Run setup_models.py to download models" |
-| Progress bar during ingest | CLI-13 | Rich progress bar shows file-by-file progress during ingestion |
+| `/ingest PATH` | CMD-01 | Ingests all supported files in PATH; prints count of files processed |
+| `/ingest PATH -r` | CMD-02 | Recursively ingests all supported files in subdirectories |
+| `/remove PATH` | CMD-03 | Removes all chunks for the file; prints count removed |
+| `/sync DIR` | CMD-04 | Adds new files, removes deleted files, re-ingests changed files |
+| `/status` | CMD-05 | Prints: document count, chunk count, index size, loaded models, detected tier |
+| `/clear` | CMD-06 | Clears in-memory history list and deletes `~/.ragdb/history.json`; prints confirmation |
+| `/new` | CMD-07 | Archives current history to `~/.ragdb/history_TIMESTAMP.json`; starts fresh session |
+| `/setup` | CMD-08 | Runs model download for detected tier; equivalent to `motif setup` one-shot |
+| `/help` | CMD-09 | Prints all available commands with one-line descriptions |
+| Unknown command error | CMD-10 | Unknown `/xyz` prints "Unknown command: /xyz. Type /help for available commands." |
+
+### 6.3 Conversation History
+
+| Requirement | ID | Criterion |
+|---|---|---|
+| History appended after each query | HST-01 | After each answered query, `session.history` grows by exactly one `{role:user}` + one `{role:assistant}` entry |
+| Rolling window enforced | HST-02 | History passed to LLM never includes more turns than fit within the remaining context budget after retrieved passages |
+| Retrieved passages take priority | HST-03 | If budget forces a choice, passages are kept and oldest history turns are dropped first |
+| History persisted on exit | HST-04 | `~/.ragdb/history.json` contains the full session history after clean exit |
+| History loaded on restart | HST-05 | On next `motif` launch, history.json is loaded and last query is shown in welcome screen |
+| Empty history valid | HST-06 | A fresh install with no history.json starts with empty history and no error |
+| `/clear` resets completely | HST-07 | After `/clear`, `session.history == []` and `history.json` is deleted |
+
+### 6.4 Installer
+
+| Requirement | ID | Criterion |
+|---|---|---|
+| Linux/macOS install succeeds | INS-01 | `curl -fsSL .../install.sh \| bash` installs `motif` command on a clean Ubuntu 22.04 system |
+| Windows install succeeds | INS-02 | `irm .../install.ps1 \| iex` installs `motif` command on a clean Windows 11 system |
+| Python auto-installed if missing | INS-03 | If Python < 3.11 or absent, installer bootstraps uv which installs Python 3.11 automatically |
+| CUDA wheel attempted on GPU systems | INS-04 | Installer detects CUDA via `nvidia-smi`; attempts pre-built CUDA wheel; falls back to CPU with warning |
+| `motif setup` downloads correct models | INS-05 | After install, `motif setup` detects tier and downloads the correct model set with progress bars |
+| Installer is idempotent | INS-06 | Running the install script twice does not break the existing installation |
 
 ---
 
@@ -185,13 +222,14 @@
 
 | Requirement | ID | Criterion |
 |---|---|---|
-| Fully offline | NFR-01 | `python -c "import socket; socket.setdefaulttimeout(1); socket.socket().connect(('8.8.8.8', 53))"` fails after model download |
+| Fully offline | NFR-01 | No outbound network calls after model download; all inference is local |
 | Disk footprint (T1) | NFR-02 | `du -sh models/` ≤ 3.0 GB |
 | Disk footprint (T2) | NFR-03 | `du -sh models/` ≤ 5.0 GB |
 | Disk footprint (T3 base) | NFR-04 | `du -sh models/` ≤ 5.0 GB (moondream2 is opt-in, not counted in base) |
 | Python version | NFR-05 | `python --version` ≥ 3.11 |
-| No server process | NFR-06 | `ps aux | grep qdrant-server` returns nothing; Qdrant runs as embedded library |
+| No server process | NFR-06 | Qdrant runs as embedded library; no background daemon |
 | Config file in TOML | NFR-07 | `config.toml` is valid TOML and loads without error |
 | Graceful shutdown | NFR-08 | Ctrl+C during ingestion does not corrupt the Qdrant index or SQLite database |
 | Logging to file | NFR-09 | All log entries written to `~/.ragdb/motif.log` with timestamps |
 | Single-user | NFR-10 | No concurrent access handling required; SQLite WAL is sufficient |
+| `motif` on PATH after install | NFR-11 | After running install script, `which motif` (Linux/macOS) or `Get-Command motif` (Windows) returns a valid path |

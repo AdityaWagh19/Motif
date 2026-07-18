@@ -26,41 +26,25 @@ The tier is detected automatically at startup. The 5 GB figure covers model weig
 
 ## Installation
 
-> Setup scripts and PyPI packaging are planned. This section will be updated once they are released. For now, install from source.
-
+**Linux / macOS:**
 ```bash
-git clone https://github.com/AdityaWagh19/Motif.git
-cd Motif
-python -m venv .venv
-
-# Windows
-.venv\Scripts\Activate.ps1
-
-# Linux / macOS
-source .venv/bin/activate
-
-pip install -r requirements.txt
+curl -fsSL https://raw.githubusercontent.com/AdityaWagh19/Motif/main/install.sh | bash
 ```
 
-Install llama-cpp-python with GPU support if applicable:
-
-```bash
-# CPU only
-pip install llama-cpp-python
-
-# NVIDIA GPU (CUDA)
-CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python --force-reinstall --no-cache-dir
-
-# Windows with CUDA
-$env:CMAKE_ARGS="-DGGML_CUDA=on"
-pip install llama-cpp-python --force-reinstall --no-cache-dir
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/AdityaWagh19/Motif/main/install.ps1 | iex
 ```
 
-Download models for your tier:
+The installer bootstraps `uv`, installs Motif into an isolated environment, detects CUDA and installs the appropriate `llama-cpp-python` wheel automatically, and places `motif` on your PATH. No manual virtual environment or pip invocation required.
 
+After install, download the models for your hardware:
 ```bash
-python setup_models.py --tier T2    # or T1, T3
+motif setup           # auto-detect hardware tier, download correct models
+motif setup --tier T2 # override tier
 ```
+
+For development or manual install, see [`project-context/instructions.md`](project-context/instructions.md).
 
 ---
 

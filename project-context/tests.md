@@ -98,6 +98,19 @@ pytest tests/unit/ -v
 | `test_hash_change_detected` | Returns False after content hash changes | ING-18 |
 | `test_remove_clears_entry` | Returns False after `tracker.remove(filepath)` | ING-20 |
 
+### 1.10 Session History (`tests/unit/test_session.py`)
+
+| Test | What It Checks | TRD ID |
+|---|---|---|
+| `test_add_turn_grows_history` | After `add_turn(q, a)`, `len(history) == 2` (one user + one assistant entry) | HST-01 |
+| `test_rolling_window_trims_oldest` | With budget=512 tokens, oldest turns are dropped when limit exceeded | HST-02 |
+| `test_passages_kept_over_history` | When budget forces a choice, retrieved passage is included and oldest history dropped | HST-03 |
+| `test_save_creates_json` | After `session.save()`, `~/.ragdb/history.json` exists and is valid JSON | HST-04 |
+| `test_load_restores_history` | After `session.load()`, `session.history` matches what was saved | HST-05 |
+| `test_empty_history_no_error` | `Session()` with no history.json starts with `history == []` and no exception | HST-06 |
+| `test_clear_resets_and_deletes` | After `session.clear()`, `history == []` and `history.json` does not exist | HST-07 |
+| `test_new_archives_history` | After `session.new()`, `history_TIMESTAMP.json` exists and `history.json` is gone | CMD-07 |
+
 ---
 
 ## 2. Integration Tests

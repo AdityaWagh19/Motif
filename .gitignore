@@ -1,0 +1,56 @@
+# Motif .gitignore
+
+# ── Models (large binary files, never committed) ──────────────────────────────
+models/*.gguf
+models/*.bin
+models/*.pt
+models/*.safetensors
+models/nomic-embed-text-v1.5/
+models/MiniLM-L12-v2/
+models/bge-reranker-base/
+models/moondream2/
+# Keep the .gitkeep so the directory is tracked
+!models/.gitkeep
+
+# ── Database / Index (user-specific, on disk) ─────────────────────────────────
+~/.ragdb/
+*.ragdb/
+
+# ── Config (user-specific, may contain paths) ─────────────────────────────────
+config.toml
+# The template is committed; the user copy is not.
+!config.template.toml
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+
+# ── Test / Coverage ───────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.xml
+
+# ── Editor ────────────────────────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── uv / packaging ───────────────────────────────────────────────────────────
+.uv/
+uv.lock

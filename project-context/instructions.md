@@ -19,46 +19,44 @@
 
 ---
 
-## 2. Environment Setup
+## 2. Installation
 
+### 2.1 Single-Command Install (Recommended)
+
+**Linux / macOS:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/AdityaWagh19/Motif/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
 ```powershell
-# Clone the repo (if not already done)
+irm https://raw.githubusercontent.com/AdityaWagh19/Motif/main/install.ps1 | iex
+```
+
+The script installs `uv` (if not present), uses it to install Motif into an isolated environment, detects CUDA and installs the correct llama-cpp-python wheel, and puts `motif` on your PATH. No manual venv or pip required.
+
+After install, download models for your hardware:
+```bash
+motif setup           # auto-detect tier and download models
+motif setup --tier T2 # override tier
+```
+
+### 2.2 Install from Source (Development)
+
+```bash
 git clone https://github.com/AdityaWagh19/Motif.git
 cd Motif
 
-# Create and activate a virtual environment
-python -m venv .venv
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh    # Linux / macOS
+irm https://astral.sh/uv/install.ps1 | iex          # Windows
 
-# Windows
-.venv\Scripts\Activate.ps1
+# Install package in editable mode
+uv pip install -e .
 
-# Linux / macOS
-source .venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### 2.1 Installing llama-cpp-python with GPU support
-
-llama-cpp-python must be installed with the correct backend for your GPU:
-
-```powershell
-# CPU only (T1)
-pip install llama-cpp-python
-
-# NVIDIA GPU with CUDA (T2/T3) — Windows
-$env:CMAKE_ARGS="-DGGML_CUDA=on"
-pip install llama-cpp-python --force-reinstall --no-cache-dir
-
-# NVIDIA GPU with CUDA — Linux
-CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python --force-reinstall --no-cache-dir
-```
-
-Verify GPU support:
-```python
-from llama_cpp import Llama
-# Should print: ggml_cuda_init: found N CUDA devices
+# Install llama-cpp-python with CUDA (optional, for GPU)
+uv pip install llama-cpp-python \
+  --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
 ```
 
 ---
@@ -177,45 +175,63 @@ db_path = "~/.ragdb"   # Change if you want the index elsewhere
 
 ## 5. Quickstart
 
-```powershell
-# 1. Ingest a folder of documents
-python cli.py ingest ./my_documents/ --recursive
+```bash
+# 1. Launch the REPL
+motif
+# Welcome screen shows tier, model, document count
 
-# 2. Check the index
-python cli.py status
+# 2. Ingest a folder of documents
+/ingest ./my_documents/ -r
 
-# 3. Ask a question
-python cli.py ask "What are the main conclusions?"
+# 3. Ask questions (plain text at the prompt)
+What are the main conclusions?
 
-# 4. Ask with source filter
-python cli.py ask "What does chapter 3 say about X?" --file report.pdf
+# 4. Follow up naturally
+Expand on the second point.
 
-# 5. Ask restricting to page range
-python cli.py ask "Explain the methodology" --file thesis.pdf --pages 20-40
+# 5. Restrict to a specific file
+What does chapter 3 say about X? /file report.pdf
 
-# 6. Ask without HyDE (faster on all tiers)
-python cli.py ask "Define gradient descent" --no-hyde
+# 6. Restrict to a page range
+Explain the methodology /file thesis.pdf /pages 20-40
 
-# 7. Remove a document from the index
-python cli.py remove ./my_documents/old_report.pdf
+# 7. Start a fresh session without prior history
+/new
 
-# 8. Sync a folder (add new, remove deleted, re-index changed)
-python cli.py sync ./my_documents/
+# 8. Exit (history is auto-saved)
+exit
+```
+
+One-shot mode (for scripting, no REPL):
+```bash
+motif ask "What are the main findings?"
+motif ingest ./docs/ --recursive
 ```
 
 ---
 
-## 6. CLI Command Reference
+## 6. Slash Command Reference
 
-| Command | Options | Description |
+| Command | Arguments | Description |
 |---|---|---|
-| `ingest PATH [PATH...]` | `--recursive / -r` | Ingest documents into knowledge base |
-| `ask QUERY` | `--no-hyde`, `--top-k N`, `--file FILENAME`, `--type TYPE`, `--pages MIN-MAX`, `--consistency`, `--no-sources` | Ask a question |
-| `remove PATH` | — | Remove a document and all its chunks |
-| `sync DIR` | `--recursive` | Sync directory: add new, remove deleted, re-index changed |
-| `status` | — | Show knowledge base stats and loaded models |
-| `setup` | `--tier T1/T2/T3`, `--captioning` (T3 only) | Download models for your tier |
-| `eval` | `--dataset PATH`, `--output PATH` | Run RAGAS evaluation (Phase 4+) |
+| `/ingest PATH` | `-r / --recursive` | Add documents to knowledge base |
+| `/remove PATH` | — | Remove a document and all its chunks |
+| `/sync DIR` | `-r` | Sync directory: add new, remove deleted, re-index changed |
+| `/status` | — | Show knowledge base stats and loaded models |
+| `/clear` | — | Clear conversation history and delete history.json |
+| `/new` | — | Archive current history, start fresh session |
+| `/setup` | `--tier T1/T2/T3`, `--captioning` | Download models for your tier |
+| `/help` | — | Show all available commands |
+
+Query modifiers (append to any plain-text query):
+
+| Modifier | Example | Description |
+|---|---|---|
+| `/file FILENAME` | `What is X? /file report.pdf` | Restrict retrieval to this file |
+| `/type TYPE` | `What is X? /type audio` | Restrict to document type (pdf, md, audio, image) |
+| `/pages MIN-MAX` | `Explain this. /pages 10-30` | Restrict to page range |
+| `/no-hyde` | `Define X. /no-hyde` | Skip HyDE query expansion |
+| `/no-sources` | `Summarize. /no-sources` | Suppress citations in output |
 
 ---
 

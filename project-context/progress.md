@@ -9,6 +9,7 @@
 
 | Phase | Name | Status | Started | Completed |
 |---|---|---|---|---|
+| **0** | Infrastructure (REPL, installer, packaging) | 🔲 Not started | — | — |
 | **1** | Foundation (Text RAG MVP) | 🔲 Not started | — | — |
 | **2** | Quality (85% faithfulness) | 🔲 Not started | — | — |
 | **3** | Multimodal Ingestion | 🔲 Not started | — | — |
@@ -19,17 +20,51 @@ Legend: 🔲 Not started | 🔄 In progress | ✅ Done | ❌ Blocked
 
 ---
 
-## Phase 1 — Foundation
+## Phase 0 — Infrastructure
 
-**Goal:** Working single-document text QA via CLI. ≥ 70% accuracy checkpoint.  
-**Time-box:** 2 weeks
+**Goal:** `motif` is an installable command on all platforms. The REPL launches with a working welcome screen. Slash commands are stubbed. Pipeline does not exist yet.
 
 ### Tasks
 
-- 🔲 Project scaffolding: directory structure, `__init__.py`, `config.py`
-- 🔲 `config.toml` template + `detect_hardware_tier()`
+- 🔲 `pyproject.toml` — package metadata, `motif = "rag.cli:main"` entry point, pinned deps
+- 🔲 `install.sh` — Linux/macOS bootstrap: check/install uv, install Motif, detect CUDA
+- 🔲 `install.ps1` — Windows PowerShell bootstrap: same logic
+- 🔲 `config.template.toml` — fully commented config with T1/T2/T3 variants shown
+- 🔲 `rag/config.py` — config dataclasses, `detect_hardware_tier()`
+- 🔲 `rag/session.py` — Session class: history list, `add_turn()`, `save()`, `load()`, `clear()`, `new()`, rolling window trim
+- 🔲 `cli.py` — prompt_toolkit REPL: welcome screen (Rich panel), REPL loop, slash command router, session load/save
+- 🔲 `rag/commands/__init__.py` — command registry
+- 🔲 `rag/commands/help.py` — `/help` (lists all commands)
+- 🔲 `rag/commands/clear.py` — `/clear`, `/new`
+- 🔲 `rag/commands/status.py` — `/status` stub (shows "no index yet" until Phase 1)
+- 🔲 `rag/commands/ingest.py` — `/ingest` stub
+- 🔲 `rag/commands/remove.py` — `/remove` stub
+- 🔲 `rag/commands/sync.py` — `/sync` stub
+- 🔲 `rag/commands/setup.py` — `/setup` stub (calls `setup_models.py`)
+- 🔲 `setup_models.py` — model download with tier detection and progress bars
+- 🔲 `models/.gitkeep`, `tests/unit/.gitkeep`, `tests/integration/.gitkeep`
+
+### Phase 0 Acceptance Checkpoint
+
+- 🔲 `motif` command exists on PATH after install script runs
+- 🔲 `motif` launches without error and shows welcome screen
+- 🔲 `/help` lists all commands
+- 🔲 Unknown slash command prints friendly error
+- 🔲 `exit` saves empty history and exits cleanly
+- 🔲 `motif setup` downloads models with progress bars
+
+---
+
+## Phase 1 — Foundation
+
+**Goal:** Working text QA via the REPL. Answerable questions return correct, grounded answers. ≥ 70% accuracy checkpoint.  
+**Time-box:** 2 weeks (after Phase 0 complete)
+
+### Tasks (Pipeline only — REPL/session done in Phase 0)
+
+- 🔲 `rag/pipeline.py` — `QueryPipeline.answer()` end-to-end orchestration
 - 🔲 `PyMuPDFParser` — text PDF extraction
-- 🔲 `MarkdownParser` — heading-aware markdown extraction
+- 🔲 `MarkdownParser` — heading-aware extraction
 - 🔲 `SentenceChunker` — 512 token target, 64 token overlap
 - 🔲 `Embedder` — nomic-embed ONNX INT8 wrapper, batch encode
 - 🔲 `VectorStore` — Qdrant local mode, HNSW + sparse, `on_disk=True`
@@ -39,21 +74,24 @@ Legend: 🔲 Not started | 🔄 In progress | ✅ Done | ❌ Blocked
 - 🔲 RRF fusion (`fusion.py`)
 - 🔲 `CrossEncoder` — MiniLM-L12 ONNX wrapper, rerank top-20 → top-5
 - 🔲 `LLMClient` — llama-cpp-python wrapper, streaming
-- 🔲 `ContextBuilder` — anti-middle ordering, token budget check
-- 🔲 `prompts.py` — RAG_PROMPT, system prompt
-- 🔲 `QueryPipeline.answer()` — end-to-end orchestration
-- 🔲 `cli.py` — `ingest`, `ask`, `status` commands
-- 🔲 `ModelManager` — lazy load/unload skeleton
+- 🔲 `ContextBuilder` — anti-middle ordering, history injection, token budget
+- 🔲 `ModelManager` — lazy load/unload singleton
+- 🔲 `prompts.py` — RAG_PROMPT, HISTORY_SYSTEM_PROMPT
+- 🔲 Wire `/ingest`, `/status` slash commands into real pipeline
 - 🔲 Unit tests: chunker, embedder, BM25, RRF, citation formatter
+- 🔲 Unit tests: session history add/save/load/clear, rolling window trim
 - 🔲 Integration test: ingest + ask end-to-end
+- 🔲 Integration test: history persists across exit and relaunch
 
 ### Phase 1 Acceptance Checkpoint
 
-- 🔲 `cli.py ingest ./test_corpus/` — no crash, progress shown
-- 🔲 `cli.py status` — correct counts
-- 🔲 `cli.py ask "..."` — streams answer with citations
-- 🔲 Unanswerable question → refusal (no hallucination)
-- 🔲 Re-ingest → 0 new chunks
+- 🔲 `/ingest ./test_corpus/ -r` — no crash, progress shown
+- 🔲 `/status` — correct counts
+- 🔲 Plain-text query — streams answer with citations
+- 🔲 Unanswerable question → refusal, no hallucination
+- 🔲 `/ingest` again → 0 new chunks (deduplication)
+- 🔲 History follow-up: "Expand on that" returns answer referencing prior turn
+- 🔲 Exit + relaunch: welcome screen shows "Resuming previous session"
 - 🔲 Manual accuracy check ≥ 70% on 20 test questions
 
 ---

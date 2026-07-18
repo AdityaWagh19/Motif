@@ -5,7 +5,40 @@
 
 ---
 
-## 1. Ingestion Flow
+## 0. Session Startup Flow
+
+```
+motif                          ← user runs the command
+  │
+  ├─└► load config.toml
+  │     detect_hardware_tier() → "T1" | "T2" | "T3"
+  │
+  ├─└► Session.load()
+  │     check ~/.ragdb/history.json
+  │     if exists: load conversation_history list
+  │     if not:    start with empty history []
+  │
+  ├─└► Print welcome screen (Rich panel)
+  │     ┌──────────────────────────────────────────────┐
+  │     │  Motif v0.1.0                                     │
+  │     │  Tier: T2  |  Qwen2.5-7B Q4_K_M  |  GTX 1650    │
+  │     │  Index: 3,241 chunks  |  47 documents             │
+  │     │  C:\Users\omen\research\                          │
+  │     │  Resuming previous session — 8 exchanges          │  ← if history loaded
+  │     │  Last: "What does Chen et al. say about dropout?" │
+  │     │  Type /new to start fresh.                        │
+  │     └──────────────────────────────────────────────┘
+  │
+  ├─└► ModelManager.get_embedder()     ← load nomic-embed ONNX (always needed at query time)
+  │     ModelManager.get_reranker()     ← load cross-encoder ONNX
+  │     ModelManager.get_llm()          ← lazy: load only on first query
+  │
+  └─└► Enter prompt_toolkit REPL loop
+        prompt "motif > "
+```
+
+---
+
 
 ### 1.1 Entry Point
 
@@ -150,21 +183,24 @@ AudioParser.extract(filepath) → Extraction
 ### 2.1 Entry Point
 
 ```python
-# cli.py
-def ask(query: str, no_hyde: bool, top_k: int, show_sources: bool,
-        file_filter: str, type_filter: str, page_min: int, page_max: int):
-    metadata_filter = build_metadata_filter(file_filter, type_filter, page_min, page_max)
-    answer = QueryPipeline.answer(query, metadata_filter=metadata_filter, ...)
-    console.print(Markdown(answer.text))
-    if show_sources:
-        for c in answer.citations:
-            console.print(format_citation(c))
+# REPL loop (cli.py)
+while True:
+    raw_input = prompt_session.prompt("motif > ")
+
+    if raw_input.startswith("/"):
+        handle_slash_command(raw_input, session)
+    elif raw_input.strip() in ("exit", "quit", ""):
+        session.save()     # persist history to ~/.ragdb/history.json
+        break
+    else:
+        session.pipeline.answer(raw_input, history=session.history)
 ```
 
 ### 2.2 Full Query Pipeline
 
 ```
 raw_query: str
+history: List[Dict]          # last N turns, may be empty
 metadata_filter: Optional[QdrantFilter]
   │
   ├─► QueryExpander.should_use_hyde(query, config)
@@ -187,31 +223,14 @@ metadata_filter: Optional[QdrantFilter]
   │
   ├─► rrf_fuse(dense, sparse, bm25, k=60) → top-20: List[ScoredPassage]
   │     RRF score = Σ 1/(k + rank_i) across all lists
-  │     (BM25 results not filtered by metadata_filter — post-filter them here)
   │
   ├─► ChunkStore.fetch_batch(chunk_ids) → chunk texts + full ChunkMetadata
   │
   ├─► CrossEncoder.rerank(raw_query, passages, top_k=3|5) → List[ScoredPassage]
   │     Always runs (never skipped — 85ms is non-negotiable)
   │     Relevance threshold: auto-calibrated (default 0.3)
-  │     → Drop passages below threshold
   │
   ├─► ContextBuilder.build(passages, query, config)
-  │     Steps:
-  │     1. merge_adjacent_chunks(passages)
-  │          → If two passages are consecutive (same source, char gap < 200): merge
-  │     2. anti_middle_ordering(passages)
-  │          → Rank-1 first, Rank-2 last, remaining in middle
-  │          → (Liu et al. 2023: models attend better to edges)
-  │     3. extractive_compress(passages, max_tokens)
-  │          → If total tokens > max_tokens: score sentences by cosine sim to query
-  │          → Keep top-scoring sentences until budget exhausted
-  │          → Uses Embedder (already loaded) — zero extra model cost
-  │
-  ├─► LLMClient.stream(
-  │     system_prompt=SYSTEM_PROMPT,
-  │     context=built_context,
-  │     query=raw_query,
   │     max_tokens=config.llm.max_tokens,
   │     temperature=0.1
   │   ) → Iterator[str]  (token stream)

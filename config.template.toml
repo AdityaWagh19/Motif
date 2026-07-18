@@ -1,0 +1,153 @@
+# Motif Configuration Template
+# Copy this file to config.toml in the project root and edit as needed.
+# cp config.template.toml config.toml
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Hardware Tier
+# ─────────────────────────────────────────────────────────────────────────────
+[hardware]
+# Tier detection:
+#   auto — detect based on nvidia-smi VRAM (recommended)
+#   T1   — CPU only (Phi-3.5-mini, no GPU offload)
+#   T2   — GTX 1650 / 4 GB VRAM (Qwen2.5-7B, partial offload)
+#   T3   — RTX 3050 / 6-8 GB VRAM (Qwen2.5-7B, full offload)
+tier = "auto"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Model Paths
+# ─────────────────────────────────────────────────────────────────────────────
+[models]
+# Paths are relative to the project root, or absolute.
+
+# T1: "models/Phi-3.5-mini-instruct-Q4_K_M.gguf"
+# T2/T3: "models/Qwen2.5-7B-Instruct-Q4_K_M.gguf"
+llm_path = "models/Qwen2.5-7B-Instruct-Q4_K_M.gguf"
+
+# nomic-embed-text-v1.5 ONNX INT8 directory
+embed_model = "models/nomic-embed-text-v1.5"
+
+# Reranker ONNX directory
+# T1/T2: "models/MiniLM-L12-v2"
+# T3:    "models/bge-reranker-base"
+reranker = "models/MiniLM-L12-v2"
+
+# Whisper model file (Phase 3, audio ingestion)
+# T1/T2: "models/ggml-tiny-q5_1.bin"
+# T3:    "models/ggml-small-q5_1.bin"
+whisper = "models/ggml-tiny-q5_1.bin"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LLM Inference
+# ─────────────────────────────────────────────────────────────────────────────
+[llm]
+# Number of layers to offload to GPU VRAM.
+# T1 (CPU only):   n_gpu_layers = 0
+# T2 (4 GB VRAM):  n_gpu_layers = 20
+# T3 (6-8 GB VRAM): n_gpu_layers = 28
+n_gpu_layers = 20
+
+# Context window size (tokens).
+# T1: 2048  |  T2: 3072  |  T3: 4096
+ctx_size = 3072
+
+# Maximum tokens to generate per answer.
+max_tokens = 400
+
+# Sampling temperature (0.1 = near-deterministic, grounded answers).
+# Do not increase above 0.3 for RAG use cases.
+temperature = 0.1
+
+# CPU threads for inference (ignored when n_gpu_layers > 0).
+# T1: 4-6  |  T2/T3: 4 (most work is on GPU)
+threads = 6
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Retrieval
+# ─────────────────────────────────────────────────────────────────────────────
+[retrieval]
+# Total candidates retrieved before reranking (from all three retrieval paths combined).
+# T1: 20  |  T2: 25  |  T3: 30
+top_k_retrieval = 25
+
+# Final passages passed to the LLM after reranking.
+# T1: 3   |  T2: 5   |  T3: 5
+top_k_rerank = 5
+
+# Passages with relevance score below this threshold are dropped.
+# Increase (0.4) for stricter grounding. Decrease (0.2) if recall is too low.
+relevance_threshold = 0.3
+
+# Query expansion strategy.
+# "none"  — disabled (faster; use for T1 or factual queries)
+# "hyde"  — HyDE: generate a hypothetical answer, embed it, retrieve against it
+#           (better recall on complex/reasoning queries; adds ~1-2s latency)
+# T1: "none"  |  T2/T3: "hyde" (adaptive — Motif routes automatically)
+query_expansion = "hyde"
+
+# BM25 backend.
+# "rank_bm25" — in-memory (default; suitable for up to ~100K chunks)
+# "tantivy"   — memory-mapped (Phase 4; use for large corpora > 100K chunks)
+bm25_backend = "rank_bm25"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Chunking
+# ─────────────────────────────────────────────────────────────────────────────
+[chunking]
+# Target chunk size in tokens.
+target_tokens = 512
+
+# Overlap between consecutive chunks in tokens (for context continuity).
+overlap_tokens = 64
+
+# Semantic chunking: split on semantic boundary changes (requires embed model).
+# T1: false (sentence-boundary split; faster)
+# T2/T3: true (better chunk quality; +10-20% ingestion time)
+use_semantic = false
+
+# Semantic boundary detection threshold (0.0 - 1.0).
+# Lower = tighter boundaries (good for technical/academic docs).
+# Higher = looser boundaries (good for narrative/conversational text).
+# Default 0.3 works well for most document types.
+semantic_threshold = 0.3
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Generation / Context Assembly
+# ─────────────────────────────────────────────────────────────────────────────
+[generation]
+# Maximum tokens allocated to the retrieved context.
+# T1: 2048  |  T2: 2048  |  T3: 3072
+# (Remainder of ctx_size is reserved for the answer and conversation history.)
+context_max_tokens = 2048
+
+# Stream the answer token by token to the terminal.
+streaming = true
+
+# Number of prior conversation turns to include in the LLM context.
+# Each turn ≈ 200-400 tokens. Oldest turns are dropped when over budget.
+# Set to 0 to disable conversation history context.
+history_turns = 3
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Storage
+# ─────────────────────────────────────────────────────────────────────────────
+[storage]
+# Root directory for the Qdrant index, SQLite database, and session history.
+# Uses ~ for home directory. Supports absolute paths.
+db_path = "~/.ragdb"
+
+# Enable query result cache (Phase 4 feature — leave false until Phase 4).
+# Cache stores the last 500 query-answer pairs. Identical queries return
+# cached answers in <50ms without running retrieval or generation.
+query_cache_enabled = false
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Parsers (Phase 3 features)
+# ─────────────────────────────────────────────────────────────────────────────
+[parsers]
+# T3 opt-in: caption image-heavy pages using moondream2 during ingestion.
+# Requires: motif setup --captioning
+# Downloads moondream2 Q4 (~900 MB extra).
+use_moondream = false
+
+# Pages with image coverage > this fraction trigger moondream2 captioning.
+image_density_threshold = 0.3

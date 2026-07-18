@@ -1,0 +1,94 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "motif-rag"
+version = "0.1.0"
+description = "Offline multimodal RAG — query local documents with no internet connection"
+readme = "README.md"
+license = { text = "TBD" }
+requires-python = ">=3.11"
+keywords = ["rag", "llm", "offline", "local", "documents", "multimodal"]
+
+dependencies = [
+    # Interface
+    "prompt_toolkit>=3.0",
+    "rich>=13.0",
+
+    # Vector store (local embedded mode, no server)
+    "qdrant-client[local]>=1.10",
+
+    # Lexical search
+    "rank-bm25>=0.2",
+
+    # Embedding + reranker inference (ONNX, no torch at query time)
+    "onnxruntime>=1.18",
+
+    # Tokenizer (used only for token counting; not for inference)
+    "tokenizers>=0.19",
+    "transformers>=4.40",
+
+    # Document parsers (Phase 1: PDF + Markdown)
+    "pymupdf>=1.24",
+    "markdown-it-py>=3.0",
+
+    # DOCX parser (Phase 3)
+    "python-docx>=1.1",
+
+    # Model download
+    "huggingface-hub>=0.23",
+
+    # LLM inference — CPU wheel by default.
+    # The installer script (install.sh / install.ps1) upgrades this to the
+    # appropriate CUDA pre-built wheel when a CUDA-capable GPU is detected.
+    "llama-cpp-python>=0.2.80",
+
+    # Progress display during model download
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+# Offline evaluation (Phase 4)
+eval = [
+    "ragas>=0.1",
+    "datasets>=2.0",
+]
+
+# Audio ingestion (Phase 3)
+audio = [
+    "pywhispercpp>=1.0",
+]
+
+# Semantic chunking (Phase 2)
+semantic = [
+    "semantic-text-splitter>=0.12",
+]
+
+# Development tools
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+# After `uv tool install motif-rag`, this places `motif` on PATH.
+motif = "rag.cli:main"
+
+[tool.hatch.build.targets.wheel]
+# Only the rag/ package is included in the wheel.
+# The root cli.py is a development shim (python cli.py); not part of the installed package.
+packages = ["rag"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = ["E", "F", "I", "UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow — requires models downloaded (deselect with '-m not slow')",
+]

@@ -1,20 +1,28 @@
 # MVP Scope — Motif Offline Multimodal RAG
 
 > **Depends on:** `context.md`, `trd.md`  
-> **Time-box:** 2 weeks (Phases 1–2 from the delivery plan)  
-> **Goal:** A working, query-able text RAG system that can be evaluated against the 70% accuracy checkpoint.
+> **Phases:** Phase 0 (Infrastructure) + Phase 1 (Text RAG) + Phase 2 (Quality)  
+> **Goal:** A working, query-able text RAG system accessible via REPL. Phase 0 delivers the installable shell; Phase 1 delivers the working pipeline inside it.
 
 ---
 
-## 1. MVP Is In Scope
+## 0. Phase 0 — Infrastructure (prerequisite, not time-boxed separately)
 
-These are the only features to implement in the MVP. Anything not listed here is out of scope for Phase 1–2.
+These files are created before any pipeline code. They must exist before Phase 1 begins.
 
-### Core Pipeline
+- [ ] `pyproject.toml` — package definition, `motif` entry point, pinned deps
+- [ ] `install.sh` — Linux/macOS bootstrap (uv + CUDA detection)
+- [ ] `install.ps1` — Windows PowerShell bootstrap
+- [ ] `config.template.toml` — fully commented config with tier-specific values
+- [ ] `cli.py` — prompt_toolkit REPL skeleton (welcome screen, loop, slash command router, session load/save)
+- [ ] `rag/session.py` — Session class (history list, JSON persist, rolling window, /clear, /new)
+- [ ] `rag/commands/` — slash command stubs (all return "not implemented yet" until pipeline exists)
+- [ ] `models/.gitkeep` — placeholder so models/ dir is tracked
+- [ ] `tests/unit/.gitkeep`, `tests/integration/.gitkeep`
 
-- [x] `cli.py ask QUERY` — returns a streamed answer with citations
-- [x] `cli.py ingest PATH` — ingests PDF (text-only, no OCR) and Markdown files
-- [x] `cli.py status` — shows document count, chunk count, storage size
+---
+
+## 1. MVP Is In Scope (Phase 1 pipeline)
 
 ### Ingestion
 
@@ -46,18 +54,12 @@ These are the only features to implement in the MVP. Anything not listed here is
 - [x] **System prompt** — explicit "answer only from context" instruction
 - [x] **Temperature = 0.1**
 
-### CLI
+### Core Pipeline (Phase 1)
 
-- [x] Basic Rich progress during ingestion
-- [x] Citations displayed after answer
-- [x] `--no-hyde` flag (HyDE is off by default in MVP; can be toggled)
-- [x] Error messages with actionable guidance
-
-### Config
-
-- [x] `config.toml` loaded at startup
-- [x] Auto-tier detection (T1/T2/T3)
-- [x] Manual tier override in config
+- [ ] PDF (text-only) + Markdown ingestion via `/ingest`
+- [ ] Streamed answer with citations via plain-text query at the REPL prompt
+- [ ] `/status` slash command
+- [ ] Conversation history: rolling 3-turn window, persisted to `~/.ragdb/history.json`
 
 ---
 
@@ -94,36 +96,50 @@ These features are explicitly deferred. Do not implement them in Phase 1–2.
 
 ---
 
-## 3. MVP Acceptance Tests
+## 2. MVP Acceptance Tests
 
-The MVP is complete when **all of the following commands work** on at least two real PDF documents and one Markdown file:
+The MVP is complete when **all of the following work** on at least two real PDF documents and one Markdown file.
 
 ```bash
-# 1. Ingest documents
-python cli.py ingest ./test_corpus/ --recursive
-# Expected: Progress bar, "Ingested N files", no crash
+# 1. Install (Phase 0 gate)
+motif
+# Expected: welcome screen renders with tier, model, chunk count
 
-# 2. Check status
-python cli.py status
+# 2. Ingest documents (Phase 1 gate)
+# At the motif > prompt:
+/ingest ./test_corpus/ -r
+# Expected: progress bar, "Ingested N files"
+
+# 3. Check status
+/status
 # Expected: Documents: N, Chunks: M, Storage: X MB, Tier: T1/T2/T3
 
-# 3. Ask a question answerable from the corpus
-python cli.py ask "What is the main finding of the paper?"
-# Expected: Streamed answer with at least 1 citation from the ingested documents
-# Answer must NOT reference information not in the documents
+# 4. Ask an answerable question (plain text at prompt)
+What is the main finding of the paper?
+# Expected: streamed answer with at least 1 citation
 
-# 4. Ask an unanswerable question
-python cli.py ask "What is the capital of France?"
-# Expected: "I could not find relevant information in the documents" or similar refusal
-# Must NOT hallucinate a confident answer
+# 5. Ask an unanswerable question
+What is the capital of France?
+# Expected: refusal ("not found in documents"), no confident hallucination
 
-# 5. Re-ingest (test deduplication)
-python cli.py ingest ./test_corpus/
-# Expected: "0 new files indexed" or equivalent — chunks not duplicated
+# 6. Test conversation history
+What methodology was used?
+# [answer]
+Expand on the sampling approach.
+# Expected: answer references the prior context (the previous Q&A is in history)
 
-# 6. Test --no-hyde flag
-python cli.py ask "Define the key terminology" --no-hyde
-# Expected: Works correctly (HyDE not used)
+# 7. Exit and restart
+exit
+motif
+# Expected: welcome screen shows "Resuming previous session" with last query shown
+
+# 8. Start fresh
+/new
+# Expected: history cleared, session starts clean
+
+# 9. Re-ingest (deduplication)
+/ingest ./test_corpus/
+# Expected: 0 new chunks added
 ```
 
 ---

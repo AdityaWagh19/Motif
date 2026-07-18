@@ -38,7 +38,9 @@ Motif is a single-user, offline CLI application. There is no server process, no 
 
 | Module | Responsibility | Key Classes/Functions |
 |---|---|---|
-| `cli.py` | Entry point; routes commands to pipeline | `ingest()`, `ask()`, `sync()`, `status()`, `remove()` |
+| `cli.py` | prompt_toolkit REPL entry point; routes plain-text queries and slash commands | `main()`, `MotifApp.run()`, `handle_slash_command()` |
+| `rag/session.py` | Lightweight session: loaded models, conversation history, working dirs, config | `Session`, `Session.history`, `Session.add_turn()`, `Session.save()`, `Session.load()` |
+| `rag/commands/` | Slash command handlers (one file per command) | `IngestCommand`, `RemoveCommand`, `SyncCommand`, `StatusCommand`, `HelpCommand`, `ClearCommand`, `NewCommand` |
 | `rag/config.py` | Config dataclasses; TOML loading; tier detection | `RAGConfig`, `detect_hardware_tier()` |
 | `rag/pipeline.py` | End-to-end query orchestration | `QueryPipeline.answer()` |
 | `rag/ingestion/parsers/` | Modality-specific document parsing | `PDFParser`, `DOCXParser`, `MarkdownParser`, `ImageParser`, `AudioParser` |
@@ -48,11 +50,11 @@ Motif is a single-user, offline CLI application. There is no server process, no 
 | `rag/retrieval/vector_store.py` | Qdrant HNSW + sparse search wrapper | `VectorStore.search_dense()`, `.search_sparse()`, `.delete()` |
 | `rag/retrieval/bm25_index.py` | BM25 lexical search | `BM25Index.search()`, `.add()`, `.delete()`, `.rebuild()` |
 | `rag/retrieval/fusion.py` | Reciprocal Rank Fusion | `rrf_fuse(dense, sparse, bm25, k=60)` |
-| `rag/retrieval/expander.py` | HyDE and multi-query expansion | `QueryExpander.expand()` |
+| `rag/retrieval/expander.py` | HyDE and multi-query expansion + routing heuristic | `QueryExpander.expand()`, `should_use_hyde()` |
 | `rag/reranking/cross_encoder.py` | MiniLM / bge-reranker ONNX scoring | `CrossEncoder.rerank(query, passages, top_k)` |
 | `rag/generation/llm_client.py` | llama.cpp inference wrapper | `LLMClient.generate()`, `.stream()` |
-| `rag/generation/context_builder.py` | Context assembly, ordering, merging | `ContextBuilder.build()` |
-| `rag/generation/prompts.py` | Prompt templates for all query types | `RAG_PROMPT`, `HYDE_PROMPT`, `SYNTHESIS_PROMPT` |
+| `rag/generation/context_builder.py` | Context assembly, ordering, merging, history injection | `ContextBuilder.build(passages, history)` |
+| `rag/generation/prompts.py` | Prompt templates for all query types | `RAG_PROMPT`, `HYDE_PROMPT`, `HISTORY_SYSTEM_PROMPT` |
 | `rag/storage/chunk_store.py` | SQLite CRUD for chunk text + metadata | `ChunkStore.insert()`, `.fetch()`, `.delete_by_source()` |
 | `rag/storage/ingestion_tracker.py` | File hash tracking for incremental ingestion | `IngestionTracker.is_indexed()`, `.update()`, `.remove()` |
 | `rag/models/model_manager.py` | Lazy load / unload of all models | `ModelManager.get()`, `.load()`, `.unload()`, `.after_ingestion()` |
@@ -257,15 +259,28 @@ RAM:
 
 ```
 Motif/                              ← Git repo root
-├── cli.py                          ← Main CLI entry point
-├── config.toml                     ← User configuration
-├── requirements.txt                ← Pinned dependencies
-├── setup_models.py                 ← Model download helper
+├── cli.py                          ← REPL entry point (prompt_toolkit application)
+├── pyproject.toml                  ← Package definition; `motif` command entry point
+├── config.template.toml            ← Copy to config.toml to configure
+├── install.sh                      ← Linux/macOS one-line bootstrap installer
+├── install.ps1                     ← Windows PowerShell bootstrap installer
+├── setup_models.py                 ← Model download helper (also `motif setup` command)
 │
 ├── rag/
 │   ├── __init__.py
 │   ├── config.py                   ← Config dataclasses + tier detection
 │   ├── pipeline.py                 ← End-to-end query orchestration
+│   ├── session.py                  ← Session: history list, JSON persist, /clear, /new
+│   │
+│   ├── commands/                   ← Slash command handlers
+│   │   ├── __init__.py
+│   │   ├── ingest.py               ← /ingest
+│   │   ├── remove.py               ← /remove
+│   │   ├── sync.py                 ← /sync
+│   │   ├── status.py               ← /status
+│   │   ├── setup.py                ← /setup (model download)
+│   │   ├── clear.py                ← /clear, /new
+│   │   └── help.py                 ← /help
 │   │
 │   ├── ingestion/
 │   │   ├── __init__.py
@@ -276,39 +291,39 @@ Motif/                              ← Git repo root
 │   │   │   ├── markdown.py         ← Markdown parser
 │   │   │   ├── image.py            ← Image parser (OCR + optional caption)
 │   │   │   └── audio.py            ← Audio parser (whisper.cpp)
-│   │   ├── chunker.py              ← SemanticChunker / SentenceChunker
-│   │   ├── embedder.py             ← nomic-embed ONNX wrapper
-│   │   └── deduplicator.py         ← Near-dup detection (SimHash)
+│   │   ├── chunker.py          ← SemanticChunker / SentenceChunker
+│   │   ├── embedder.py         ← nomic-embed ONNX wrapper
+│   │   └── deduplicator.py     ← Near-dup detection (SimHash)
 │   │
 │   ├── retrieval/
 │   │   ├── __init__.py
-│   │   ├── vector_store.py         ← Qdrant local client wrapper
-│   │   ├── bm25_index.py           ← rank_bm25 / tantivy wrapper
-│   │   ├── fusion.py               ← RRF implementation
-│   │   └── expander.py             ← HyDE + multi-query + routing
+│   │   ├── vector_store.py     ← Qdrant local client wrapper
+│   │   ├── bm25_index.py       ← rank_bm25 / tantivy wrapper
+│   │   ├── fusion.py           ← RRF implementation
+│   │   └── expander.py         ← HyDE + routing heuristic
 │   │
 │   ├── reranking/
 │   │   ├── __init__.py
-│   │   └── cross_encoder.py        ← ONNX cross-encoder wrapper
+│   │   └── cross_encoder.py    ← ONNX cross-encoder wrapper
 │   │
 │   ├── generation/
 │   │   ├── __init__.py
-│   │   ├── llm_client.py           ← llama.cpp wrapper + streaming
-│   │   ├── context_builder.py      ← Assembly, ordering, merging, compression
-│   │   └── prompts.py              ← All prompt templates
+│   │   ├── llm_client.py       ← llama.cpp wrapper + streaming
+│   │   ├── context_builder.py  ← Assembly, ordering, merging, history injection
+│   │   └── prompts.py          ← All prompt templates
 │   │
 │   ├── storage/
 │   │   ├── __init__.py
-│   │   ├── chunk_store.py          ← SQLite chunk CRUD
-│   │   └── ingestion_tracker.py    ← File hash tracking
+│   │   ├── chunk_store.py      ← SQLite chunk CRUD
+│   │   └── ingestion_tracker.py ← File hash tracking
 │   │
 │   ├── models/
-│   │   └── model_manager.py        ← Lazy load/unload singleton
+│   │   └── model_manager.py    ← Lazy load/unload singleton
 │   │
 │   └── evaluation/
 │       ├── __init__.py
-│       ├── ragas_runner.py         ← Offline RAGAS evaluation
-│       └── test_generator.py       ← Synthetic QA generation
+│       ├── ragas_runner.py     ← Offline RAGAS evaluation
+│       └── test_generator.py   ← Synthetic QA generation
 │
 ├── models/                         ← Downloaded model files (.gguf, ONNX)
 │   └── .gitkeep
