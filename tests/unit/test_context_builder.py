@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from rag.config import load_config
+
 from rag.generation.context_builder import ContextBuilder, _anti_middle_order
 from rag.types import Chunk, ScoredPassage
 
@@ -79,16 +79,14 @@ class TestAntiMiddleOrder:
 # ---------------------------------------------------------------------------
 
 class TestContextBuilder:
-    def test_empty_passages_returns_empty(self) -> None:
-        config = load_config("T1")
+    def test_empty_passages_returns_empty(self, minimal_config) -> None:
         builder = ContextBuilder()
-        prompt, used = builder.build([], "query", [], config)
+        prompt, used = builder.build([], "query", [], minimal_config)
         assert prompt == ""
         assert used == []
 
-    def test_budget_enforced_by_word_count(self) -> None:
-        config = load_config("T1")
-        config.generation.context_max_tokens = 512
+    def test_budget_enforced_by_word_count(self, minimal_config) -> None:
+        minimal_config.generation.context_max_tokens = 512
         # Budget words ≈ 512 * 0.75 = 384 words.
         # Overhead is 200 words. Available = 184 words.
         
@@ -98,28 +96,26 @@ class TestContextBuilder:
         p2 = _passage(0.5, "word " * 50, id="p2")
 
         builder = ContextBuilder()
-        prompt, used = builder.build([p1, p2], "q", [], config)
+        prompt, used = builder.build([p1, p2], "q", [], minimal_config)
 
         assert len(used) == 1
         assert used[0].chunk.id == "p1"
 
-    def test_always_includes_one_passage_even_if_over_budget(self) -> None:
-        config = load_config("T1")
-        config.generation.context_max_tokens = 100
+    def test_always_includes_one_passage_even_if_over_budget(self, minimal_config) -> None:
+        minimal_config.generation.context_max_tokens = 100
         # Budget words ≈ 75. Overhead = 200. Available = -125 (less than zero).
         
         # Passage: 500 words
         p1 = _passage(1.0, "word " * 500, id="p1")
 
         builder = ContextBuilder()
-        prompt, used = builder.build([p1], "q", [], config)
+        prompt, used = builder.build([p1], "q", [], minimal_config)
 
         assert len(used) == 1
         assert used[0].chunk.id == "p1"
 
-    def test_history_consumes_budget(self) -> None:
-        config = load_config("T1")
-        config.generation.context_max_tokens = 512
+    def test_history_consumes_budget(self, minimal_config) -> None:
+        minimal_config.generation.context_max_tokens = 512
         # Budget ≈ 384. Overhead = 200. Base available = 184.
 
         # Add history with 100 words. Available should drop to 84.
@@ -136,19 +132,18 @@ class TestContextBuilder:
         p2 = _passage(0.9, "word " * 50, id="p2")
 
         builder = ContextBuilder()
-        prompt, used = builder.build([p1, p2], "q", history, config)
+        prompt, used = builder.build([p1, p2], "q", history, minimal_config)
 
         # 50 words fits in 84. Second 50 brings total to 100 > 84, so p2 dropped.
         assert len(used) == 1
         assert used[0].chunk.id == "p1"
 
-    def test_history_included_in_prompt(self) -> None:
-        config = load_config("T1")
+    def test_history_included_in_prompt(self, minimal_config) -> None:
         history = [{"role": "user", "content": "Previous question"}]
         
         p1 = _passage(1.0, "Doc text")
         builder = ContextBuilder()
-        prompt, _ = builder.build([p1], "Current question", history, config)
+        prompt, _ = builder.build([p1], "Current question", history, minimal_config)
 
         assert "Previous question" in prompt
         assert "Current question" in prompt
