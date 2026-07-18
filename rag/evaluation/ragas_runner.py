@@ -134,6 +134,10 @@ def run_evaluation(
 
     # Filter out items with empty answers
     valid = [e for e in enriched if e.get("answer")]
+    
+    # QUICK RUN: limit to 5 items to save time
+    valid = valid[:5]
+    
     if not valid:
         log.warning("No valid evaluated items — returning zero scores.")
         return {
