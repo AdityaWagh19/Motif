@@ -67,7 +67,7 @@ class AudioParser(BaseParser):
         {"text": str, "start": float, "end": float}
         """
         try:
-            from pywhispercpp.model import Model
+            from pywhispercpp.model import Model  # type: ignore[import]
         except ImportError as exc:
             raise RuntimeError(
                 "pywhispercpp is not installed. Run: pip install pywhispercpp"

@@ -177,7 +177,7 @@ class PDFParser(BaseParser):
             
         try:
             try:
-                from paddleocr import PaddleOCR
+                from paddleocr import PaddleOCR  # type: ignore[import]
             except ImportError as exc:
                 raise RuntimeError(
                     "PaddleOCR is not installed. Run: pip install paddleocr"

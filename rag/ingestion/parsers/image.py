@@ -69,7 +69,7 @@ class ImageParser(BaseParser):
     def _run_ocr(self, path: Path) -> str:
         """Run PaddleOCR on the image. Returns extracted text."""
         try:
-            from paddleocr import PaddleOCR
+            from paddleocr import PaddleOCR  # type: ignore[import]
         except ImportError as exc:
             raise RuntimeError(
                 "PaddleOCR is not installed. Run: pip install paddleocr"
