@@ -7,7 +7,11 @@ from rag.ingestion.parsers.base import ParsedPage
 from rag.models.embedder import Embedder
 
 class MockEmbedder(Embedder):
-    def encode_batch(self, texts, prefix=""):
+    def __init__(self):
+        # Do not call super() since we don't need real ONNX loading
+        pass
+        
+    def encode_batch(self, texts: list[str], prefix: str = "", batch_size: int = 16) -> np.ndarray:
         # Return dummy vectors. We'll make the first 5 vectors close to each other,
         # and the next 5 vectors close to each other, but orthogonal across groups.
         vecs = []
@@ -18,7 +22,7 @@ class MockEmbedder(Embedder):
             else:
                 v[1] = 1.0  # Topic B
             vecs.append(v)
-        return vecs
+        return np.array(vecs, dtype=np.float32)
 
 def test_semantic_chunker_splits_topic_shifts(monkeypatch):
     config = RAGConfig()

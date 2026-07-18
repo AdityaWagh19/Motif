@@ -50,7 +50,7 @@ def measure_latency(dataset_path: Path, num_queries: int = 50) -> None:
             # By default pipeline.answer prints to console because of streaming.
             # In a real benchmarking scenario, we might want to disable streaming
             # or redirect output. We'll run it as is and measure wall-clock.
-            pipeline.answer(query, show_sources=False)
+            pipeline.answer(query, history=[], show_sources=False)
         except Exception as e:
             log.warning("Query failed: %s", e)
             continue
