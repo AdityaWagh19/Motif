@@ -209,34 +209,43 @@ def run_evaluation(
     return results
 
 
-class _LocalLLMWrapper:
+from langchain_core.language_models.llms import LLM
+from typing import Any, List, Optional
+from langchain_core.callbacks.manager import CallbackManagerForLLMRun
+from pydantic import PrivateAttr
+
+class _LocalLLMWrapper(LLM):
     """
     Thin adapter that wraps LLMClient for use as a RAGAS LLM judge.
 
     RAGAS expects a langchain-compatible LLM. We implement the minimal
-    interface: predict(text) -> str and apredict(text) -> str.
+    Langchain LLM interface so RAGAS can wrap it gracefully.
     """
+    config: Any = None
 
-    def __init__(self, config: "RAGConfig") -> None:
-        self._config = config
+    def __init__(self, config: "RAGConfig", **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.config = config
 
-    def predict(self, text: str) -> str:
+    @property
+    def _llm_type(self) -> str:
+        return "local_llm_wrapper"
+
+    def _call(
+        self,
+        prompt: str,
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[CallbackManagerForLLMRun] = None,
+        **kwargs: Any,
+    ) -> str:
         """Synchronous inference call."""
         from rag.models.model_manager import get_model_manager
         try:
-            llm = get_model_manager().get_llm(self._config)
-            return llm.generate(text, max_tokens=200, temperature=0.1)
+            llm = get_model_manager().get_llm(self.config)
+            return llm.generate(prompt, max_tokens=200, temperature=0.1)
         except FileNotFoundError:
             log.warning("LLM not available for RAGAS judge — returning empty string.")
             return ""
-
-    async def apredict(self, text: str) -> str:
-        """Async fallback — delegates to synchronous predict."""
-        return self.predict(text)
-
-    def generate(self, text: str, **kwargs) -> str:
-        """Alias for predict for compatibility with some RAGAS versions."""
-        return self.predict(text)
 
 
 from langchain_core.embeddings import Embeddings
