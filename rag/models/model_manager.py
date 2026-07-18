@@ -77,7 +77,7 @@ class ModelManager:
                 )
             log.info("Loading embedder from %s", model_path)
             self._embedder = Embedder(model_path)
-            # _load() is implemented in Phase 2 when ONNX inference is added
+            self._embedder._load()
 
         return self._embedder
 
@@ -113,7 +113,7 @@ class ModelManager:
                 )
             log.info("Loading reranker from %s", model_path)
             self._reranker = Reranker(model_path)
-            # _load() is implemented in Phase 2 when ONNX inference is added
+            self._reranker._load()
 
         return self._reranker
 

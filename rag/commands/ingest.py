@@ -1,4 +1,4 @@
-"""rag/commands/ingest.py — /ingest command. (Phase 1 implementation pending)"""
+"""rag/commands/ingest.py — /ingest command handler."""
 from __future__ import annotations
 
 import argparse
@@ -9,14 +9,14 @@ def handle_ingest(args, session, config, console) -> None:
     """
     /ingest PATH [-r]
 
-    Add documents from PATH to the knowledge base. Supported types: PDF, DOCX, MD,
-    images, audio (based on installed parsers).
+    Ingest documents from PATH into the knowledge base.
+
+    Supported types: .pdf, .md, .txt, .markdown
+    Phase 4 adds: .docx
+    Phase 5 adds: images, audio
 
     Options:
         -r, --recursive   Recursively ingest all files in subdirectories.
-
-    Phase 0: stub — prints a helpful message until the pipeline is implemented.
-    Phase 1: wire to rag.ingestion.ingest_path().
     """
     parser = argparse.ArgumentParser(prog="/ingest", add_help=False)
     parser.add_argument("path", nargs="?", help="Path to file or directory")
@@ -32,20 +32,29 @@ def handle_ingest(args, session, config, console) -> None:
         console.print("[red]Usage:[/red] /ingest PATH [-r]")
         return
 
-    target = Path(parsed.path).expanduser().resolve()
+    target = Path(parsed.path).expanduser().resolve()  # type: ignore[union-attr]
     if not target.exists():
         console.print(f"[red]Path not found:[/red] {target}")
         return
 
-    # ── Phase 1+ wiring ───────────────────────────────────────────────────────
-    try:
-        from rag.ingestion import ingest_path
-        ingest_path(target, config=config, recursive=parsed.recursive, console=console)
-    except ImportError:
-        # Phase 0: pipeline not yet implemented
-        console.print(
-            f"[yellow]Ingestion pipeline not yet implemented[/yellow] "
-            f"(Phase 1).\n"
-            f"Target: [dim]{target}[/dim]  "
-            f"Recursive: {'yes' if parsed.recursive else 'no'}"
-        )
+    from rag.ingestion import ingest_path
+
+    console.print(f"\n[bold]Ingesting[/bold] {target}  recursive={parsed.recursive}\n")
+
+    result = ingest_path(
+        target,
+        config=config,
+        recursive=parsed.recursive,
+        console=console,
+    )
+
+    console.print(
+        f"\n[green]Done.[/green] "
+        f"Files: [bold]{result.files_processed}[/bold]  "
+        f"Chunks added: [bold]{result.chunks_added:,}[/bold]  "
+        f"Skipped (unchanged): [bold]{result.files_skipped}[/bold]"
+    )
+    if result.errors:
+        console.print(f"[yellow]Errors ({len(result.errors)}):[/yellow]")
+        for err in result.errors:
+            console.print(f"  [red]•[/red] {err}")

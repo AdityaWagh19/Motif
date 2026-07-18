@@ -14,13 +14,17 @@ def handle_status(args, session, config, console) -> None:
     # ── Index stats ───────────────────────────────────────────────────────────
     chunk_count: int | None = None
     doc_count: int | None = None
+    bm25_count: int | None = None
     index_size_mb: float | None = None
 
     try:
         from rag.storage.chunk_store import ChunkStore
+        from rag.retrieval.bm25_index import BM25Index
         store = ChunkStore(config)
+        bm25 = BM25Index(config)
         chunk_count = store.count()
         doc_count = store.count_documents()
+        bm25_count = bm25.count()
     except Exception:
         pass
 
@@ -40,6 +44,7 @@ def handle_status(args, session, config, console) -> None:
     if chunk_count is not None:
         table.add_row("Documents", str(doc_count))
         table.add_row("Chunks", f"{chunk_count:,}")
+        table.add_row("BM25 indexed", str(bm25_count) if bm25_count is not None else "—")
     else:
         table.add_row("Index", "[yellow]No index found — run /ingest to add documents[/yellow]")
 

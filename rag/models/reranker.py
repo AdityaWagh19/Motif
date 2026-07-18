@@ -44,7 +44,19 @@ class Reranker:
         self._model_dir = model_dir
         self._session = None      # onnxruntime.InferenceSession — set in _load()
         self._tokenizer = None    # tokenizers.Tokenizer — set in _load()
-        # Phase 1: self._load()
+
+    def _load(self) -> None:
+        """
+        Initialise the ONNX session and tokenizer.
+
+        Phase 3: full cross-encoder ONNX implementation.
+        For now this is intentionally a no-op so ModelManager can be called
+        without crashing during Phase 2 ingestion testing.
+        """
+        # Phase 3 implementation: loads onnx/model.onnx + tokenizer.json
+        # For Phase 2 the reranker is not called during ingestion, so this
+        # stub is safe to leave as a no-op.
+        pass
 
     def score(self, query: str, passages: list[str]) -> "np.ndarray":
         """
