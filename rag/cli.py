@@ -73,6 +73,14 @@ def _render_welcome(config: RAGConfig, session: Session) -> None:
         "",
     ]
 
+    # Cache warning — shown when query caching is enabled
+    if getattr(config.storage, "query_cache_enabled", False):
+        info_lines.append(
+            "  [yellow]Query caching ON[/yellow] — queries stored at "
+            f"[dim]{config.db_root}/query_cache.db[/dim]"
+        )
+        info_lines.append("")
+
     # Session history state
     if session.turn_count > 0 and session.last_query:
         truncated = (session.last_query[:60] + "…") if len(session.last_query) > 60 else session.last_query

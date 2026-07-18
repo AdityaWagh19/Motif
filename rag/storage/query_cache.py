@@ -152,11 +152,13 @@ class QueryCache:
         """
         import os
         db_root = config.db_root
-        os.makedirs(str(db_root), exist_ok=True)
         self._db_path = db_root / _CACHE_DB_NAME
         self._max_entries = max_entries
         self._conn: Optional[sqlite3.Connection] = None
-        self._ensure_table()
+        self._enabled: bool = getattr(config.storage, "query_cache_enabled", False)
+        if self._enabled:
+            os.makedirs(str(db_root), exist_ok=True)
+            self._ensure_table()
 
     def _connect(self) -> sqlite3.Connection:
         if self._conn is None:
@@ -191,6 +193,8 @@ class QueryCache:
         Returns:
             AnswerResult with tier="cached" on hit, None on miss.
         """
+        if not self._enabled:
+            return None
         key = _make_key(query, file_filter, type_filter, page_range)
         conn = self._connect()
         row = conn.execute(
@@ -231,6 +235,8 @@ class QueryCache:
             type_filter: Type filter modifier (or None).
             page_range:  Page range modifier (or None).
         """
+        if not self._enabled:
+            return
         if not result.text:
             return
         if result.passages_used == 0:

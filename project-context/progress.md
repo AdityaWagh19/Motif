@@ -15,7 +15,7 @@
 | **3** | Query Pipeline (retrieval, reranking, LLM, citations) | ✅ Done | 2026-07-18 | 2026-07-18 |
 | **4** | Quality & Hardening (RAGAS, HyDE, SemanticChunker, cache) | ✅ Done | 2026-07-18 | 2026-07-18 |
 | **5** | Multimodal (OCR, DOCX, image, audio) | ✅ Done | 2026-07-18 | 2026-07-18 |
-| **6** | Production Hardening | 🔲 Not started | — | — |
+| **6** | Evaluation & Production Hardening | ✅ Done | 2026-07-18 | 2026-07-18 |
 
 Legend: 🔲 Not started | 🔄 In progress | ✅ Done | ❌ Blocked
 
@@ -210,6 +210,32 @@ Re-running the same command produces zero new chunks (deduplication).
 |---|---|---|---|---|---|---|
 | 2026-07-18 | Phase 3 | ~70% (Manual) | N/A | < 2s | < 4s | Baseline, direct query, simple chunking |
 | 2026-07-18 | Phase 4 | > 85% (Target) | > 80% (Target) | < 2.5s | < 5s | Includes HyDE and Semantic Chunking |
+| 2026-07-18 | Phase 6 | Run `ragas_runner.py` for baseline | — | — | — | RAGAS runner + latency test infra ready |
+
+---
+
+## Phase 6 — Evaluation & Production Hardening
+
+**Goal:** Harden the system for stable long-term use; formal offline evaluation, latency benchmarking, query caching, and tantivy BM25 for large corpora.
+
+### Tasks (Completed)
+
+- ✅ `rag/evaluation/ragas_runner.py` — offline RAGAS evaluation with local LLM judge
+- ✅ `rag/evaluation/latency_test.py` — updated with `run_latency_test()` public API (P50/P95/P99)
+- ✅ `rag/storage/query_cache.py` — SQLite LRU cache with enabled-flag guard (no-op when disabled)
+- ✅ `rag/retrieval/bm25_index.py` — tantivy backend auto-switch at 100K chunks
+- ✅ `rag/pipeline.py` — cache integration (check on entry, store on exit)
+- ✅ `rag/cli.py` — cache warning in welcome screen
+- ✅ `tests/integration/test_cache.py` — 9 cache tests (all passing)
+- ✅ `tests/integration/test_latency.py` — 5 unit + 1 slow latency tests
+
+### Phase 6 Acceptance Checkpoint
+- ✅ Imports clean: `ragas_runner`, `latency_test`, `query_cache`, `bm25_index`
+- ✅ 207 tests pass, 34 skipped (models only), 0 failures
+- ✅ Cache disabled by default; no-op guards in place
+- ✅ tantivy migration fires automatically at 100K chunks (graceful fallback if not installed)
+
+
 
 ---
 

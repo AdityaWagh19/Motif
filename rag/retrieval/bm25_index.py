@@ -24,7 +24,7 @@ import os
 import pickle
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Literal, Optional, Tuple
 
 import numpy as np
 from rank_bm25 import BM25Okapi
@@ -37,6 +37,9 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 _PICKLE_VERSION = 1
+
+# Auto-migrate to tantivy when corpus exceeds this many chunks.
+TANTIVY_THRESHOLD = 100_000
 
 
 class BM25Index:
@@ -57,13 +60,19 @@ class BM25Index:
 
     def __init__(self, config: "RAGConfig") -> None:  # noqa: F821
         self._index_path: Path = config.db_root / "bm25" / "index.pkl"
+        self._tantivy_path: Path = config.db_root / "tantivy_index"
         self._corpus_tokens: List[List[str]] = []
         self._chunk_ids: List[str] = []
         self._bm25: Optional[BM25Okapi] = None
         self._dirty: bool = False
+        self._backend: Literal["rank_bm25", "tantivy"] = "rank_bm25"
+        self._tantivy_index: object = None  # tantivy.Index when active
 
         if self._index_path.exists():
             self._load()
+
+        # Auto-migrate if corpus is already large (e.g. after restart)
+        self._check_and_maybe_migrate()
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -252,6 +261,72 @@ class BM25Index:
         self._dirty = True
         self._rebuild_bm25()
         self.save()
+        self._check_and_maybe_migrate()
+
+    # ------------------------------------------------------------------
+    # Tantivy backend
+    # ------------------------------------------------------------------
+
+    def _check_and_maybe_migrate(self) -> None:
+        """Migrate from rank_bm25 to tantivy if corpus exceeds the threshold."""
+        if self._backend == "rank_bm25" and len(self._chunk_ids) >= TANTIVY_THRESHOLD:
+            self._migrate_to_tantivy()
+
+    def _migrate_to_tantivy(self) -> None:
+        """
+        Build a tantivy index from the current corpus.
+
+        After migration, all search() calls use tantivy. The rank_bm25 pickle
+        is kept on disk as backup but is no longer used for queries.
+        """
+        try:
+            import tantivy  # type: ignore[import]
+        except ImportError:
+            log.warning(
+                "Corpus >= %d chunks but tantivy is not installed. "
+                "Install with: pip install tantivy. Staying on rank_bm25.",
+                TANTIVY_THRESHOLD,
+            )
+            return
+
+        log.info(
+            "Migrating BM25 backend to tantivy (%d chunks)...", len(self._chunk_ids)
+        )
+        self._tantivy_path.mkdir(parents=True, exist_ok=True)
+
+        schema_builder = tantivy.SchemaBuilder()
+        schema_builder.add_text_field("text", stored=True)
+        schema_builder.add_text_field("chunk_id", stored=True)
+        schema = schema_builder.build()
+
+        index = tantivy.Index(schema, path=str(self._tantivy_path))
+        writer = index.writer(heap_size=50_000_000)
+
+        for tokens, chunk_id in zip(self._corpus_tokens, self._chunk_ids):
+            writer.add_document(tantivy.Document(
+                text=" ".join(tokens),
+                chunk_id=chunk_id,
+            ))
+        writer.commit()
+        index.reload()
+
+        self._tantivy_index = index
+        self._backend = "tantivy"
+        log.info("BM25 migration to tantivy complete.")
+
+    def _search_tantivy(self, query: str, top_k: int) -> List[Tuple[str, float]]:
+        """Search using the tantivy in-memory index."""
+        try:
+            searcher = self._tantivy_index.searcher()  # type: ignore[union-attr]
+            query_obj = self._tantivy_index.parse_query(query, ["text"])  # type: ignore[union-attr]
+            results = searcher.search(query_obj, top_k).hits
+            return [
+                (searcher.doc(addr)["chunk_id"][0], float(score))
+                for score, addr in results
+            ]
+        except Exception as e:
+            log.warning("tantivy search failed (%s) — falling back to rank_bm25.", e)
+            return self._search_rank_bm25(query, top_k)
 
     # ------------------------------------------------------------------
     # Search
@@ -260,6 +335,8 @@ class BM25Index:
     def search(self, query: str, top_k: int = 20) -> List[Tuple[str, float]]:
         """
         Search the index for the top-k most relevant chunks.
+
+        Automatically dispatches to tantivy backend when corpus >= 100K chunks.
 
         Args:
             query:  The search string. Tokenised the same way as at index time.
@@ -270,6 +347,12 @@ class BM25Index:
             Zero-score results are excluded (no term overlap with query).
             Returns [] if the index is empty.
         """
+        if self._backend == "tantivy":
+            return self._search_tantivy(query, top_k)
+        return self._search_rank_bm25(query, top_k)
+
+    def _search_rank_bm25(self, query: str, top_k: int = 20) -> List[Tuple[str, float]]:
+        """rank_bm25 backend search implementation."""
         if self._bm25 is None or not self._chunk_ids:
             return []
 
