@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     # These imports are only for type checkers — never executed at runtime here.
     from rag.models.embedder import Embedder
     from rag.models.reranker import Reranker
+    from rag.models.captioner import Captioner
     from rag.generation.llm_client import LLMClient  # type: ignore[import]  # Phase 3
 
 log = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ class ModelManager:
         self._embedder: Optional["Embedder"] = None
         self._reranker: Optional["Reranker"] = None
         self._llm: Optional["LLMClient"] = None
+        self._captioner: Optional["Captioner"] = None
 
     # ------------------------------------------------------------------
     # Embedder
@@ -140,7 +142,7 @@ class ModelManager:
 
             model_path = Path(config.models.llm_path)
             if not model_path.is_absolute():
-                model_path = Path(config.models.llm_path).resolve()
+                model_path = model_path.resolve()
 
             if not model_path.exists():
                 raise FileNotFoundError(
@@ -148,7 +150,7 @@ class ModelManager:
                     f"Run `motif setup` to download models."
                 )
             log.info("Loading LLM from %s", model_path)
-            self._llm = LLMClient(model_path, config)
+            self._llm = LLMClient(config)
             self._llm._load()
 
         return self._llm
@@ -159,6 +161,28 @@ class ModelManager:
             log.debug("Unloading LLM")
             self._llm.unload()
         self._llm = None
+
+    # ------------------------------------------------------------------
+    # Captioner
+    # ------------------------------------------------------------------
+
+    def get_captioner(self, config: RAGConfig) -> "Captioner":
+        """Lazy-load moondream2 captioning model."""
+        from rag.models.captioner import Captioner
+        if self._captioner is None:
+            # Look up captioner model path, default to models/moondream2
+            model_path = Path(getattr(config.models, "captioner", "models/moondream2"))
+            if not model_path.is_absolute():
+                model_path = Path(config.models.llm_path).parent.parent / getattr(config.models, "captioner", "models/moondream2")
+                
+            if not model_path.exists():
+                raise FileNotFoundError(
+                    f"Captioning model not found: {model_path}\n"
+                    f"Run `motif setup --tier T3 --captioning` to download."
+                )
+            self._captioner = Captioner(model_path)
+            self._captioner._load()
+        return self._captioner
 
     # ------------------------------------------------------------------
     # Lifecycle helpers

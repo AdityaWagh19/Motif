@@ -205,7 +205,7 @@ def ingest_path(
                     remove_document(file, config)
 
             # ── Parse ────────────────────────────────────────────────────────
-            parser = get_parser(file)
+            parser = get_parser(file, config)
             pages = parser.parse(file)
             if not pages:
                 log.warning("No pages extracted from %s — skipping.", file.name)

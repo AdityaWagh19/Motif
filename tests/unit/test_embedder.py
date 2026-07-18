@@ -25,7 +25,7 @@ from rag.models.embedder import Embedder, EMBEDDING_DIM
 # Fixture: load embedder from model directory
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def embedder(minimal_config) -> Iterator[Embedder]:
     """
     Load the Embedder once for all slow tests in this module.

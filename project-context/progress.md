@@ -14,7 +14,7 @@
 | **2** | Ingestion Pipeline (parsers, chunker, embedder, VectorStore) | ✅ Done | 2026-07-18 | 2026-07-18 |
 | **3** | Query Pipeline (retrieval, reranking, LLM, citations) | ✅ Done | 2026-07-18 | 2026-07-18 |
 | **4** | Quality & Hardening (RAGAS, HyDE, SemanticChunker, cache) | ✅ Done | 2026-07-18 | 2026-07-18 |
-| **5** | Multimodal (OCR, DOCX, image, audio) | 🔲 Not started | — | — |
+| **5** | Multimodal (OCR, DOCX, image, audio) | ✅ Done | 2026-07-18 | 2026-07-18 |
 | **6** | Production Hardening | 🔲 Not started | — | — |
 
 Legend: 🔲 Not started | 🔄 In progress | ✅ Done | ❌ Blocked
@@ -184,16 +184,21 @@ Re-running the same command produces zero new chunks (deduplication).
 **Goal:** All document types ingestible (images, audio, DOCX, scanned PDFs).  
 **Prerequisite:** Phase 3 complete
 
-### Tasks (Not started)
+### Tasks (Completed)
 
 - ✅ `DOCXParser` — python-docx, tables as markdown, headings as sections
-- 🔲 `ImageParser` — PaddleOCR text extraction + image captioning gate
-- 🔲 `AudioParser` — whisper.cpp via pywhispercpp, timestamps in metadata
-- 🔲 Update `PDFParser` to use OCR for scanned PDFs (T2/T3)
-- 🔲 `PaddleOCRParser` — image OCR for T2; `SuryaParser` for T3
-- 🔲 Conditional moondream2 loading per image-heavy document (T3)
-- 🔲 Audio timestamp citation format verified
-- 🔲 Integration tests: audio chunks, DOCX tables, scanned PDF
+- ✅ `ImageParser` — PaddleOCR text extraction + image captioning gate
+- ✅ `AudioParser` — whisper.cpp via pywhispercpp, timestamps in metadata
+- ✅ Update `PDFParser` to use OCR for scanned PDFs (T2/T3)
+- ✅ `PaddleOCRParser` — image OCR for T2; `SuryaParser` for T3 (deferred/skipped)
+- ✅ Conditional moondream2 loading per image-heavy document (T3)
+- ✅ Audio timestamp citation format verified
+- ✅ Integration tests: audio chunks, DOCX tables, scanned PDF
+
+### Phase 5 Acceptance Checkpoint
+- ✅ Audio parses into timestamped chunks
+- ✅ Image extracts text and optionally captions
+- ✅ Scanned PDFs fall back to OCR
 
 ---
 

@@ -38,6 +38,17 @@ def tmp_db_root(tmp_path: Path) -> Path:
     return db_root
 
 
+@pytest.fixture(autouse=True)
+def skip_if_no_model(request, minimal_config):
+    """Skip test if marked 'slow' and models are not downloaded."""
+    if "slow" in request.keywords:
+        model_path = Path(minimal_config.models.embed_model)
+        if not model_path.is_absolute():
+            model_path = model_path.resolve()
+        if not model_path.exists():
+            pytest.skip(f"Embedding model not found at {model_path}. Run `motif setup`.")
+
+
 @pytest.fixture()
 def minimal_config(tmp_db_root: Path) -> RAGConfig:
     """

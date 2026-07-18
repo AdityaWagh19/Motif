@@ -91,10 +91,14 @@ class BaseParser(ABC):
 # ---------------------------------------------------------------------------
 
 #: File extensions supported across all parsers.
-SUPPORTED_EXTENSIONS: List[str] = [".pdf", ".md", ".txt", ".markdown", ".docx"]
+SUPPORTED_EXTENSIONS: List[str] = [
+    ".pdf", ".md", ".txt", ".markdown", ".docx",
+    ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff",
+    ".mp3", ".wav", ".m4a", ".flac", ".ogg"
+]
 
 
-def get_parser(path: Path) -> BaseParser:
+def get_parser(path: Path, config: "RAGConfig | None" = None) -> BaseParser:
     """
     Return the appropriate parser for the given file path.
 
@@ -107,12 +111,27 @@ def get_parser(path: Path) -> BaseParser:
     from rag.ingestion.parsers.pdf import PDFParser
     from rag.ingestion.parsers.markdown import MarkdownParser
     from rag.ingestion.parsers.docx import DOCXParser
+    from rag.ingestion.parsers.image import ImageParser
+    from rag.ingestion.parsers.audio import AudioParser
 
-    for parser_class in [PDFParser, DOCXParser, MarkdownParser]:
-        if parser_class.can_parse(path):
-            return parser_class()
+    ext = path.suffix.lower()
+
+    if ext == ".pdf":
+        return PDFParser(config)
+    if ext == ".docx":
+        return DOCXParser()
+    if ext in MarkdownParser.SUPPORTED_EXTENSIONS:
+        return MarkdownParser()
+    if ext in ImageParser.SUPPORTED_EXTENSIONS:
+        if config is None:
+            raise ValueError("config required for ImageParser")
+        return ImageParser(config)
+    if ext in AudioParser.SUPPORTED_EXTENSIONS:
+        if config is None:
+            raise ValueError("config required for AudioParser")
+        return AudioParser(config)
 
     raise ValueError(
-        f"No parser available for file type '{path.suffix}'. "
-        f"Supported: .pdf, .docx, .md, .txt, .markdown"
+        f"No parser available for file type '{ext}'. "
+        f"Supported: .pdf, .docx, .md, .txt, .png, .jpg, .mp3, .wav, .m4a"
     )

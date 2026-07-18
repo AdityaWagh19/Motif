@@ -15,9 +15,12 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 
 from rag.ingestion.parsers.base import BaseParser, ParsedPage
+
+if TYPE_CHECKING:
+    from rag.config import RAGConfig
 
 log = logging.getLogger(__name__)
 
@@ -68,6 +71,10 @@ class PDFParser(BaseParser):
 
     SUPPORTED_EXTENSIONS = [".pdf"]
 
+    def __init__(self, config: "RAGConfig | None" = None) -> None:
+        self._config = config
+        self._ocr = None
+
     def parse(self, path: Path) -> List[ParsedPage]:
         """
         Parse a PDF and return one ParsedPage per non-empty page.
@@ -105,13 +112,24 @@ class PDFParser(BaseParser):
                 text: str = page.get_text("text").strip()  # type: ignore[union-attr]
 
                 if not text:
-                    # Scanned page — no text layer. Phase 5 will handle OCR.
-                    log.debug(
-                        "PDF page %d of %s has no text layer (scanned) — skipping.",
-                        page_num,
-                        path.name,
-                    )
-                    continue
+                    # Scanned page — no text layer. Phase 5 OCR fallback.
+                    if self._config and self._config.resolved_tier in ("T2", "T3"):
+                        ocr_text = self._ocr_page(page, path)
+                        if ocr_text:
+                            pages.append(ParsedPage(
+                                text=ocr_text,
+                                page=page_num,
+                                is_ocr=True,
+                                has_image=True,
+                            ))
+                        continue
+                    else:
+                        log.debug(
+                            "PDF page %d of %s has no text layer (scanned) — skipping (OCR requires T2+).",
+                            page_num,
+                            path.name,
+                        )
+                        continue
 
                 # Detect structural metadata
                 try:
@@ -145,3 +163,36 @@ class PDFParser(BaseParser):
             )
 
         return pages
+
+    def _ocr_page(self, fitz_page, doc_path: Path) -> str:
+        """Export page as PNG and run PaddleOCR."""
+        import tempfile, os
+        import fitz  # type: ignore[import]
+        
+        mat = fitz.Matrix(2.0, 2.0)  # 2x resolution for better OCR
+        pix = fitz_page.get_pixmap(matrix=mat)
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            pix.save(tmp.name)
+            tmp_path = tmp.name
+            
+        try:
+            try:
+                from paddleocr import PaddleOCR
+            except ImportError as exc:
+                raise RuntimeError(
+                    "PaddleOCR is not installed. Run: pip install paddleocr"
+                ) from exc
+                
+            if self._ocr is None:
+                log.info("Initialising PaddleOCR for scanned PDF page...")
+                self._ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
+                
+            result = self._ocr.ocr(tmp_path, cls=True)
+            if not result or not result[0]:
+                return ""
+            return " ".join(line[1][0] for line in result[0] if line[1][1] >= 0.6)
+        except Exception as e:
+            log.warning("OCR failed on page: %s", e)
+            return ""
+        finally:
+            os.unlink(tmp_path)

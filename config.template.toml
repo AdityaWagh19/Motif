@@ -145,7 +145,7 @@ query_cache_enabled = false
 # ─────────────────────────────────────────────────────────────────────────────
 [parsers]
 # T3 opt-in: caption image-heavy pages using moondream2 during ingestion.
-# Requires: motif setup --captioning
+# Requires: motif setup --tier T3 --captioning
 # Downloads moondream2 Q4 (~900 MB extra).
 use_moondream = false
 
