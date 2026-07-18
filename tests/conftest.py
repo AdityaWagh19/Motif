@@ -90,7 +90,7 @@ def sample_md(tmp_path_factory: pytest.TempPathFactory) -> Path:
         "Offline multimodal RAG is feasible on consumer hardware with careful model selection.\n",
         encoding="utf-8",
     )
-    return p
+    return p  # type: ignore[return-value]
 
 
 @pytest.fixture(scope="session")

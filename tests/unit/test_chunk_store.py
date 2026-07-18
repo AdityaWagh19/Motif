@@ -6,6 +6,8 @@ No model downloads or external services required.
 """
 from __future__ import annotations
 
+from typing import Iterator
+
 import pytest
 
 from rag.storage.chunk_store import ChunkStore
@@ -22,7 +24,7 @@ def _make_chunk(
     source: str = "/docs/test.pdf",
     filename: str = "test.pdf",
     source_type: str = "pdf",
-    page: int = 1,
+    page: int | None = 1,
     **kwargs,
 ) -> Chunk:
     """Build a minimal Chunk with sensible defaults for tests."""
@@ -38,7 +40,7 @@ def _make_chunk(
 
 
 @pytest.fixture()
-def store(minimal_config) -> ChunkStore:
+def store(minimal_config) -> Iterator[ChunkStore]:
     """Fresh ChunkStore backed by the test database root."""
     s = ChunkStore(minimal_config)
     yield s

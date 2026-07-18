@@ -72,7 +72,7 @@ class BM25Index:
     def _load(self) -> None:
         """Load index from disk. On corruption, start fresh with a warning."""
         try:
-            with open(self._index_path, "rb") as f:
+            with open(str(self._index_path), "rb") as f:
                 data = pickle.load(f)
             if not isinstance(data, dict) or data.get("version") != _PICKLE_VERSION:
                 raise ValueError("Incompatible BM25 index version — rebuilding.")
@@ -135,7 +135,7 @@ class BM25Index:
         try:
             with os.fdopen(tmp_fd, "wb") as f:
                 pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
-            os.replace(tmp_path, self._index_path)
+            os.replace(tmp_path, str(self._index_path))
         except Exception:
             # Clean up temp file on failure
             try:

@@ -91,7 +91,7 @@ class RAGConfig:
     @property
     def db_root(self) -> Path:
         """Expanded, absolute path to the database root directory."""
-        return Path(self.storage.db_path).expanduser().resolve()
+        return Path(self.storage.db_path).expanduser().resolve()  # type: ignore[union-attr]
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from rag.config import RAGConfig
 
 # Default storage location (mirrors StorageConfig.db_path default)
-_DEFAULT_DB_ROOT = Path("~/.ragdb").expanduser()
+_DEFAULT_DB_ROOT = Path("~/.ragdb").expanduser()  # type: ignore[union-attr]
 _HISTORY_FILENAME = "history.json"
 
 
@@ -123,8 +123,8 @@ class Session:
         Creates the db_root directory if it does not exist.
         Safe to call on an empty history (writes an empty list).
         """
-        self._db_root.mkdir(parents=True, exist_ok=True)
-        with open(self.history_path, "w", encoding="utf-8") as f:
+        self._db_root.mkdir(parents=True, exist_ok=True)  # type: ignore[call-arg]
+        with open(str(self.history_path), "w", encoding="utf-8") as f:
             json.dump(self.history, f, ensure_ascii=False, indent=2)
 
     def load(self) -> bool:
@@ -138,7 +138,7 @@ class Session:
         if not self.history_path.exists():
             return False
         try:
-            with open(self.history_path, encoding="utf-8") as f:
+            with open(str(self.history_path), encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, list):
                 self.history = data
@@ -170,7 +170,7 @@ class Session:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         archive_path = self._db_root / f"history_{timestamp}.json"
         if self.history_path.exists():
-            shutil.copy2(self.history_path, archive_path)
+            shutil.copy2(str(self.history_path), str(archive_path))
 
         self.clear()
         return archive_path

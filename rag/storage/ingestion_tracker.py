@@ -48,7 +48,7 @@ def compute_file_hash(path: Path) -> str:
         PermissionError:   If the file cannot be read.
     """
     h = hashlib.sha256()
-    with open(path, "rb") as f:
+    with open(str(path), "rb") as f:
         for block in iter(lambda: f.read(65536), b""):
             h.update(block)
     return h.hexdigest()

@@ -7,6 +7,7 @@ No model downloads or external services required.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Iterator
 
 import pytest
 
@@ -14,7 +15,7 @@ from rag.storage.ingestion_tracker import IngestionTracker, compute_file_hash
 
 
 @pytest.fixture()
-def tracker(minimal_config) -> IngestionTracker:
+def tracker(minimal_config) -> Iterator[IngestionTracker]:
     """Fresh IngestionTracker backed by the test database root."""
     t = IngestionTracker(minimal_config)
     yield t

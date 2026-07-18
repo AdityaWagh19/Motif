@@ -97,8 +97,10 @@ class Citation:
         """Render the citation as a single-line string."""
         base = f"[{self.number}] {self.filename}"
         if self.source_type == "audio" and self.start_time is not None:
-            s = f"{int(self.start_time // 60):02d}:{int(self.start_time % 60):02d}"
-            e = f"{int(self.end_time // 60):02d}:{int(self.end_time % 60):02d}"
+            s_time = self.start_time
+            e_time = self.end_time or 0.0  # end_time may be None; 0.0 is a safe default
+            s = f"{int(s_time // 60):02d}:{int(s_time % 60):02d}"
+            e = f"{int(e_time // 60):02d}:{int(e_time % 60):02d}"
             return f"{base} @ {s}–{e}"
         if self.source_type in ("pdf", "docx"):
             if self.page:

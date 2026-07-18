@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     # These imports are only for type checkers — never executed at runtime here.
     from rag.models.embedder import Embedder
     from rag.models.reranker import Reranker
-    from rag.generation.llm_client import LLMClient  # noqa: F401 (Phase 3)
+    from rag.generation.llm_client import LLMClient  # type: ignore[import]  # Phase 3
 
 log = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ class ModelManager:
                 )
             log.info("Loading embedder from %s", model_path)
             self._embedder = Embedder(model_path)
-            self._embedder._load()
+            # _load() is implemented in Phase 2 when ONNX inference is added
 
         return self._embedder
 
@@ -113,7 +113,7 @@ class ModelManager:
                 )
             log.info("Loading reranker from %s", model_path)
             self._reranker = Reranker(model_path)
-            self._reranker._load()
+            # _load() is implemented in Phase 2 when ONNX inference is added
 
         return self._reranker
 
@@ -136,7 +136,7 @@ class ModelManager:
             FileNotFoundError: If the GGUF model file does not exist.
         """
         if self._llm is None:
-            from rag.generation.llm_client import LLMClient  # lazy import — Phase 3
+            from rag.generation.llm_client import LLMClient  # type: ignore[import]  # Phase 3
 
             model_path = Path(config.models.llm_path)
             if not model_path.is_absolute():
