@@ -213,11 +213,20 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run RAGAS evaluation offline.")
     parser.add_argument("-n", type=int, default=20, help="Number of eval questions")
+    parser.add_argument("-i", "--input", type=str, help="Input dataset JSON file")
     parser.add_argument("-o", "--output", type=str, default="results/ragas.json")
     args = parser.parse_args()
 
     cfg = load_config()
-    ds = create_eval_dataset(cfg, n=args.n)
+    
+    if args.input:
+        import json
+        with open(args.input, 'r', encoding='utf-8') as f:
+            ds = json.load(f)
+        print(f"Loaded {len(ds)} questions from {args.input}")
+    else:
+        ds = create_eval_dataset(cfg, n=args.n)
+
     if not ds:
         print("No evaluation dataset could be generated. Ingest documents first.")
     else:

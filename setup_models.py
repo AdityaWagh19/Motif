@@ -37,8 +37,8 @@ LLM_MODELS = [
         "2.2 GB",
     ),
     (
-        "Qwen/Qwen2.5-7B-Instruct-GGUF",
-        "qwen2.5-7b-instruct-q4_k_m.gguf",
+        "bartowski/Qwen2.5-7B-Instruct-GGUF",
+        "Qwen2.5-7B-Instruct-Q4_K_M.gguf",
         "Qwen2.5-7B-Instruct-Q4_K_M.gguf",
         {"T2", "T3"},
         "4.2 GB",
@@ -47,7 +47,7 @@ LLM_MODELS = [
 
 EMBED_MODELS = [
     (
-        "nomic-ai/nomic-embed-text-v1.5-ONNX",
+        "nomic-ai/nomic-embed-text-v1.5",
         None,                          # snapshot (whole repo)
         "nomic-embed-text-v1.5",
         {"T1", "T2", "T3"},
@@ -136,9 +136,14 @@ def _download_snapshot(repo_id: str, local_name: str, size_label: str) -> Path:
         return dest
 
     console.print(f"  [cyan]down[/cyan]  {local_name}/ ({size_label})")
+    snapshot_kwargs = {}
+    if "nomic" in repo_id:
+        snapshot_kwargs["allow_patterns"] = ["onnx/*", "tokenizer*", "config.json"]
+        
     snapshot_download(
         repo_id=repo_id,
         local_dir=dest,
+        **snapshot_kwargs
     )
     return dest
 

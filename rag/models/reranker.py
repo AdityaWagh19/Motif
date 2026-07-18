@@ -187,13 +187,17 @@ class Reranker:
                 [e.type_ids for e in encodings], dtype=np.int64
             )
 
+            expected_inputs = [inp.name for inp in self._session.get_inputs()]  # type: ignore[union-attr]
+            feed_dict = {
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
+            }
+            if "token_type_ids" in expected_inputs:
+                feed_dict["token_type_ids"] = token_type_ids
+
             outputs = self._session.run(  # type: ignore[union-attr]
                 None,
-                {
-                    "input_ids": input_ids,
-                    "attention_mask": attention_mask,
-                    "token_type_ids": token_type_ids,
-                },
+                feed_dict,
             )
             logits: np.ndarray = outputs[0]  # (batch, 1) or (batch, 2)
 

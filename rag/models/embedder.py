@@ -40,7 +40,7 @@ log = logging.getLogger(__name__)
 
 EMBEDDING_DIM: int = 768
 MAX_SEQ_LEN: int = 8192          # nomic-embed-text supports up to 8 192 tokens
-_DEFAULT_BATCH_SIZE: int = 32    # chunks per inference call
+_DEFAULT_BATCH_SIZE: int = 4    # chunks per inference call
 
 
 class Embedder:
@@ -137,12 +137,12 @@ class Embedder:
     # Inference helpers
     # ------------------------------------------------------------------
 
-    def _tokenize(self, texts: List[str]) -> "Tuple[np.ndarray, np.ndarray]":
+    def _tokenize(self, texts: List[str]) -> "Tuple[np.ndarray, np.ndarray, np.ndarray]":
         """
         Tokenize a batch of texts.
 
         Returns:
-            (input_ids, attention_mask) as int64 numpy arrays of shape (B, L).
+            (input_ids, attention_mask, token_type_ids) as int64 numpy arrays of shape (B, L).
         """
         import numpy as np
 
@@ -151,7 +151,10 @@ class Embedder:
         attention_mask = np.array(
             [e.attention_mask for e in encodings], dtype=np.int64
         )
-        return input_ids, attention_mask
+        token_type_ids = np.array(
+            [e.type_ids for e in encodings], dtype=np.int64
+        )
+        return input_ids, attention_mask, token_type_ids
 
     def _mean_pool_and_normalize(
         self,
@@ -226,14 +229,19 @@ class Embedder:
 
         for i in range(0, len(prefixed), batch_size):
             batch = prefixed[i:i + batch_size]
-            input_ids, attention_mask = self._tokenize(batch)
+            input_ids, attention_mask, token_type_ids = self._tokenize(batch)
+
+            expected_inputs = [inp.name for inp in self._session.get_inputs()]  # type: ignore[union-attr]
+            feed_dict = {
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
+            }
+            if "token_type_ids" in expected_inputs:
+                feed_dict["token_type_ids"] = token_type_ids
 
             outputs = self._session.run(  # type: ignore[union-attr]
                 None,
-                {
-                    "input_ids": input_ids,
-                    "attention_mask": attention_mask,
-                },
+                feed_dict,
             )
             # outputs[0] shape: (B, L, 768)
             token_embeddings = outputs[0]
