@@ -155,7 +155,7 @@ def run_evaluation(
         if val is None:
             return 0.0
         if isinstance(val, (list, tuple)):
-            return float(sum(val) / len(val)) if val else 0.0
+            return sum(val) / len(val) if val else 0.0
         return float(val)  # type: ignore[arg-type]
 
     results = {
