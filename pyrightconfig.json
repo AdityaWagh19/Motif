@@ -1,6 +1,11 @@
 {
   "pythonVersion": "3.12",
+  "pythonPlatform": "Windows",
   "pythonPath": "C:/Program Files/Python312/python.exe",
+  "extraPaths": [
+    "C:/Program Files/Python312/Lib/site-packages",
+    "C:/Users/omen/AppData/Roaming/Python/Python312/site-packages"
+  ],
   "typeCheckingMode": "basic",
   "reportMissingImports": "warning",
   "reportMissingModuleSource": "warning",
