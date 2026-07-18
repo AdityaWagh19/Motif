@@ -9,8 +9,8 @@
 
 | Phase | Name | Status | Started | Completed |
 |---|---|---|---|---|
-| **0** | Infrastructure (REPL, installer, packaging) | 🔲 Not started | — | — |
-| **1** | Foundation (Text RAG MVP) | 🔲 Not started | — | — |
+| **0** | Infrastructure (REPL, installer, packaging) | ✅ Done | 2026-07-18 | 2026-07-18 |
+| **1** | Foundation (Text RAG MVP) — *storage layer* | 🔄 In progress | 2026-07-18 | — |
 | **2** | Quality (85% faithfulness) | 🔲 Not started | — | — |
 | **3** | Multimodal Ingestion | 🔲 Not started | — | — |
 | **4** | Production Hardening | 🔲 Not started | — | — |
@@ -26,39 +26,39 @@ Legend: 🔲 Not started | 🔄 In progress | ✅ Done | ❌ Blocked
 
 ### Tasks
 
-- 🔲 `pyproject.toml` — package metadata, `motif = "rag.cli:main"` entry point, pinned deps
-- 🔲 `install.sh` — Linux/macOS bootstrap: check/install uv, install Motif, detect CUDA
-- 🔲 `install.ps1` — Windows PowerShell bootstrap: same logic
-- 🔲 `config.template.toml` — fully commented config with T1/T2/T3 variants shown
-- 🔲 `rag/config.py` — config dataclasses, `detect_hardware_tier()`
-- 🔲 `rag/session.py` — Session class: history list, `add_turn()`, `save()`, `load()`, `clear()`, `new()`, rolling window trim
-- 🔲 `cli.py` — prompt_toolkit REPL: welcome screen (Rich panel), REPL loop, slash command router, session load/save
-- 🔲 `rag/commands/__init__.py` — command registry
-- 🔲 `rag/commands/help.py` — `/help` (lists all commands)
-- 🔲 `rag/commands/clear.py` — `/clear`, `/new`
-- 🔲 `rag/commands/status.py` — `/status` stub (shows "no index yet" until Phase 1)
-- 🔲 `rag/commands/ingest.py` — `/ingest` stub
-- 🔲 `rag/commands/remove.py` — `/remove` stub
-- 🔲 `rag/commands/sync.py` — `/sync` stub
-- 🔲 `rag/commands/setup.py` — `/setup` stub (calls `setup_models.py`)
-- 🔲 `setup_models.py` — model download with tier detection and progress bars
-- 🔲 `rag/models/__init__.py`
-- 🔲 `rag/models/embedder.py` — nomic-embed ONNX wrapper class `Embedder`
-- 🔲 `rag/models/reranker.py` — cross-encoder ONNX wrapper class `Reranker`
-- 🔲 `rag/types.py` — **all shared dataclasses**: `Chunk`, `ScoredPassage`, `Citation`, `AnswerResult`, `IngestResult`, `SyncResult`
-- 🔲 `rag/ingestion/__init__.py` — **public API stubs** (not implemented): `ingest_path()`, `remove_document()`, `sync_directory()` with correct type signatures using types from `rag.types`
-- 🔲 `tests/conftest.py` — shared pytest fixtures: `tmp_db_root`, `sample_pdf`, `sample_md`, `minimal_config`
+- ✅ `pyproject.toml` — package metadata, `motif = "rag.cli:main"` entry point, pinned deps
+- ✅ `install.sh` — Linux/macOS bootstrap: check/install uv, install Motif, detect CUDA
+- ✅ `install.ps1` — Windows PowerShell bootstrap: same logic
+- ✅ `config.template.toml` — fully commented config with T1/T2/T3 variants shown
+- ✅ `rag/config.py` — config dataclasses, `detect_hardware_tier()`
+- ✅ `rag/session.py` — Session class: history list, `add_turn()`, `save()`, `load()`, `clear()`, `new()`, rolling window trim
+- ✅ `cli.py` — prompt_toolkit REPL: welcome screen (Rich panel), REPL loop, slash command router, session load/save
+- ✅ `rag/commands/__init__.py` — command registry
+- ✅ `rag/commands/help.py` — `/help` (lists all commands)
+- ✅ `rag/commands/clear.py` — `/clear`, `/new`
+- ✅ `rag/commands/status.py` — `/status` stub (shows "no index yet" until Phase 1)
+- ✅ `rag/commands/ingest.py` — `/ingest` stub
+- ✅ `rag/commands/remove.py` — `/remove` stub
+- ✅ `rag/commands/sync.py` — `/sync` stub
+- ✅ `rag/commands/setup.py` — `/setup` stub (calls `setup_models.py`)
+- ✅ `setup_models.py` — model download with tier detection and progress bars
+- ✅ `rag/models/__init__.py`
+- ✅ `rag/models/embedder.py` — nomic-embed ONNX wrapper class `Embedder`
+- ✅ `rag/models/reranker.py` — cross-encoder ONNX wrapper class `Reranker`
+- ✅ `rag/types.py` — **all shared dataclasses**: `Chunk`, `ScoredPassage`, `Citation`, `AnswerResult`, `IngestResult`, `SyncResult`
+- ✅ `rag/ingestion/__init__.py` — **public API stubs** (not implemented): `ingest_path()`, `remove_document()`, `sync_directory()` with correct type signatures using types from `rag.types`
+- ✅ `tests/conftest.py` — shared pytest fixtures: `tmp_db_root`, `sample_pdf`, `sample_md`, `minimal_config`
 
 ### Phase 0 Acceptance Checkpoint
 
-- 🔲 `motif` command exists on PATH after install script runs
-- 🔲 `motif` launches without error and shows welcome screen
-- 🔲 `/help` lists all commands
-- 🔲 Unknown slash command prints friendly error
-- 🔲 `exit` saves empty history and exits cleanly
-- 🔲 `rag/types.py` all dataclasses import without error
-- 🔲 `rag/ingestion/__init__.py` exports `ingest_path`, `remove_document`, `sync_directory` (stubs)
-- 🔲 `tests/conftest.py` fixtures run without error (`pytest --collect-only`)
+- ✅ `motif` command exists on PATH after install script runs
+- ✅ `motif` launches without error and shows welcome screen
+- ✅ `/help` lists all commands
+- ✅ Unknown slash command prints friendly error
+- ✅ `exit` saves empty history and exits cleanly
+- ✅ `rag/types.py` all dataclasses import without error
+- ✅ `rag/ingestion/__init__.py` exports `ingest_path`, `remove_document`, `sync_directory` (stubs)
+- ✅ `tests/conftest.py` fixtures run without error (`pytest --collect-only`)
 
 ---
 
@@ -73,19 +73,20 @@ Legend: 🔲 Not started | 🔄 In progress | ✅ Done | ❌ Blocked
 - 🔲 `PyMuPDFParser` — text PDF extraction
 - 🔲 `MarkdownParser` — heading-aware extraction
 - 🔲 `SentenceChunker` — 512 token target, 64 token overlap
-- 🔲 `Embedder` — nomic-embed ONNX INT8 wrapper, batch encode
+- 🔲 `Embedder` — nomic-embed ONNX INT8 wrapper, batch encode *(skeleton exists)*
 - 🔲 `VectorStore` — Qdrant local mode, HNSW + sparse, `on_disk=True`
-- 🔲 `BM25Index` — rank_bm25 wrapper, add/search/rebuild
-- 🔲 `ChunkStore` — SQLite WAL, insert/fetch/delete_by_source
-- 🔲 `IngestionTracker` — file hash tracking
+- ✅ `BM25Index` — rank_bm25 wrapper, add/search/rebuild/persist — **29 tests passing**
+- ✅ `ChunkStore` — SQLite WAL, insert/fetch/delete_by_source — **18 tests passing**
+- ✅ `IngestionTracker` — file hash tracking — **19 tests passing**
 - 🔲 RRF fusion (`fusion.py`)
 - 🔲 `CrossEncoder` — MiniLM-L12 ONNX wrapper, rerank top-20 → top-5
 - 🔲 `LLMClient` — llama-cpp-python wrapper, streaming
 - 🔲 `ContextBuilder` — anti-middle ordering, history injection, token budget
-- 🔲 `ModelManager` — lazy load/unload singleton
+- ✅ `ModelManager` — lazy load/unload singleton (no model loads at import time)
 - 🔲 `prompts.py` — RAG_PROMPT, HISTORY_SYSTEM_PROMPT
 - 🔲 Wire `/ingest`, `/status` slash commands into real pipeline
-- 🔲 Unit tests: chunker, embedder, BM25, RRF, citation formatter
+- ✅ Unit tests: BM25 (29), ChunkStore (18), IngestionTracker (19) — **66 total passing**
+- 🔲 Unit tests: chunker, embedder, RRF, citation formatter
 - 🔲 Unit tests: session history add/save/load/clear, rolling window trim
 - 🔲 Integration test: ingest + ask end-to-end
 - 🔲 Integration test: history persists across exit and relaunch
@@ -209,7 +210,7 @@ Legend: 🔲 Not started | 🔄 In progress | ✅ Done | ❌ Blocked
 
 | Date | Phase | Faithfulness | Relevancy | P95 Latency | Disk | Notes |
 |---|---|---|---|---|---|---|
-| — | — | — | — | — | — | No checkpoint yet |
+| 2026-07-18 | Phase 1 partial (storage layer) | — | — | — | — | 66 unit tests passing: ChunkStore, IngestionTracker, BM25Index, ModelManager. No model loads required. |
 
 ---
 
