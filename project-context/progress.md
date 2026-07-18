@@ -165,14 +165,14 @@ Re-running the same command produces zero new chunks (deduplication).
 
 - ✅ `SemanticChunker` — semantic-text-splitter, threshold 0.3, T2/T3 only
 - ✅ `QueryExpander` — HyDE prompt + `should_use_hyde()` routing heuristic
-- 🔲 Metadata filtering — `build_metadata_filter()` + Qdrant payload filter; CLI flags `--file`, `--type`, `--pages`
+- ✅ Metadata filtering — `build_metadata_filter()` + Qdrant payload filter; CLI flags `--file`, `--type`, `--pages`
 - ✅ Adjacent chunk merging + extractive compression in `ContextBuilder`
-- 🔲 bge-reranker-base ONNX for T3
+- ✅ bge-reranker-base ONNX for T3
 - ✅ Query result cache — SQLite, 500-query LRU
 - ✅ `cli.py sync DIR` — sync logic (add/delete/re-index)
 - 🔲 `rag/evaluation/ragas_runner.py` — full RAGAS offline evaluation (Moved to Phase 6)
 - ✅ `rag/evaluation/test_generator.py` — synthetic QA generation
-- 🔲 `rag/evaluation/latency_test.py` — P50/P95 latency measurement
+- ✅ `rag/evaluation/latency_test.py` — P50/P95 latency measurement
 - ✅ Auto-calibrate relevance threshold on first run
 - ✅ Logging to `~/.ragdb/motif.log`
 - ✅ Full regression test suite passes

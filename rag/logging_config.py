@@ -57,7 +57,7 @@ def setup(config: "RAGConfig") -> None:
 
     import os
     log_dir = config.db_root
-    os.makedirs(log_dir, exist_ok=True)
+    os.makedirs(str(log_dir), exist_ok=True)
     log_path = log_dir / _LOG_FILENAME
 
     root = logging.getLogger()

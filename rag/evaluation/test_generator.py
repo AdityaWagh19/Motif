@@ -76,7 +76,7 @@ def create_eval_dataset(
 
     if output_path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w", encoding="utf-8") as f:
+        with open(str(output_path), "w", encoding="utf-8") as f:
             json.dump(dataset, f, ensure_ascii=False, indent=2)
         log.info("Saved %d evaluation questions to %s", len(dataset), output_path)
 

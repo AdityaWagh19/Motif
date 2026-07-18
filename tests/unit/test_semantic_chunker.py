@@ -4,7 +4,9 @@ from rag.config import RAGConfig
 from rag.ingestion.semantic_chunker import SemanticChunker
 from rag.ingestion.parsers.base import ParsedPage
 
-class MockEmbedder:
+from rag.models.embedder import Embedder
+
+class MockEmbedder(Embedder):
     def encode_batch(self, texts, prefix=""):
         # Return dummy vectors. We'll make the first 5 vectors close to each other,
         # and the next 5 vectors close to each other, but orthogonal across groups.

@@ -12,6 +12,8 @@ from typing import List, Optional
 
 try:
     import docx
+    from docx.text.paragraph import Paragraph
+    from docx.table import Table
 except ImportError:
     docx = None
 
@@ -25,7 +27,7 @@ class DOCXParser(BaseParser):
     Requires python-docx.
     """
     
-    SUPPORTED_EXTENSIONS = {".docx"}
+    SUPPORTED_EXTENSIONS = [".docx"]
 
     @classmethod
     def can_parse(cls, path: Path) -> bool:
@@ -67,7 +69,7 @@ class DOCXParser(BaseParser):
             tag = element.tag.split("}")[-1] if "}" in element.tag else element.tag
 
             if tag == "p":
-                para = docx.text.paragraph.Paragraph(element, doc)
+                para = Paragraph(element, doc)
                 style_name = para.style.name if para.style else ""
                 text = para.text.strip()
 
@@ -78,7 +80,7 @@ class DOCXParser(BaseParser):
                     current_parts.append(text)
 
             elif tag == "tbl":
-                table = docx.table.Table(element, doc)
+                table = Table(element, doc)
                 md_table = self._table_to_markdown(table)
                 if md_table:
                     current_parts.append(md_table)

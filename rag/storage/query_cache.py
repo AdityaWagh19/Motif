@@ -152,7 +152,7 @@ class QueryCache:
         """
         import os
         db_root = config.db_root
-        os.makedirs(db_root, exist_ok=True)
+        os.makedirs(str(db_root), exist_ok=True)
         self._db_path = db_root / _CACHE_DB_NAME
         self._max_entries = max_entries
         self._conn: Optional[sqlite3.Connection] = None

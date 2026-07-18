@@ -240,7 +240,8 @@ def _interactive_mode() -> None:
     session.load()
 
     # Ensure db_root exists
-    config.db_root.mkdir(parents=True, exist_ok=True)
+    import os
+    os.makedirs(str(config.db_root), exist_ok=True)
 
     # Setup file logging
     import rag.logging_config
