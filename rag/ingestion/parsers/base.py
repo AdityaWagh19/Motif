@@ -90,8 +90,8 @@ class BaseParser(ABC):
 # Parser registry
 # ---------------------------------------------------------------------------
 
-#: File extensions supported across all Phase 2 parsers.
-SUPPORTED_EXTENSIONS: List[str] = [".pdf", ".md", ".txt", ".markdown"]
+#: File extensions supported across all parsers.
+SUPPORTED_EXTENSIONS: List[str] = [".pdf", ".md", ".txt", ".markdown", ".docx"]
 
 
 def get_parser(path: Path) -> BaseParser:
@@ -106,12 +106,13 @@ def get_parser(path: Path) -> BaseParser:
     # Import lazily so that missing third-party deps fail only at use time.
     from rag.ingestion.parsers.pdf import PDFParser
     from rag.ingestion.parsers.markdown import MarkdownParser
+    from rag.ingestion.parsers.docx import DOCXParser
 
-    for parser_class in [PDFParser, MarkdownParser]:
+    for parser_class in [PDFParser, DOCXParser, MarkdownParser]:
         if parser_class.can_parse(path):
             return parser_class()
 
     raise ValueError(
         f"No parser available for file type '{path.suffix}'. "
-        f"Supported in Phase 2: .pdf, .md, .txt, .markdown"
+        f"Supported: .pdf, .docx, .md, .txt, .markdown"
     )

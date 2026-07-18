@@ -154,16 +154,21 @@ def ingest_path(
     model_manager = get_model_manager()
     embedder = model_manager.get_embedder(config)
 
-    chunker = SentenceChunker(
-        ChunkerConfig(
-            target_tokens=config.chunking.target_tokens
-            if hasattr(config.chunking, "target_tokens")
-            else 512,
-            overlap_tokens=config.chunking.overlap_tokens
-            if hasattr(config.chunking, "overlap_tokens")
-            else 64,
+    # Select chunker: SemanticChunker on T2/T3, SentenceChunker on T1.
+    use_semantic = getattr(config.chunking, "use_semantic", False)
+    if use_semantic:
+        from rag.ingestion.semantic_chunker import SemanticChunker
+        chunker = SemanticChunker(config, embedder)  # type: ignore[assignment]
+        if console:
+            console.print("[dim]Using semantic chunker (T2/T3).[/dim]")
+    else:
+        chunker = SentenceChunker(
+            ChunkerConfig(
+                target_tokens=getattr(config.chunking, "target_tokens", 512),
+                overlap_tokens=getattr(config.chunking, "overlap_tokens", 64),
+            )
         )
-    )
+
     deduplicator = Deduplicator()
 
     files_processed = 0
@@ -329,21 +334,89 @@ def sync_directory(
     """
     Synchronise a directory with the knowledge base.
 
-    - Files present in the directory but not in the index are ingested.
-    - Files in the index that no longer exist on disk are removed.
-    - Files whose content hash has changed since last ingestion are re-indexed.
+    Phase 4 full implementation:
+    - Files present on disk but absent from the index → ingest.
+    - Files in the index but deleted from disk → remove.
+    - Files whose content hash has changed → remove then re-ingest.
 
     Args:
-        directory: Target directory (absolute, validated by caller).
+        directory: Target directory (must exist, validated by caller).
         config:    Loaded RAGConfig.
         recursive: If True, recurse into subdirectories.
         console:   Rich Console for progress output.
 
     Returns:
-        SyncResult with counts of added, removed, and re-indexed documents.
-
-    Note:
-        sync_directory is Phase 4. The implementation above is a minimal
-        wrapper over ingest_path + remove_document.
+        SyncResult(added, removed, reindexed, errors)
     """
-    raise NotImplementedError("sync_directory() — implemented in Phase 4")
+    from rag.storage.ingestion_tracker import IngestionTracker, compute_file_hash
+
+    tracker = IngestionTracker(config)
+    indexed = {Path(r["filepath"]): r["content_hash"] for r in tracker.list_all()}
+
+    disk_files = {f.resolve(): f for f in _collect_files(directory, recursive)}
+    disk_paths = set(disk_files.keys())
+    indexed_paths = set(indexed.keys())
+
+    # Files on disk that are NOT indexed → ingest
+    to_add = disk_paths - indexed_paths
+
+    # Files indexed but MISSING from disk → remove
+    to_remove = indexed_paths - disk_paths
+
+    # Files that exist on both sides but have a different hash → reindex
+    common = disk_paths & indexed_paths
+    to_reindex: List[Path] = []
+    for p in common:
+        try:
+            current_hash = compute_file_hash(disk_files[p])
+            if current_hash != indexed.get(p):
+                to_reindex.append(p)
+        except OSError:
+            pass  # If we can't read the file, skip it
+
+    added = 0
+    removed = 0
+    reindexed = 0
+    errors: List[str] = []
+
+    # Remove stale entries
+    for p in to_remove:
+        try:
+            removed += 1
+            remove_document(p, config)
+            if console:
+                console.print(f"  [red]removed[/red]  {p.name}")
+        except Exception as exc:
+            errors.append(f"remove {p.name}: {exc}")
+            if console:
+                console.print(f"  [red]error removing[/red] {p.name}: {exc}")
+
+    # Ingest new files
+    new_files = [disk_files[p] for p in to_add]
+    for f in new_files:
+        try:
+            result = ingest_path(f, config, recursive=False, console=console)
+            added += result.files_processed
+            if result.errors:
+                errors.extend(result.errors)
+        except Exception as exc:
+            errors.append(f"add {f.name}: {exc}")
+
+    # Reindex changed files
+    for p in to_reindex:
+        try:
+            result = ingest_path(disk_files[p], config, recursive=False, console=console)
+            reindexed += result.files_processed
+            if result.errors:
+                errors.extend(result.errors)
+            if console:
+                console.print(f"  [yellow]reindexed[/yellow] {p.name}")
+        except Exception as exc:
+            errors.append(f"reindex {p.name}: {exc}")
+
+    return SyncResult(
+        added=added,
+        removed=removed,
+        reindexed=reindexed,
+        errors=errors,
+    )

@@ -242,6 +242,14 @@ def _interactive_mode() -> None:
     # Ensure db_root exists
     config.db_root.mkdir(parents=True, exist_ok=True)
 
+    # Setup file logging
+    import rag.logging_config
+    rag.logging_config.setup(config)
+
+    # Auto-calibrate threshold (will fast-path return if already done or index empty)
+    from rag.retrieval.calibrate import calibrate_threshold
+    calibrate_threshold(config, n_probes=10)
+
     # Welcome screen
     _render_welcome(config, session)
 

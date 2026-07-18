@@ -78,6 +78,8 @@ class QueryPipeline:
         self._vector_store = VectorStore(config)
         self._context_builder = ContextBuilder()
         self._expander = QueryExpander()
+        # Cache is lazily initialised on first query if enabled.
+        self._cache: object = None  # Optional[QueryCache]
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
@@ -88,7 +90,7 @@ class QueryPipeline:
         file_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
         page_range: Optional[str] = None,
-        use_hyde: bool = False,   # ignored in Phase 3; Phase 4 implements
+        use_hyde: bool = True,   # Phase 4: controls HyDE expansion routing
         show_sources: bool = True,
     ) -> AnswerResult:
         """
@@ -110,7 +112,27 @@ class QueryPipeline:
         console = Console()
         t_start = time.monotonic()
 
-        # ── 0. Guard: index must be populated ─────────────────────────────────
+        # ── 0a. Query cache check ──────────────────────────────────────────────
+        cfg = self._config
+        if getattr(cfg.storage, "query_cache_enabled", False):
+            from rag.storage.query_cache import QueryCache
+            if self._cache is None:
+                self._cache = QueryCache(cfg)  # type: ignore[assignment]
+            cached = self._cache.get(  # type: ignore[union-attr]
+                query, file_filter, type_filter, page_range
+            )
+            if cached is not None:
+                log.info("Cache HIT for query: %.60s", query)
+                if show_sources and cached.citations:
+                    console.print()
+                    console.print("[dim](cached)[/dim]")
+                    console.print(cached.text)
+                    console.print("\n[dim]Sources:[/dim]")
+                    for c in cached.citations:
+                        console.print(f"  [dim]{c.format()}[/dim]")
+                return cached
+
+        # ── 0b. Guard: index must be populated ────────────────────────────────
         if self._chunk_store.count() == 0:
             console.print(
                 "[yellow]No documents indexed.[/yellow] "
@@ -122,8 +144,7 @@ class QueryPipeline:
                 passages_used=0,
             )
 
-        # ── 1. Expand query → embedding ────────────────────────────────────────
-        cfg = self._config
+        # ── 1. Expand query → embedding ──────────────────────────────────────────────
         try:
             embedder = get_model_manager().get_embedder(cfg)
         except FileNotFoundError as exc:
@@ -262,7 +283,7 @@ class QueryPipeline:
             len(passages_used),
         )
 
-        return AnswerResult(
+        result = AnswerResult(
             text=full_answer,
             citations=citations,
             passages_used=len(passages_used),
@@ -271,6 +292,14 @@ class QueryPipeline:
             generation_latency_ms=t_gen_ms,
             tier=cfg.resolved_tier,
         )
+
+        # ── 8. Store in cache ──────────────────────────────────────────────────
+        if getattr(cfg.storage, "query_cache_enabled", False) and self._cache is not None:
+            self._cache.put(  # type: ignore[union-attr]
+                query, result, file_filter, type_filter, page_range
+            )
+
+        return result
 
     # ── Private helpers ────────────────────────────────────────────────────────
 

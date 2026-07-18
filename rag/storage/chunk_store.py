@@ -256,6 +256,11 @@ class ChunkStore:
             "SELECT COUNT(DISTINCT source) FROM chunks"
         ).fetchone()[0]
 
+    def list_ids(self) -> List[str]:
+        """Return a list of all chunk IDs in the store."""
+        rows = self._conn.execute("SELECT id FROM chunks").fetchall()
+        return [r[0] for r in rows]
+
     def list_sources(self) -> List[str]:
         """Return sorted list of distinct source paths. Used by /status and /sync."""
         rows = self._conn.execute(

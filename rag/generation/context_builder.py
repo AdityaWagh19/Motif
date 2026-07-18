@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, List, Tuple
 
-from rag.types import ScoredPassage
+from rag.types import ScoredPassage, Chunk
 
 if TYPE_CHECKING:
     from rag.config import RAGConfig
@@ -66,6 +66,61 @@ def _anti_middle_order(passages: List[ScoredPassage]) -> List[ScoredPassage]:
         middle_idx += 1
 
     return result
+
+
+def _merge_adjacent_chunks(passages: List[ScoredPassage]) -> List[ScoredPassage]:
+    """
+    Merge consecutive passages from the same source where page numbers are
+    adjacent (N and N+1) or if they share the same file and sequence if pages are missing.
+    Merged passage gets the higher score and method "merged".
+
+    Only merges when both passages are from the same file and same source_type.
+    Merged text = passage_A.text + "\\n\\n" + passage_B.text
+    """
+    if len(passages) <= 1:
+        return passages
+
+    merged = []
+    i = 0
+    while i < len(passages):
+        current = passages[i]
+        if i + 1 < len(passages):
+            nxt = passages[i + 1]
+            can_merge = False
+            if current.chunk.source == nxt.chunk.source:
+                if current.chunk.page is not None and nxt.chunk.page is not None:
+                    if nxt.chunk.page == current.chunk.page + 1 or nxt.chunk.page == current.chunk.page:
+                        can_merge = True
+                else:
+                    # If page info is missing but they are from the same source and close in char offsets
+                    if abs(current.chunk.char_end - nxt.chunk.char_start) < 200 or abs(nxt.chunk.char_end - current.chunk.char_start) < 200:
+                        can_merge = True
+
+            if can_merge:
+                merged_text = current.chunk.text + "\n\n" + nxt.chunk.text
+                merged_chunk = Chunk(
+                    id=current.chunk.id,  # keep first chunk's ID for citation
+                    text=merged_text,
+                    source=current.chunk.source,
+                    filename=current.chunk.filename,
+                    source_type=current.chunk.source_type,
+                    page=current.chunk.page,
+                    section=current.chunk.section or nxt.chunk.section,
+                    char_start=min(current.chunk.char_start, nxt.chunk.char_start),
+                    char_end=max(current.chunk.char_end, nxt.chunk.char_end),
+                    token_count=current.chunk.token_count + nxt.chunk.token_count,
+                    indexed_at=current.chunk.indexed_at,
+                )
+                merged.append(ScoredPassage(
+                    chunk=merged_chunk,
+                    score=max(current.score, nxt.score),
+                    retrieval_method="merged",
+                ))
+                i += 2
+                continue
+        merged.append(current)
+        i += 1
+    return merged
 
 
 class ContextBuilder:
@@ -154,6 +209,11 @@ class ContextBuilder:
             available_words,
         )
 
+        # ── Adjacent chunk merging ────────────────────────────────────────────
+        # Sort by source and char_start before merging to ensure adjacent chunks are next to each other
+        selected.sort(key=lambda p: (p.chunk.source, p.chunk.char_start))
+        selected = _merge_adjacent_chunks(selected)
+        
         # ── Anti-middle ordering ──────────────────────────────────────────────
         ordered = _anti_middle_order(selected)
 
