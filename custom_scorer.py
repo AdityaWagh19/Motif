@@ -17,6 +17,7 @@ import re
 import logging
 import math
 from pathlib import Path
+from typing import Any, List, Optional
 
 import numpy as np
 
@@ -63,8 +64,10 @@ def split_sentences(text: str) -> list[str]:
     return [s.strip() for s in sentences if len(s.strip()) > 10]
 
 
-def embed(text: str, embedder) -> np.ndarray:
-    return np.array(embedder.encode(text[:500], prefix="search_query: "), dtype=np.float32)
+def embed(text: str, embedder: Any) -> np.ndarray:
+    """Embed a single text string using the local nomic ONNX embedder."""
+    vec = embedder.encode(text[:500], prefix="search_query: ")
+    return np.array(vec, dtype=np.float32)
 
 
 def score_item(item: dict, embedder) -> dict:
