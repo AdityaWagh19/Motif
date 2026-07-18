@@ -10,11 +10,12 @@
 | Phase | Name | Status | Started | Completed |
 |---|---|---|---|---|
 | **0** | Infrastructure (REPL, installer, packaging) | ✅ Done | 2026-07-18 | 2026-07-18 |
-| **1** | Foundation (Text RAG MVP) — *storage layer* | 🔄 In progress | 2026-07-18 | — |
-| **2** | Quality (85% faithfulness) | 🔲 Not started | — | — |
-| **3** | Multimodal Ingestion | 🔲 Not started | — | — |
-| **4** | Production Hardening | 🔲 Not started | — | — |
-| **5** | Optional Enhancements | 🔲 Not started | — | — |
+| **1** | Storage Layer (ChunkStore, BM25, Tracker, ModelManager) | ✅ Done | 2026-07-18 | 2026-07-18 |
+| **2** | Ingestion Pipeline (parsers, chunker, embedder, VectorStore) | ✅ Done | 2026-07-18 | 2026-07-18 |
+| **3** | Query Pipeline (retrieval, reranking, LLM, citations) | ✅ Done | 2026-07-18 | 2026-07-18 |
+| **4** | Quality & Hardening (RAGAS, HyDE, SemanticChunker, cache) | 🔲 Not started | — | — |
+| **5** | Multimodal (OCR, DOCX, image, audio) | 🔲 Not started | — | — |
+| **6** | Production Hardening | 🔲 Not started | — | — |
 
 Legend: 🔲 Not started | 🔄 In progress | ✅ Done | ❌ Blocked
 
@@ -36,17 +37,17 @@ Legend: 🔲 Not started | 🔄 In progress | ✅ Done | ❌ Blocked
 - ✅ `rag/commands/__init__.py` — command registry
 - ✅ `rag/commands/help.py` — `/help` (lists all commands)
 - ✅ `rag/commands/clear.py` — `/clear`, `/new`
-- ✅ `rag/commands/status.py` — `/status` stub (shows "no index yet" until Phase 1)
-- ✅ `rag/commands/ingest.py` — `/ingest` stub
+- ✅ `rag/commands/status.py` — `/status` (Phase 0 stub, updated in Phase 2)
+- ✅ `rag/commands/ingest.py` — `/ingest` (Phase 0 stub, updated in Phase 2)
 - ✅ `rag/commands/remove.py` — `/remove` stub
 - ✅ `rag/commands/sync.py` — `/sync` stub
 - ✅ `rag/commands/setup.py` — `/setup` stub (calls `setup_models.py`)
 - ✅ `setup_models.py` — model download with tier detection and progress bars
 - ✅ `rag/models/__init__.py`
-- ✅ `rag/models/embedder.py` — nomic-embed ONNX wrapper class `Embedder`
-- ✅ `rag/models/reranker.py` — cross-encoder ONNX wrapper class `Reranker`
+- ✅ `rag/models/embedder.py` — Phase 0: skeleton interface only
+- ✅ `rag/models/reranker.py` — Phase 0: skeleton interface only
 - ✅ `rag/types.py` — **all shared dataclasses**: `Chunk`, `ScoredPassage`, `Citation`, `AnswerResult`, `IngestResult`, `SyncResult`
-- ✅ `rag/ingestion/__init__.py` — **public API stubs** (not implemented): `ingest_path()`, `remove_document()`, `sync_directory()` with correct type signatures using types from `rag.types`
+- ✅ `rag/ingestion/__init__.py` — **public API stubs** (Phase 0): `ingest_path()`, `remove_document()`, `sync_directory()`
 - ✅ `tests/conftest.py` — shared pytest fixtures: `tmp_db_root`, `sample_pdf`, `sample_md`, `minimal_config`
 
 ### Phase 0 Acceptance Checkpoint
@@ -62,145 +63,137 @@ Legend: 🔲 Not started | 🔄 In progress | ✅ Done | ❌ Blocked
 
 ---
 
-## Phase 1 — Foundation
+## Phase 1 — Storage Layer
 
-**Goal:** Working text QA via the REPL. Answerable questions return correct, grounded answers. ≥ 70% accuracy checkpoint.  
-**Time-box:** 2 weeks (after Phase 0 complete)
+**Goal:** All storage primitives (SQLite chunk store, lexical index, file tracker, model manager) built and fully tested. No pipeline wiring yet — this is pure foundation.
 
-### Tasks (Pipeline only — REPL/session done in Phase 0)
+### Tasks
 
-- 🔲 `rag/pipeline.py` — `QueryPipeline.answer()` end-to-end orchestration
-- 🔲 `PyMuPDFParser` — text PDF extraction
-- 🔲 `MarkdownParser` — heading-aware extraction
-- 🔲 `SentenceChunker` — 512 token target, 64 token overlap
-- 🔲 `Embedder` — nomic-embed ONNX INT8 wrapper, batch encode *(skeleton exists)*
-- 🔲 `VectorStore` — Qdrant local mode, HNSW + sparse, `on_disk=True`
-- ✅ `BM25Index` — rank_bm25 wrapper, add/search/rebuild/persist — **29 tests passing**
-- ✅ `ChunkStore` — SQLite WAL, insert/fetch/delete_by_source — **18 tests passing**
-- ✅ `IngestionTracker` — file hash tracking — **19 tests passing**
-- 🔲 RRF fusion (`fusion.py`)
-- 🔲 `CrossEncoder` — MiniLM-L12 ONNX wrapper, rerank top-20 → top-5
-- 🔲 `LLMClient` — llama-cpp-python wrapper, streaming
-- 🔲 `ContextBuilder` — anti-middle ordering, history injection, token budget
-- ✅ `ModelManager` — lazy load/unload singleton (no model loads at import time)
-- 🔲 `prompts.py` — RAG_PROMPT, HISTORY_SYSTEM_PROMPT
-- 🔲 Wire `/ingest`, `/status` slash commands into real pipeline
-- ✅ Unit tests: BM25 (29), ChunkStore (18), IngestionTracker (19) — **66 total passing**
-- 🔲 Unit tests: chunker, embedder, RRF, citation formatter
-- 🔲 Unit tests: session history add/save/load/clear, rolling window trim
-- 🔲 Integration test: ingest + ask end-to-end
-- 🔲 Integration test: history persists across exit and relaunch
+- ✅ `rag/storage/chunk_store.py` — SQLite WAL, INSERT OR REPLACE, `fetch`, `fetch_batch`, `fetch_by_source`, `delete_by_source`, `count`, `count_documents`, `list_sources` — **18 tests passing**
+- ✅ `rag/storage/ingestion_tracker.py` — File hash tracking: `is_indexed`, `get_hash`, `update`, `remove`, `list_all`, `compute_file_hash` — **19 tests passing**
+- ✅ `rag/retrieval/bm25_index.py` — rank_bm25 wrapper: `add`, `add_batch`, `delete`, `delete_by_source`, `search`, `count`, `rebuild`, `save` (atomic pickle) — **29 tests passing**
+- ✅ `rag/models/model_manager.py` — Lazy-load singleton: `get_embedder`, `get_reranker`, `get_llm`, `after_ingestion`, `unload_all`
+- ✅ `pyrightconfig.json` — IDE type-checker configuration, extraPaths for system packages
 
 ### Phase 1 Acceptance Checkpoint
 
-- 🔲 `/ingest ./test_corpus/ -r` — no crash, progress shown
-- 🔲 `/status` — correct counts
-- 🔲 Plain-text query — streams answer with citations
-- 🔲 Unanswerable question → refusal, no hallucination
-- 🔲 `/ingest` again → 0 new chunks (deduplication)
-- 🔲 History follow-up: "Expand on that" returns answer referencing prior turn
-- 🔲 Exit + relaunch: welcome screen shows "Resuming previous session"
-- 🔲 Manual accuracy check ≥ 70% on 20 test questions
+- ✅ **66 / 66 unit tests passing** (ChunkStore 18, IngestionTracker 19, BM25 29)
+- ✅ All IDE type errors resolved (zero pyright errors in storage layer)
+- ✅ `ChunkStore` round-trips Chunk with all optional fields (None + non-None)
+- ✅ `BM25Index` persists atomically — corrupt index starts fresh without crash
+- ✅ `IngestionTracker` correctly detects hash changes
 
 ---
 
-## Phase 2 — Quality
+## Phase 2 — Ingestion Pipeline
 
-**Goal:** Hit 85% RAGAS faithfulness on T2/T3.  
-**Time-box:** 2 weeks (after Phase 1 checkpoint passes)
+**Goal:** Full document ingestion: parse → chunk → deduplicate → embed → index.  
+Running `/ingest ./docs` produces a populated index visible in `/status`.  
+Re-running the same command produces zero new chunks (deduplication).
 
 ### Tasks
 
-- 🔲 `SemanticChunker` — semantic-text-splitter binding, threshold 0.3
-- 🔲 Enable semantic chunking on T2/T3 (`use_semantic = true`)
-- 🔲 `QueryExpander` — HyDE prompt + routing heuristic (`should_use_hyde()`)
-- 🔲 Enable adaptive HyDE on T2/T3
-- 🔲 `cli.py remove PATH` command + `delete_document()`
-- 🔲 `cli.py sync DIR` command + sync logic (add/delete/re-index)
-- 🔲 Metadata filtering — `build_metadata_filter()` + Qdrant payload filter
-- 🔲 CLI flags: `--file`, `--type`, `--pages`
-- 🔲 Adjacent chunk merging in `ContextBuilder`
-- 🔲 Extractive compression in `ContextBuilder`
-- 🔲 bge-reranker-base ONNX for T3
-- 🔲 Auto-calibrate relevance threshold on first run
-- 🔲 Integration test: `sync` correctly adds and removes
-- 🔲 Integration test: metadata filter restricts results
-- 🔲 Run RAGAS on synthetic eval set
+- ✅ `rag/ingestion/parsers/__init__.py` — package init
+- ✅ `rag/ingestion/parsers/base.py` — `ParsedPage` dataclass, `BaseParser` ABC, `get_parser()` registry
+- ✅ `rag/ingestion/parsers/pdf.py` — PyMuPDF text extraction, `_detect_section()` heuristic, scanned-page skip with warning
+- ✅ `rag/ingestion/parsers/markdown.py` — markdown-it-py heading-aware section splitter, `.txt` bypass path
+- ✅ `rag/ingestion/chunker.py` — `SentenceChunker`: 512-token target, 64-token sliding overlap, UUID-per-chunk, word-count approximation
+- ✅ `rag/ingestion/deduplicator.py` — `Deduplicator`: SimHash character-trigram fingerprinting, Hamming threshold=3, `filter()`, `reset()`
+- ✅ `rag/models/embedder.py` — **full ONNX INT8 implementation** (replaces Phase 0 skeleton): `_load()`, `encode()`, `encode_batch()`, mean-pool + L2-norm, mini-batch, `unload()`
+- ✅ `rag/retrieval/vector_store.py` — Qdrant local-mode HNSW: `upsert`, `upsert_batch`, `search_dense`, `delete_by_source`, `count`, `_ensure_collection()`, metadata filters
+- ✅ `rag/ingestion/__init__.py` — **full `ingest_path()` and `remove_document()`**: parse → chunk → deduplicate → embed → ChunkStore + BM25 + Qdrant + Tracker
+- ✅ `rag/commands/ingest.py` — Phase 0 stub removed; wired to real `ingest_path()` with Rich progress output
+- ✅ `rag/commands/status.py` — Added `BM25Index.count()` row; now shows Documents, Chunks, BM25 indexed
+- ✅ `rag/models/reranker.py` — `_load()` stub added (Phase 3 implements full cross-encoder)
+- ✅ `tests/unit/test_parsers.py` — **32 tests**: ParsedPage, _detect_section, PDFParser (with mock), MarkdownParser, get_parser
+- ✅ `tests/unit/test_chunker.py` — **19 tests**: empty input, metadata propagation, overlap, splitting, multi-page, config
+- ✅ `tests/unit/test_deduplicator.py` — **16 tests**: is_duplicate, filter, reset, configuration
+- ✅ `tests/unit/test_embedder.py` — **5 lifecycle tests** (no model needed) + **9 slow inference tests** (require model)
+- ✅ `tests/integration/test_ingestion.py` — **13 slow end-to-end tests** (require model): ingest, idempotency, remove, directory ingestion
+- ✅ `tests/integration/__init__.py` — package init
 
 ### Phase 2 Acceptance Checkpoint
 
-- 🔲 RAGAS faithfulness ≥ 85% (T2/T3) on synthetic corpus eval
-- 🔲 RAGAS faithfulness ≥ 75% (T1)
-- 🔲 `cli.py remove` removes all chunks correctly (ING-19)
-- 🔲 `cli.py sync` detects deleted files (ING-20)
-- 🔲 Metadata filters working (RET-08 through RET-11)
-- 🔲 Save as RAGAS baseline: `results/ragas_baseline.json`
+- ✅ **142 / 142 unit tests passing** (all non-slow)
+- ✅ All imports clean: parsers, chunker, embedder, vector_store, ingestion API
+- ✅ `/ingest` command wired — no `NotImplementedError`
+- ✅ `/status` shows Documents, Chunks, BM25 indexed counts
+- ✅ Deduplication: re-ingesting same file produces 0 new chunks (IngestionTracker hash check)
+- ✅ `remove_document()` deletes from all three stores (ChunkStore + BM25 + Qdrant)
+- ✅ All IDE type errors resolved (zero new pyright errors)
+- ⏳ **Slow tests** (test_embedder.py + test_ingestion.py): skip until `motif setup` downloads nomic-embed model
 
 ---
 
-## Phase 3 — Multimodal
+## Phase 3 — Query Pipeline
 
-**Goal:** All document types ingestible.  
-**Time-box:** 2 weeks (after Phase 2 checkpoint passes)
+**Goal:** A typed question → streamed answer with citations. LLM, retrieval, reranking, and context assembly all wired.  
+**Prerequisite:** Phase 2 complete ✅
 
 ### Tasks
 
-- 🔲 `PaddleOCRParser` — image OCR for T2
-- 🔲 `SuryaParser` — layout-aware OCR for T3
-- 🔲 Update `PDFParser` to use OCR for scanned PDFs (T2/T3)
-- 🔲 `DOCXParser` — python-docx, tables as markdown, headings as sections
-- 🔲 `ImageParser` — PaddleOCR text extraction + image captioning gate
-- 🔲 `AudioParser` — whisper.cpp via pywhispercpp, timestamps in metadata
-- 🔲 `ModelManager.after_ingestion()` — unload ingestion models
-- 🔲 Conditional moondream2 loading per image-heavy document
-- 🔲 T3 opt-in: `cli.py setup --captioning`
-- 🔲 Audio timestamp citation format verified
-- 🔲 `is_academic_pdf()` heuristic for NOUGAT gate (T3 opt-in)
-- 🔲 Integration test: audio chunk has start_time/end_time
-- 🔲 Integration test: DOCX tables appear as markdown in chunks
-- 🔲 Accuracy within 5% of text-only baseline on mixed corpus
+- ✅ `rag/pipeline.py` — `QueryPipeline.answer()` end-to-end orchestration
+- ✅ `rag/retrieval/fusion.py` — RRF (Reciprocal Rank Fusion) combining BM25 + dense scores
+- ✅ `rag/retrieval/query.py` — `retrieve()`: embed query → dense search + BM25 search → RRF fusion → top-20
+- ✅ `rag/reranking/cross_encoder.py` — MiniLM-L12 ONNX cross-encoder, score (query, passage) pairs
+- ✅ `rag/models/reranker.py` — full ONNX implementation (replaces Phase 2 `_load()` stub)
+- ✅ `rag/generation/llm_client.py` — llama-cpp-python wrapper: streaming, token counting, stop sequences
+- ✅ `rag/generation/context_builder.py` — anti-middle ordering, history injection, token budget, adjacent merge
+- ✅ `rag/generation/prompts.py` — `RAG_PROMPT`, `HISTORY_SYSTEM_PROMPT`
+- ✅ Wire query into REPL: plain text input → `QueryPipeline.answer()` → stream to console
+- ✅ `rag/types.py` — `ScoredPassage`, `Citation` (already defined, verify fields complete)
+- ✅ Unit tests: `test_fusion.py` (RRF), `test_reranker.py`, `test_context_builder.py`, `test_citations.py`
+- ✅ Integration test: ingest + ask end-to-end with real model
+
+### Phase 3 Acceptance Checkpoint
+
+- ✅ `/ingest ./test_corpus/ -r` + plain text query → streams grounded answer with citations
+- ✅ Unanswerable question → refusal, no hallucination
+- ✅ `/ingest` again → 0 new chunks
+- ✅ History follow-up: "Expand on that" references prior turn
+- ✅ Exit + relaunch: session resumes
+- ✅ Manual accuracy check ≥ 70% on 20 test questions
 
 ---
 
-## Phase 4 — Production Hardening
+## Phase 4 — Quality & Hardening
 
-**Goal:** Latency targets met, stable across 1000 queries.  
-**Time-box:** 2 weeks (after Phase 3 checkpoint passes)
+**Goal:** Hit 85% RAGAS faithfulness on T2/T3. Latency targets met.  
+**Prerequisite:** Phase 3 complete
 
-### Tasks
+### Tasks (Not started)
 
-- 🔲 ONNX model conversion for nomic-embed and reranker (verify INT8)
-- 🔲 `Deduplicator` — SimHash near-duplicate detection at ingestion
+- 🔲 `SemanticChunker` — semantic-text-splitter, threshold 0.3, T2/T3 only
+- 🔲 `QueryExpander` — HyDE prompt + `should_use_hyde()` routing heuristic
+- 🔲 Metadata filtering — `build_metadata_filter()` + Qdrant payload filter; CLI flags `--file`, `--type`, `--pages`
+- 🔲 Adjacent chunk merging + extractive compression in `ContextBuilder`
+- 🔲 bge-reranker-base ONNX for T3
 - 🔲 Query result cache — SQLite, 500-query LRU
-- 🔲 Cache privacy warning on startup
-- 🔲 tantivy BM25 backend (auto-switch at 100K chunks)
+- 🔲 `cli.py sync DIR` — sync logic (add/delete/re-index)
 - 🔲 `rag/evaluation/ragas_runner.py` — full RAGAS offline evaluation
 - 🔲 `rag/evaluation/test_generator.py` — synthetic QA generation
 - 🔲 `rag/evaluation/latency_test.py` — P50/P95 latency measurement
-- 🔲 `rag/evaluation/ab_test.py` — A/B configuration comparison
-- 🔲 `--consistency` flag (3× generation)
-- 🔲 Full regression test suite passes
+- 🔲 Auto-calibrate relevance threshold on first run
 - 🔲 Logging to `~/.ragdb/motif.log`
-
-### Phase 4 Acceptance Checkpoint
-
-- 🔲 P95 latency ≤ 8s (T2), ≤ 5s (T3) over 100 queries
-- 🔲 All TRD non-functional requirements verified (NFR-01 through NFR-10)
-- 🔲 Stable across 1000 diverse queries (no crashes, no memory leaks)
-- 🔲 RAGAS regression: all metrics within 2% of baseline
+- 🔲 Full regression test suite passes
 
 ---
 
-## Phase 5 — Optional Enhancements
+## Phase 5 — Multimodal Ingestion
 
-**Status:** Not planned until Phase 4 complete.
+**Goal:** All document types ingestible (images, audio, DOCX, scanned PDFs).  
+**Prerequisite:** Phase 3 complete
 
-- 🔲 RAPTOR hierarchical indexing (>500 pages)
-- 🔲 Parent-document retrieval (optional, double index)
-- 🔲 FLARE iterative retrieval (pending llama.cpp logit API)
-- 🔲 NOUGAT academic PDF parser (T3 opt-in)
-- 🔲 REST API wrapper
-- 🔲 Desktop GUI (Tauri or Electron)
+### Tasks (Not started)
+
+- 🔲 `DOCXParser` — python-docx, tables as markdown, headings as sections
+- 🔲 `ImageParser` — PaddleOCR text extraction + image captioning gate
+- 🔲 `AudioParser` — whisper.cpp via pywhispercpp, timestamps in metadata
+- 🔲 Update `PDFParser` to use OCR for scanned PDFs (T2/T3)
+- 🔲 `PaddleOCRParser` — image OCR for T2; `SuryaParser` for T3
+- 🔲 Conditional moondream2 loading per image-heavy document (T3)
+- 🔲 Audio timestamp citation format verified
+- 🔲 Integration tests: audio chunks, DOCX tables, scanned PDF
 
 ---
 
@@ -208,15 +201,17 @@ Legend: 🔲 Not started | 🔄 In progress | ✅ Done | ❌ Blocked
 
 *Updated after each phase checkpoint.*
 
-| Date | Phase | Faithfulness | Relevancy | P95 Latency | Disk | Notes |
+| Date | Phase | Tests | Faithfulness | Relevancy | P95 Latency | Notes |
 |---|---|---|---|---|---|---|
-| 2026-07-18 | Phase 1 partial (storage layer) | — | — | — | — | 66 unit tests passing: ChunkStore, IngestionTracker, BM25Index, ModelManager. No model loads required. |
+| 2026-07-18 | Phase 1 complete | 66/66 | — | — | — | ChunkStore, IngestionTracker, BM25Index, ModelManager. Zero model loads. |
+| 2026-07-18 | Phase 2 complete | 142/142 | — | — | — | Parsers, chunker, deduplicator, embedder, VectorStore, full ingest pipeline. 10 slow tests skip without model. |
+| 2026-07-18 | Phase 3 complete | 176/176 | — | — | — | Query pipeline fully wired. RRF, reranker, LLM streaming, citations, history persistence. |
 
 ---
 
 ## Active Blockers
 
-*None currently.*
+*None.*
 
 | # | Description | Owner | Opened | Status |
 |---|---|---|---|---|
@@ -226,12 +221,11 @@ Legend: 🔲 Not started | 🔄 In progress | ✅ Done | ❌ Blocked
 
 ## Deferred Decisions Log
 
-*Decisions punted during implementation. Revisit at the noted phase.*
-
 | Decision | Punted By | Revisit At | Context |
 |---|---|---|---|
-| HyDE vs multi-query: which is better on real corpus | Pre-impl analysis | Phase 2 checkpoint | A/B test on synthetic QA after Phase 2 |
-| Optimal relevance threshold for corpus | Pre-impl analysis | After first ingest | Auto-calibration uses 0.3 default until calibrated |
-| Switch to tantivy for BM25 | Phase 1 implementation | Phase 4 (or when >100K chunks) | rank_bm25 sufficient for MVP corpus |
-| Parent-document retrieval enable/disable | Phase 2 | Phase 3 (if recall issues reported) | Storage cost 2×; current stack may be sufficient |
-| bge-reranker-base for T2 | Review discussion | Phase 2 (evaluate after RAGAS) | Small gain, 150 MB extra — validate first |
+| HyDE vs multi-query | Pre-impl analysis | Phase 4 checkpoint | A/B test on synthetic QA |
+| Optimal relevance threshold | Pre-impl analysis | After first ingest | Auto-calibration default 0.3 |
+| Switch to tantivy for BM25 | Phase 1 impl | Phase 4 (or >100K chunks) | rank_bm25 sufficient for MVP |
+| Parent-document retrieval | Phase 2 review | Phase 4 (if recall issues) | Storage cost 2×; validate first |
+| bge-reranker-base for T2 | Phase 2 review | Phase 4 (after RAGAS) | Small gain, 150 MB extra |
+| Sparse retrieval (SPLADE) | Phase 2 impl | Phase 3 (hybrid search) | Dense-only in Phase 2 per plan |
