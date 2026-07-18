@@ -42,7 +42,12 @@ Legend: 🔲 Not started | 🔄 In progress | ✅ Done | ❌ Blocked
 - 🔲 `rag/commands/sync.py` — `/sync` stub
 - 🔲 `rag/commands/setup.py` — `/setup` stub (calls `setup_models.py`)
 - 🔲 `setup_models.py` — model download with tier detection and progress bars
-- 🔲 `models/.gitkeep`, `tests/unit/.gitkeep`, `tests/integration/.gitkeep`
+- 🔲 `rag/models/__init__.py`
+- 🔲 `rag/models/embedder.py` — nomic-embed ONNX wrapper class `Embedder`
+- 🔲 `rag/models/reranker.py` — cross-encoder ONNX wrapper class `Reranker`
+- 🔲 `rag/types.py` — **all shared dataclasses**: `Chunk`, `ScoredPassage`, `Citation`, `AnswerResult`, `IngestResult`, `SyncResult`
+- 🔲 `rag/ingestion/__init__.py` — **public API stubs** (not implemented): `ingest_path()`, `remove_document()`, `sync_directory()` with correct type signatures using types from `rag.types`
+- 🔲 `tests/conftest.py` — shared pytest fixtures: `tmp_db_root`, `sample_pdf`, `sample_md`, `minimal_config`
 
 ### Phase 0 Acceptance Checkpoint
 
@@ -51,7 +56,9 @@ Legend: 🔲 Not started | 🔄 In progress | ✅ Done | ❌ Blocked
 - 🔲 `/help` lists all commands
 - 🔲 Unknown slash command prints friendly error
 - 🔲 `exit` saves empty history and exits cleanly
-- 🔲 `motif setup` downloads models with progress bars
+- 🔲 `rag/types.py` all dataclasses import without error
+- 🔲 `rag/ingestion/__init__.py` exports `ingest_path`, `remove_document`, `sync_directory` (stubs)
+- 🔲 `tests/conftest.py` fixtures run without error (`pytest --collect-only`)
 
 ---
 
