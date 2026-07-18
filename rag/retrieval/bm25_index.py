@@ -24,11 +24,15 @@ import os
 import pickle
 import tempfile
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
+import numpy as np
 from rank_bm25 import BM25Okapi
 
 from rag.types import Chunk
+
+if TYPE_CHECKING:
+    from rag.config import RAGConfig
 
 log = logging.getLogger(__name__)
 
@@ -285,7 +289,7 @@ class BM25Index:
         if k == n:
             top_indices = list(range(n))
         else:
-            top_indices = list(np.argpartition(scores, -k)[-k:])
+            top_indices = list(np.argpartition(scores, -k)[-k:])  # type: ignore[arg-type]
 
         # Filter: exclude score == 0.0 (query tokens are entirely OOV — no lexical
         # overlap at all). Do NOT filter negative scores: BM25 IDF is legitimately

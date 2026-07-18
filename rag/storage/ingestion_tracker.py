@@ -19,7 +19,10 @@ import logging
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from rag.config import RAGConfig
 
 log = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ name = "motif-rag"
 version = "0.1.0"
 description = "Offline multimodal RAG — query local documents with no internet connection"
 readme = "README.md"
-license = { text = "TBD" }
+license = { text = "MIT" }
 requires-python = ">=3.11"
 keywords = ["rag", "llm", "offline", "local", "documents", "multimodal"]
 

@@ -14,7 +14,10 @@ from __future__ import annotations
 import logging
 import sqlite3
 from pathlib import Path
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
+
+if TYPE_CHECKING:
+    from rag.config import RAGConfig
 
 from rag.types import Chunk
 

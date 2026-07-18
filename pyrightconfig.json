@@ -1,0 +1,12 @@
+{
+  "pythonVersion": "3.12",
+  "pythonPath": "C:/Program Files/Python312/python.exe",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "warning",
+  "reportMissingModuleSource": "warning",
+  "reportGeneralTypeIssues": "warning",
+  "exclude": [
+    ".venv",
+    "**/__pycache__"
+  ]
+}
