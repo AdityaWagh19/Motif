@@ -150,7 +150,13 @@ def run_evaluation(
                 val = getattr(scores, key, None)
             except Exception:
                 val = None
-        return float(val) if val is not None else 0.0
+        # RAGAS may return a list[float] (per-sample scores) or a scalar.
+        # In both cases we want the mean.
+        if val is None:
+            return 0.0
+        if isinstance(val, (list, tuple)):
+            return float(sum(val) / len(val)) if val else 0.0
+        return float(val)  # type: ignore[arg-type]
 
     results = {
         "faithfulness": _score("faithfulness"),
