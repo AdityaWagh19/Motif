@@ -139,10 +139,23 @@ def run_evaluation(
         log.error("RAGAS evaluation failed: %s", e)
         raise
 
+    # EvaluationResult supports dict-style access in newer ragas versions.
+    # Use a safe helper that handles both dict and attribute access.
+    def _score(key: str) -> float:
+        try:
+            # ragas >= 0.1: EvaluationResult is dict-like
+            val = scores[key]  # type: ignore[index]
+        except (KeyError, TypeError):
+            try:
+                val = getattr(scores, key, None)
+            except Exception:
+                val = None
+        return float(val) if val is not None else 0.0
+
     results = {
-        "faithfulness": float(scores.get("faithfulness", 0.0) or 0.0),
-        "answer_relevancy": float(scores.get("answer_relevancy", 0.0) or 0.0),
-        "context_precision": float(scores.get("context_precision", 0.0) or 0.0),
+        "faithfulness": _score("faithfulness"),
+        "answer_relevancy": _score("answer_relevancy"),
+        "context_precision": _score("context_precision"),
         "n_evaluated": len(valid),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }

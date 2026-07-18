@@ -292,7 +292,7 @@ class BM25Index:
         log.info(
             "Migrating BM25 backend to tantivy (%d chunks)...", len(self._chunk_ids)
         )
-        self._tantivy_path.mkdir(parents=True, exist_ok=True)
+        self._tantivy_path.mkdir(parents=True, exist_ok=True)  # type: ignore[call-arg]
 
         schema_builder = tantivy.SchemaBuilder()
         schema_builder.add_text_field("text", stored=True)
