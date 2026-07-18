@@ -91,11 +91,30 @@ def run_evaluation(
     # Step 1: Generate answers + contexts for items that don't have them
     pipeline = QueryPipeline(config)
     enriched = []
+    
+    # Try to load cached generation results
+    cache_file = Path("ragas_results_cache.json")
+    cached_answers = {}
+    if cache_file.exists():
+        try:
+            with open(str(cache_file), "r", encoding="utf-8") as f:
+                cached_data = json.load(f)
+                cached_answers = {item["question"]: item for item in cached_data if "answer" in item}
+            log.info("Loaded %d cached pipeline responses", len(cached_answers))
+        except Exception as e:
+            log.warning("Failed to load cache: %s", e)
+
     for item in dataset:
+        q = item.get("question", "")
+        if q in cached_answers:
+            log.info("Using cached answer for: %.60s", q)
+            enriched.append(cached_answers[q])
+            continue
+            
         if "answer" not in item or "contexts" not in item:
-            log.info("Generating pipeline answer for: %.60s", item.get("question", ""))
+            log.info("Generating pipeline answer for: %.60s", q)
             try:
-                result = pipeline.answer(query=item["question"], history=[])
+                result = pipeline.answer(query=q, history=[])
                 item = dict(item)
                 item["answer"] = result.text
                 item["contexts"] = [c.excerpt for c in result.citations]
@@ -105,6 +124,13 @@ def run_evaluation(
                 item["answer"] = ""
                 item["contexts"] = []
         enriched.append(item)
+        
+        # Save intermediate progress
+        try:
+            with open(str(cache_file), "w", encoding="utf-8") as f:
+                json.dump(enriched, f, indent=2)
+        except Exception as e:
+            pass
 
     # Filter out items with empty answers
     valid = [e for e in enriched if e.get("answer")]
@@ -129,8 +155,9 @@ def run_evaluation(
         for e in valid
     ])
 
-    # Step 3: Wrap local LLM as RAGAS judge
+    # Step 3: Wrap local models for RAGAS
     llm_wrapper = _LocalLLMWrapper(config)
+    embeddings_wrapper = _LocalEmbeddingsWrapper(config)
 
     # Step 4: Run RAGAS evaluation
     log.info("Running RAGAS evaluation on %d items...", len(valid))
@@ -139,6 +166,7 @@ def run_evaluation(
             hf_data,
             metrics=selected_metrics,
             llm=llm_wrapper,
+            embeddings=embeddings_wrapper,  # type: ignore[arg-type]
             raise_exceptions=False,
         )
     except Exception as e:
@@ -209,6 +237,38 @@ class _LocalLLMWrapper:
     def generate(self, text: str, **kwargs) -> str:
         """Alias for predict for compatibility with some RAGAS versions."""
         return self.predict(text)
+
+
+from langchain_core.embeddings import Embeddings
+
+class _LocalEmbeddingsWrapper(Embeddings):
+    """
+    Thin adapter that wraps Embedder for use in RAGAS.
+    """
+
+    def __init__(self, config: "RAGConfig") -> None:
+        self._config = config
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        from rag.models.model_manager import get_model_manager
+        try:
+            embedder = get_model_manager().get_embedder(self._config)
+            # encode_batch returns (N, dim) np.ndarray
+            embs = embedder.encode_batch(texts)
+            return embs.tolist()
+        except FileNotFoundError:
+            log.warning("Embedder not available for RAGAS — returning zeros.")
+            return [[0.0] * 768 for _ in texts]
+
+    def embed_query(self, text: str) -> list[float]:
+        return self.embed_documents([text])[0]
+
+    async def aembed_documents(self, texts: list[str]) -> list[list[float]]:
+        return self.embed_documents(texts)
+
+    async def aembed_query(self, text: str) -> list[float]:
+        return self.embed_query(text)
+
 
 
 if __name__ == "__main__":
