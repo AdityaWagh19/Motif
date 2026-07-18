@@ -150,7 +150,7 @@ class ModelManager:
                     f"Run `motif setup` to download models."
                 )
             log.info("Loading LLM from %s", model_path)
-            self._llm = LLMClient(config)
+            self._llm = LLMClient(model_path, config)
             self._llm._load()
 
         return self._llm
