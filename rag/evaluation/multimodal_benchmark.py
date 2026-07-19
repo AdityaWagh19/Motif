@@ -148,6 +148,9 @@ class MultimodalBenchmark:
 
         chunker = SentenceChunker(ChunkerConfig(target_tokens=512, overlap_tokens=64))
 
+        from rag.pipeline import QueryPipeline
+        pipeline = QueryPipeline(self._config)
+
         for modality, exts in _FIXTURE_EXTENSIONS.items():
             files = []
             for ext in exts:
@@ -182,9 +185,6 @@ class MultimodalBenchmark:
                     # Embed and Store
                     t1 = time.monotonic()
                     try:
-                        from rag.pipeline import QueryPipeline
-                        pipeline = QueryPipeline(self._config)
-                        
                         embedder = get_model_manager().get_embedder(self._config)
                         vectors = embedder.encode_batch([c.text for c in chunks])
                         

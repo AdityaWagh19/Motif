@@ -34,10 +34,15 @@ Token generation rises from 0.9 tok/s to approximately 25–40 tok/s.
 These steps must be run by the user in a terminal BEFORE any code changes:
 
 ```powershell
-# Step 1 — Download CUDA Toolkit 12.x
+# Step 1 — Download CUDA Toolkit 13.x or 12.x
 # https://developer.nvidia.com/cuda-downloads
 # Choose: Windows > x86_64 > 11 > exe (local)
 # Install with default options (includes nvcc, cuBLAS, headers)
+
+# Step 1.5 — Install Visual Studio C++ Build Tools
+# Required for Windows to compile native CUDA code.
+# https://visualstudio.microsoft.com/visual-cpp-build-tools/
+# Select "Desktop development with C++" workload during installation.
 
 # Step 2 — Verify installation
 nvcc --version
@@ -247,6 +252,50 @@ parser.add_argument(
 **[MODIFY] [config.py](file:///C:\Users\omen\OneDrive\Desktop\Motif\rag\config.py)** — `StorageConfig`:
 
 ```python
+@dataclass
+class StorageConfig:
+    query_cache_enabled: bool = True  # CHANGE: was False
+    query_cache_path: str = "~/.ragdb/cache.db"
+    
+---
+
+## Phase 11 — Universal Hardware Support (macOS Apple Silicon)
+
+### Objective
+Ensure hardware tiers explicitly support macOS (M1/M2/M3) using Metal Performance Shaders (MPS) instead of CUDA, providing universal hardware compatibility.
+
+### 11a. Apple Silicon Detection
+**File:** `config.py`
+Add `MPS` detection logic alongside CUDA detection.
+
+```python
+def _detect_apple_silicon() -> bool:
+    import platform
+    return platform.system() == "Darwin" and platform.machine() == "arm64"
+```
+
+### 11b. Update Tiers for Mac
+Modify `TierDefaults` to enable GPU offload unconditionally on Macs, as Unified Memory doesn't suffer the same 4GB constraints as discrete GPUs.
+
+```python
+if _detect_apple_silicon():
+    # M1/M2/M3 Unified Memory is inherently fast; set generous defaults
+    "T1": {"llm": {"n_gpu_layers": -1}}  # Offload all layers to Metal
+```
+
+---
+
+## Phase 12 — Setup, Versioning & Installation Bugs
+
+(Note: Bugs #1-10 are tracked in previous audit passes. Here we track new active runtime bugs).
+
+### Bug #11 — PaddleOCR numpy 2.x Incompatibility
+**Bug:** PaddleOCR fails silently on images or throws `numpy.dtype size changed` errors because it is hard-linked against `numpy 1.x` C-headers, but modern pip installations fetch `numpy 2.x`.
+**Fix:** Explicitly pin `numpy<2` in `pyproject.toml` and reinstall. (Status: RESOLVED).
+
+### Bug #12 — Qdrant DB Concurrent Access Locks
+**Bug:** The evaluation pipeline reinstantiates `QueryPipeline(config)` inside a loop over every test fixture. Qdrant strictly locks the `.ragdb/qdrant` directory, crashing on the second fixture with `already accessed by another instance`.
+**Fix:** Instantiate `QueryPipeline` exactly once outside the benchmark loop and reuse the connection state. (Status: RESOLVED).
 @dataclass
 class StorageConfig:
     db_path: str = "~/.ragdb"
