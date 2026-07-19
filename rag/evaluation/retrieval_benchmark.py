@@ -147,27 +147,30 @@ def _is_relevant(
 # Retrieval runner
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _retrieve(query: str, k: int, config) -> tuple[list[RetrievedChunk], float]:
+def _retrieve(query: str, k: int, pipeline, embedder, config) -> tuple[list[RetrievedChunk], float]:
     """
     Run the retrieval-only path (no generation) and return (chunks, latency_ms).
-
-    Uses the same retriever as the full pipeline but skips reranking and LLM.
+    Uses the same retriever as the full pipeline but skips LLM.
     """
-    from rag.retrieval import retrieve_candidates
-    from rag.retrieval.reranker import rerank
+    from rag.retrieval.fusion import rrf_fuse, rrf_to_scored_passages
+    from rag.reranking.cross_encoder import rerank
 
     t0 = time.monotonic()
 
-    # Run hybrid retrieval
-    candidates = retrieve_candidates(
-        query=query,
-        config=config,
-        top_k=k * 2,   # fetch 2x to have candidates for reranking
-    )
+    # 1. Expand query
+    query_vector, effective_query = pipeline._expander.expand(query, config, embedder)
 
-    # Rerank to top-k
+    # 2. Hybrid search
+    dense_results = pipeline._vector_store.search_dense(query_vector, top_k=k * 2)
+    bm25_results = pipeline._bm25.search(effective_query, top_k=k * 2)
+
+    # 3. RRF fusion
+    fused = rrf_fuse([dense_results, bm25_results], top_k=k * 2)
+    candidates = rrf_to_scored_passages(fused, pipeline._chunk_store)
+
+    # 4. Rerank to top-k
     if candidates and len(candidates) > k:
-        candidates = rerank(query, candidates, top_k=k)
+        candidates = rerank(query, candidates, config, top_k=k, threshold=0.0)
     else:
         candidates = candidates[:k]
 
@@ -208,6 +211,8 @@ def _evaluate_query(
     ground_truth_sources: list[str],
     ground_truth_keywords: list[str],
     k: int,
+    pipeline,
+    embedder,
     config,
     verbose: bool = False,
 ) -> QueryRetrievalResult:
@@ -215,7 +220,7 @@ def _evaluate_query(
     result = QueryRetrievalResult(question=question, k=k)
 
     try:
-        chunks, latency_ms = _retrieve(question, k, config)
+        chunks, latency_ms = _retrieve(question, k, pipeline, embedder, config)
         result.retrieved = chunks
         result.latency_ms = latency_ms
     except Exception as exc:
@@ -275,6 +280,12 @@ def run_retrieval_benchmark(
     Returns:
         (per_query_results, summaries_per_k)
     """
+    from rag.pipeline import QueryPipeline
+    from rag.models.model_manager import get_model_manager
+
+    pipeline = QueryPipeline(config)
+    embedder = get_model_manager().get_embedder(config)
+
     all_results: list[QueryRetrievalResult] = []
     summaries: list[BenchmarkSummary] = []
 
@@ -288,6 +299,8 @@ def run_retrieval_benchmark(
                 ground_truth_sources=q.get("ground_truth_sources", []),
                 ground_truth_keywords=q.get("ground_truth_keywords", []),
                 k=k,
+                pipeline=pipeline,
+                embedder=embedder,
                 config=config,
                 verbose=verbose,
             )

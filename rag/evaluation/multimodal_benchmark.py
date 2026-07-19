@@ -323,7 +323,8 @@ class MultimodalBenchmark:
             "query_results":  [asdict(r) for r in self._query_results],
             "summaries":      [asdict(s) for s in self.summarise()],
         }
-        output_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(json.dumps(data, indent=2, ensure_ascii=False))
         print(f"Results written to: {output_path}")
 
 
