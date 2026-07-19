@@ -279,7 +279,7 @@ def ingest_path(
 
             if console:
                 console.print(
-                    f"[green]✓[/green] {len(chunks)} chunk(s)"
+                    f"[green]OK[/green] {len(chunks)} chunk(s)"
                 )
 
         except Exception as exc:

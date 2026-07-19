@@ -35,6 +35,10 @@ from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.key_binding import KeyBindings
 from rich.console import Console
+import platform
+import subprocess
+import shlex
+from dataclasses import dataclass, field
 from rich.panel import Panel
 from rich.table import Table
 from rich import box
@@ -136,9 +140,10 @@ def _handle_slash_command(raw: str, session: Session, config: RAGConfig) -> None
     Format:  /command [arg1 arg2 ...]
     Unknown commands print a friendly error and suggest /help.
     """
-    parts = raw.strip().split()
+    import shlex
+    parts = shlex.split(raw.strip(), posix=False)
     command_name = parts[0].lower()   # e.g. "/ingest"
-    args = parts[1:]                  # e.g. ["./docs", "-r"]
+    args = [arg.strip('"\'') for arg in parts[1:]]  # e.g. ["./docs", "-r"]
 
     handler = get_command(command_name)
     if handler is None:

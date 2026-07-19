@@ -68,12 +68,15 @@ class IntentClassifier:
         similarities = np.dot(self._anchor_embeddings, query_emb)
         max_sim = float(np.max(similarities))
         
-        if max_sim > 0.92:
+        query_lower = query.lower().strip()
+        is_meta_question = query_lower in ["what are you", "what are you?", "who are you", "who are you?"]
+        
+        if max_sim > 0.92 and not is_meta_question:
             best_match = self._anchors[int(np.argmax(similarities))]
             log.info("Intent classified as GREETING_FAST (score: %.3f, matched: %r)", max_sim, best_match)
             return Intent.GREETING_FAST
-        elif max_sim > self._threshold:
-            best_match = self._anchors[int(np.argmax(similarities))]
+        elif max_sim > self._threshold or is_meta_question:
+            best_match = self._anchors[int(np.argmax(similarities))] if max_sim > self._threshold else "meta_question"
             log.info("Intent classified as CHITCHAT (score: %.3f, matched: %r)", max_sim, best_match)
             return Intent.CHITCHAT
             

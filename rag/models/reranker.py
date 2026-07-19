@@ -131,7 +131,7 @@ class Reranker:
         self._session = ort.InferenceSession(  # type: ignore[attr-defined]
             str(onnx_path),
             sess_opts,
-            providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
+            providers=["CUDAExecutionProvider", "DmlExecutionProvider", "CPUExecutionProvider"],
         )
 
         tokenizer = Tokenizer.from_file(str(tok_path))  # type: ignore[attr-defined]
@@ -216,8 +216,8 @@ class Reranker:
                 probs = exp / exp.sum(axis=-1, keepdims=True)
                 batch_scores = probs[:, 1]
             else:
-                # Single logit — use raw value (higher = more relevant)
-                batch_scores = logits[:, 0]
+                # Single logit — apply sigmoid to map to [0, 1] probability
+                batch_scores = 1 / (1 + np.exp(-logits[:, 0]))
 
             all_scores.append(batch_scores)
 

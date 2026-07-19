@@ -80,7 +80,7 @@ class ImageParser(BaseParser):
             log.info("Initialising PaddleOCR...")
             self._ocr = PaddleOCR(use_angle_cls=True, lang="en")
             
-        result = self._ocr.predict(str(path))
+        result = self._ocr.ocr(str(path), cls=True)
         if not result or not result[0]:
             return ""
             
