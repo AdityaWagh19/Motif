@@ -49,15 +49,39 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-# File extensions handled by the Phase 2 parsers.
-_SUPPORTED_EXTENSIONS = frozenset([".pdf", ".md", ".txt", ".markdown"])
+# File extensions handled by the ingestion parsers.
+# All five parsers (PDF, DOCX, Markdown, Image, Audio) are registered here.
+_SUPPORTED_EXTENSIONS = frozenset([
+    # Text documents
+    ".pdf", ".docx",
+    ".md", ".txt", ".markdown",
+    # Images (OCR via PaddleOCR; captioning via moondream2 on T3)
+    ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff",
+    # Audio (transcription via Whisper)
+    ".mp3", ".wav", ".m4a", ".flac", ".ogg",
+])
 
 # Source-type string derived from file extension.
 _EXT_TO_SOURCE_TYPE: dict = {
-    ".pdf": "pdf",
-    ".md": "md",
+    # Documents
+    ".pdf":      "pdf",
+    ".docx":     "docx",
+    ".md":       "md",
     ".markdown": "md",
-    ".txt": "txt",
+    ".txt":      "txt",
+    # Images
+    ".png":      "image",
+    ".jpg":      "image",
+    ".jpeg":     "image",
+    ".webp":     "image",
+    ".bmp":      "image",
+    ".tiff":     "image",
+    # Audio
+    ".mp3":      "audio",
+    ".wav":      "audio",
+    ".m4a":      "audio",
+    ".flac":     "audio",
+    ".ogg":      "audio",
 }
 
 
@@ -137,7 +161,9 @@ def ingest_path(
     if not files and console:
         console.print(
             f"[yellow]No supported files found at:[/yellow] {path}\n"
-            f"Supported types: .pdf .md .txt .markdown"
+            f"Supported types: .pdf .docx .md .txt "  
+            f".png .jpg .jpeg .webp .bmp .tiff "  
+            f".mp3 .wav .m4a .flac .ogg"
         )
         return IngestResult(
             files_processed=0,

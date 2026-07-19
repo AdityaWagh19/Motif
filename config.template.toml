@@ -1,16 +1,39 @@
-# Motif Configuration Template
-# Copy this file to config.toml in the project root and edit as needed.
-# cp config.template.toml config.toml
+# Motif Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+# IMPORTANT: Values set here ALWAYS override tier defaults.
+# Remove or comment out any value below to let Motif auto-configure it
+# based on your detected hardware tier.
+#
+# Compatible Version Stack (do NOT downgrade below these versions):
+#   Python              3.11 – 3.12
+#   llama-cpp-python    0.3.x   (Qwen2.5 / Phi-3.5 GGUF Q4_K_M support)
+#   onnxruntime         1.18.x  (CPU) | onnxruntime-gpu 1.17+ (CUDA)
+#   transformers        4.40 – 4.50 (tokenizer only)
+#   qdrant-client       1.10+   (local embedded mode)
+#   rank-bm25           0.2.x
+#   pymupdf             1.24+   (PDF parser)
+#   ragas               0.1.x   (NOT 0.2 — breaking API changes in v0.2)
+#   huggingface-hub     0.23+
+#   python-docx         1.1+
+#
+# Tier auto-detection priority:
+#   1. NVIDIA GPU (nvidia-smi)
+#   2. Apple Silicon (sysctl hw.memsize — uses Metal)
+#   3. AMD ROCm GPU (rocm-smi)
+#   4. CPU fallback → T1
+#
+# Tier table:
+#   T1  CPU only / <4 GB VRAM / Mac <8 GB — Phi-3.5-mini, 0 GPU layers
+#   T2  4-6 GB VRAM / Mac 8-15 GB         — Qwen2.5-7B, 20 GPU layers
+#   T3  6+ GB VRAM / Mac 16+ GB           — Qwen2.5-7B, 28 GPU layers
+# ─────────────────────────────────────────────────────────────────────────────
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Hardware Tier
 # ─────────────────────────────────────────────────────────────────────────────
 [hardware]
-# Tier detection:
-#   auto — detect based on nvidia-smi VRAM (recommended)
-#   T1   — CPU only (Phi-3.5-mini, no GPU offload)
-#   T2   — GTX 1650 / 4 GB VRAM (Qwen2.5-7B, partial offload)
-#   T3   — RTX 3050 / 6-8 GB VRAM (Qwen2.5-7B, full offload)
+# "auto" uses the tier detection logic above. Override with "T1", "T2", or "T3"
+# if auto-detection gives the wrong result for your machine.
 tier = "auto"
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -18,136 +41,128 @@ tier = "auto"
 # ─────────────────────────────────────────────────────────────────────────────
 [models]
 # Paths are relative to the project root, or absolute.
+# Tier defaults (set automatically by tier detection — override here only if needed):
+#   T1: Phi-3.5-mini-instruct-Q4_K_M.gguf  |  T2/T3: Qwen2.5-7B-Instruct-Q4_K_M.gguf
+#
+# llm_path = "models/Qwen2.5-7B-Instruct-Q4_K_M.gguf"
 
-# T1: "models/Phi-3.5-mini-instruct-Q4_K_M.gguf"
-# T2/T3: "models/Qwen2.5-7B-Instruct-Q4_K_M.gguf"
-llm_path = "models/Qwen2.5-7B-Instruct-Q4_K_M.gguf"
-
-# nomic-embed-text-v1.5 ONNX INT8 directory
+# nomic-embed-text-v1.5 ONNX directory (x86_64 INT8 quantised = 131 MB)
 embed_model = "models/nomic-embed-text-v1.5"
 
 # Reranker ONNX directory
-# T1/T2: "models/MiniLM-L12-v2"
-# T3:    "models/bge-reranker-base"
-reranker = "models/MiniLM-L12-v2"
+# Tier defaults: T1/T2 → MiniLM-L12-v2 | T3 → bge-reranker-base
+# reranker = "models/MiniLM-L12-v2"
 
-# Whisper model file (Phase 3, audio ingestion)
-# T1/T2: "models/ggml-tiny-q5_1.bin"
-# T3:    "models/ggml-small-q5_1.bin"
+# Whisper model file (audio ingestion)
+# T1/T2: tiny quantised (~30 MB, fast) | T3: small quantised (~125 MB, better accuracy)
 whisper = "models/ggml-tiny-q5_1.bin"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LLM Inference
 # ─────────────────────────────────────────────────────────────────────────────
 [llm]
-# Number of layers to offload to GPU VRAM.
-# T1 (CPU only):   n_gpu_layers = 0
-# T2 (4 GB VRAM):  n_gpu_layers = 20
-# T3 (6-8 GB VRAM): n_gpu_layers = 28
-n_gpu_layers = 20
-
-# Context window size (tokens).
-# T1: 2048  |  T2: 3072  |  T3: 4096
-ctx_size = 3072
+# Tier defaults (set by tier detection; uncomment to override):
+# T1: n_gpu_layers=0,  ctx_size=2048, threads=4
+# T2: n_gpu_layers=20, ctx_size=3072, threads=6
+# T3: n_gpu_layers=28, ctx_size=4096, threads=8
+#
+# n_gpu_layers = 20
+# ctx_size = 3072
+# threads = 6
 
 # Maximum tokens to generate per answer.
-max_tokens = 400
+# 150 is sufficient for concise factual answers.
+# Increase to 300-400 for document summarisation tasks.
+max_tokens = 150
 
-# Sampling temperature (0.1 = near-deterministic, grounded answers).
-# Do not increase above 0.3 for RAG use cases.
+# Sampling temperature. 0.1 = near-deterministic (recommended for RAG).
 temperature = 0.1
-
-# CPU threads for inference (ignored when n_gpu_layers > 0).
-# T1: 4-6  |  T2/T3: 4 (most work is on GPU)
-threads = 6
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Retrieval
 # ─────────────────────────────────────────────────────────────────────────────
 [retrieval]
-# Total candidates retrieved before reranking (from all three retrieval paths combined).
-# T1: 20  |  T2: 25  |  T3: 30
-top_k_retrieval = 25
-
-# Final passages passed to the LLM after reranking.
-# T1: 3   |  T2: 5   |  T3: 5
-top_k_rerank = 5
+# Tier defaults:
+# T1: top_k_retrieval=20, top_k_rerank=3
+# T2: top_k_retrieval=25, top_k_rerank=5
+# T3: top_k_retrieval=30, top_k_rerank=5
+#
+# top_k_retrieval = 25
+# top_k_rerank = 5
 
 # Passages with relevance score below this threshold are dropped.
-# Increase (0.4) for stricter grounding. Decrease (0.2) if recall is too low.
+# Range 0.0-1.0. Increase (0.4) for stricter grounding. Decrease (0.2) if
+# the system says "I cannot find an answer" too often.
 relevance_threshold = 0.3
 
 # Query expansion strategy.
-# "none"  — disabled (faster; use for T1 or factual queries)
-# "hyde"  — HyDE: generate a hypothetical answer, embed it, retrieve against it
-#           (better recall on complex/reasoning queries; adds ~1-2s latency)
-# T1: "none"  |  T2/T3: "hyde" (adaptive — Motif routes automatically)
-query_expansion = "hyde"
+# "none"  — disabled (recommended default; faster)
+# "hyde"  — HyDE: generate a hypothetical answer, embed it, then retrieve
+#           (better recall on vague/abstract queries; adds ~2-5 s latency)
+# Pass /hyde inline modifier per-query to enable selectively: "query text /hyde"
+query_expansion = "none"
 
-# BM25 backend.
-# "rank_bm25" — in-memory (default; suitable for up to ~100K chunks)
-# "tantivy"   — memory-mapped (Phase 4; use for large corpora > 100K chunks)
+# BM25 lexical search backend.
+# "rank_bm25" — in-memory (fast startup; suitable for <100K chunks)
+# "tantivy"   — memory-mapped disk index (recommended for >100K chunks)
 bm25_backend = "rank_bm25"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Chunking
 # ─────────────────────────────────────────────────────────────────────────────
 [chunking]
-# Target chunk size in tokens.
+# Target chunk size in tokens. 512 is a good balance between context and recall.
 target_tokens = 512
 
-# Overlap between consecutive chunks in tokens (for context continuity).
+# Overlap between consecutive chunks in tokens.
 overlap_tokens = 64
 
-# Semantic chunking: split on semantic boundary changes (requires embed model).
-# T1: false (sentence-boundary split; faster)
-# T2/T3: true (better chunk quality; +10-20% ingestion time)
-use_semantic = false
+# Semantic chunking: split on detected topic boundaries (requires embed model).
+# Tier defaults: T1 → false | T2/T3 → true
+# use_semantic = true
 
-# Semantic boundary detection threshold (0.0 - 1.0).
-# Lower = tighter boundaries (good for technical/academic docs).
-# Higher = looser boundaries (good for narrative/conversational text).
-# Default 0.3 works well for most document types.
+# Semantic boundary detection threshold (0.0-1.0).
+# Lower (0.2) = finer-grained topic splits.
+# Higher (0.5) = coarser splits (fewer, longer chunks).
 semantic_threshold = 0.3
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Generation / Context Assembly
 # ─────────────────────────────────────────────────────────────────────────────
 [generation]
-# Maximum tokens allocated to the retrieved context.
-# T1: 2048  |  T2: 2048  |  T3: 3072
-# (Remainder of ctx_size is reserved for the answer and conversation history.)
-context_max_tokens = 2048
+# Tier defaults:
+# T1/T2: context_max_tokens=2048 | T3: context_max_tokens=3072
+# context_max_tokens = 2048
 
-# Stream the answer token by token to the terminal.
+# Stream the answer token by token (true recommended for interactive use).
 streaming = true
 
-# Number of prior conversation turns to include in the LLM context.
+# Number of prior conversation turns included in LLM context.
 # Each turn ≈ 200-400 tokens. Oldest turns are dropped when over budget.
-# Set to 0 to disable conversation history context.
+# Set to 0 for stateless / one-shot queries.
 history_turns = 3
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Storage
 # ─────────────────────────────────────────────────────────────────────────────
 [storage]
-# Root directory for the Qdrant index, SQLite database, and session history.
-# Uses ~ for home directory. Supports absolute paths.
+# Root directory for Qdrant, SQLite, and session history. ~ = home dir.
 db_path = "~/.ragdb"
 
-# Enable query result cache (Phase 4 feature — leave false until Phase 4).
-# Cache stores the last 500 query-answer pairs. Identical queries return
-# cached answers in <50ms without running retrieval or generation.
-query_cache_enabled = false
+# Query result cache: identical queries return cached answers in <50 ms.
+# Cache stores up to 500 query-answer pairs (LRU eviction).
+query_cache_enabled = true
+
+# Cache TTL in hours. Answers older than this are re-generated.
+query_cache_ttl_hours = 24
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Parsers (Phase 3 features)
+# Parsers
 # ─────────────────────────────────────────────────────────────────────────────
 [parsers]
-# T3 opt-in: caption image-heavy pages using moondream2 during ingestion.
-# Requires: motif setup --tier T3 --captioning
-# Downloads moondream2 Q4 (~900 MB extra).
+# T3 opt-in: caption image-heavy pages with moondream2 during ingestion.
+# Requires: motif setup --tier T3 --captioning   (~900 MB extra download)
 use_moondream = false
 
-# Pages with image coverage > this fraction trigger moondream2 captioning.
+# Pages with image area > this fraction of total page area trigger captioning.
 image_density_threshold = 0.3

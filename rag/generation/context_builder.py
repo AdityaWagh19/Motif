@@ -214,10 +214,30 @@ class ContextBuilder:
         selected.sort(key=lambda p: (p.chunk.source, p.chunk.char_start))
         selected = _merge_adjacent_chunks(selected)
         
-        # ── Anti-middle ordering ──────────────────────────────────────────────
+        # ── Anti-middle ordering ────────────────────────────────────────────
         ordered = _anti_middle_order(selected)
 
-        # ── Prompt assembly ───────────────────────────────────────────────────
+        # ── Prompt assembly ───────────────────────────────────────────────
         prompt = build_prompt(query, ordered, history)
+
+        # ── Dynamic token budget enforcement (Phase 8a) ──────────────────────
+        # Guard against prompt overflow: trim passages if the prompt is larger
+        # than the context window minus the answer budget.
+        # ~4 chars per token (conservative English approximation).
+        budget_chars = (config.llm.ctx_size - config.llm.max_tokens - 50) * 4
+        trim_iterations = 0
+        while len(prompt) > budget_chars and len(ordered) > 1:
+            ordered = ordered[:-1]   # remove least-relevant passage (last after anti-middle)
+            prompt = build_prompt(query, ordered, history)
+            trim_iterations += 1
+        if trim_iterations > 0:
+            log.warning(
+                "Context trimmed from %d to %d passages to fit within token budget "
+                "(ctx_size=%d, max_tokens=%d).",
+                len(ordered) + trim_iterations,
+                len(ordered),
+                config.llm.ctx_size,
+                config.llm.max_tokens,
+            )
 
         return prompt, ordered

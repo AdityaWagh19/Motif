@@ -3,9 +3,32 @@ rag/config.py — Configuration dataclasses and hardware tier detection.
 
 Loads config.toml from the project root (or a specified path).
 Falls back to config.template.toml if config.toml does not exist.
+
+Hardware Tier Summary
+---------------------
+T1  — CPU only / < 4 GB VRAM / Mac < 8 GB unified memory
+        Model: Phi-3.5-mini-instruct-Q4_K_M.gguf (2.2 GB)
+        n_gpu_layers: 0
+
+T2  — 4–6 GB VRAM / Mac 8–15 GB unified memory (GTX 1650 / M1 8 GB)
+        Model: Qwen2.5-7B-Instruct-Q4_K_M.gguf (4.2 GB)
+        n_gpu_layers: 20 (CUDA/Metal)
+
+T3  — 6+ GB VRAM / Mac 16+ GB unified memory (RTX 3050+ / M2 Pro 16 GB+)
+        Model: Qwen2.5-7B-Instruct-Q4_K_M.gguf (4.2 GB)
+        n_gpu_layers: 28 (CUDA/Metal)
+
+Backend Detection Priority
+--------------------------
+1. NVIDIA GPU  → nvidia-smi  (Windows / Linux)
+2. Apple Silicon → sysctl hw.memsize  (macOS arm64 — Metal)
+3. AMD ROCm GPU → rocm-smi  (Linux ROCm)
+4. Fallback → CPU (T1)
 """
 from __future__ import annotations
 
+import os
+import platform
 import subprocess
 import tomllib
 from dataclasses import dataclass, field
@@ -18,7 +41,8 @@ from pathlib import Path
 
 @dataclass
 class HardwareConfig:
-    tier: str = "auto"  # "auto" | "T1" | "T2" | "T3"
+    tier: str = "auto"    # "auto" | "T1" | "T2" | "T3"
+    backend: str = "cpu"  # "cuda" | "metal" | "rocm" | "cpu"
 
 
 @dataclass
@@ -33,7 +57,7 @@ class ModelsConfig:
 class LLMConfig:
     n_gpu_layers: int = 0
     ctx_size: int = 2048
-    max_tokens: int = 400
+    max_tokens: int = 150    # concise answers; reduces hallucination and repetition
     temperature: float = 0.1
     threads: int = 4
 
@@ -65,7 +89,8 @@ class GenerationConfig:
 @dataclass
 class StorageConfig:
     db_path: str = "~/.ragdb"
-    query_cache_enabled: bool = False
+    query_cache_enabled: bool = True
+    query_cache_ttl_hours: int = 24
 
 
 @dataclass
@@ -95,17 +120,13 @@ class RAGConfig:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Hardware Tier Detection
+# Hardware Tier Detection — Multi-Backend
 # ─────────────────────────────────────────────────────────────────────────────
 
-def detect_hardware_tier() -> str:
+def _detect_nvidia_tier() -> str | None:
     """
-    Determine the hardware tier based on available GPU VRAM.
-
-    Returns:
-        "T1" — CPU only, or GPU with < 4 GB VRAM
-        "T2" — GPU with 4–5.9 GB VRAM (GTX 1650 class)
-        "T3" — GPU with >= 6 GB VRAM (RTX 3050 class and above)
+    Return tier string if an NVIDIA GPU is found via nvidia-smi, else None.
+    Uses the highest-VRAM GPU when multiple GPUs are present.
     """
     try:
         result = subprocess.run(
@@ -119,23 +140,144 @@ def detect_hardware_tier() -> str:
             timeout=5,
         )
         if result.returncode != 0:
-            return "T1"
+            return None
 
-        lines = [line.strip() for line in result.stdout.strip().splitlines() if line.strip()]
+        lines = [l.strip() for l in result.stdout.strip().splitlines() if l.strip()]
         if not lines:
-            return "T1"
+            return None
 
-        # Use the first GPU's VRAM (MiB)
-        vram_mb = int(lines[0])
+        # Use the highest VRAM GPU (multi-GPU support)
+        vram_mb = max(int(l) for l in lines)
         if vram_mb >= 6000:
             return "T3"
         elif vram_mb >= 3800:
             return "T2"
         else:
             return "T1"
-
     except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
-        return "T1"
+        return None
+
+
+def _detect_apple_silicon_tier() -> str | None:
+    """
+    Return tier string for Apple Silicon Macs (arm64), else None.
+    Uses unified memory size as the effective VRAM for Metal inference.
+
+    Memory thresholds:
+      8–15 GB unified memory → T2 (Qwen2.5-7B Q4 partial Metal offload)
+      16 GB+  unified memory → T3 (full Metal offload)
+    """
+    if platform.system() != "Darwin" or platform.machine() != "arm64":
+        return None
+    try:
+        result = subprocess.run(
+            ["sysctl", "-n", "hw.memsize"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+        if result.returncode != 0:
+            return None
+        ram_bytes = int(result.stdout.strip())
+        ram_gb = ram_bytes / (1024 ** 3)
+        if ram_gb >= 16:
+            return "T3"
+        elif ram_gb >= 8:
+            return "T2"
+        else:
+            return "T1"
+    except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
+        return None
+
+
+def _detect_amd_tier() -> str | None:
+    """
+    Return tier string if an AMD ROCm GPU is found via rocm-smi, else None.
+    Parses the CSV output to find maximum VRAM across all GPUs.
+    """
+    try:
+        result = subprocess.run(
+            ["rocm-smi", "--showmeminfo", "vram", "--csv"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode != 0:
+            return None
+
+        max_vram_mb = 0
+        for line in result.stdout.splitlines():
+            # Skip header lines
+            if line.startswith("card") or line.startswith("GPU") or not line.strip():
+                continue
+            parts = line.strip().split(",")
+            if len(parts) >= 2:
+                try:
+                    vram_bytes = int(parts[1].strip())
+                    vram_mb = vram_bytes / (1024 ** 2)
+                    max_vram_mb = max(max_vram_mb, int(vram_mb))
+                except (ValueError, IndexError):
+                    continue
+
+        if max_vram_mb == 0:
+            return None
+        if max_vram_mb >= 6000:
+            return "T3"
+        elif max_vram_mb >= 3800:
+            return "T2"
+        else:
+            return "T1"
+    except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
+        return None
+
+
+def detect_hardware_tier() -> str:
+    """
+    Universal hardware tier detection.
+
+    Priority order:
+      1. NVIDIA GPU via nvidia-smi     (Windows / Linux / WSL)
+      2. Apple Silicon via sysctl      (macOS arm64 — uses Metal)
+      3. AMD GPU via rocm-smi          (Linux ROCm)
+      4. Fallback: CPU-only T1
+
+    Returns:
+        "T1" — CPU only, or GPU with < 4 GB VRAM
+        "T2" — 4–6 GB VRAM / Mac 8–15 GB unified memory
+        "T3" — >= 6 GB VRAM / Mac 16+ GB unified memory
+    """
+    tier = _detect_nvidia_tier()
+    if tier:
+        return tier
+
+    tier = _detect_apple_silicon_tier()
+    if tier:
+        return tier
+
+    tier = _detect_amd_tier()
+    if tier:
+        return tier
+
+    return "T1"
+
+
+def _resolve_backend(tier: str) -> str:
+    """Return the GPU backend string for a detected tier."""
+    if tier == "T1":
+        return "cpu"
+    if platform.system() == "Darwin" and platform.machine() == "arm64":
+        return "metal"
+    if _detect_amd_tier() is not None:
+        return "rocm"
+    if _detect_nvidia_tier() is not None:
+        return "cuda"
+    return "cpu"
+
+
+def _check_cuda_toolkit() -> bool:
+    """Return True if CUDA Toolkit is installed and CUDA_PATH is set."""
+    cuda_path = os.environ.get("CUDA_PATH", "")
+    return bool(cuda_path) and Path(cuda_path).exists()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -144,22 +286,22 @@ def detect_hardware_tier() -> str:
 
 _TIER_DEFAULTS: dict[str, dict] = {
     "T1": {
-        "llm": {"n_gpu_layers": 0, "ctx_size": 2048, "threads": 4},
+        "llm": {"n_gpu_layers": 0, "ctx_size": 2048, "max_tokens": 150, "threads": 4},
         "retrieval": {"top_k_retrieval": 20, "top_k_rerank": 3, "query_expansion": "none"},
         "chunking": {"use_semantic": False},
         "generation": {"context_max_tokens": 2048},
         "models": {"llm_path": "models/Phi-3.5-mini-instruct-Q4_K_M.gguf", "reranker": "models/MiniLM-L12-v2"},
     },
     "T2": {
-        "llm": {"n_gpu_layers": 20, "ctx_size": 3072, "threads": 6},
-        "retrieval": {"top_k_retrieval": 25, "top_k_rerank": 5, "query_expansion": "hyde"},
+        "llm": {"n_gpu_layers": 20, "ctx_size": 3072, "max_tokens": 150, "threads": 6},
+        "retrieval": {"top_k_retrieval": 25, "top_k_rerank": 5, "query_expansion": "none"},
         "chunking": {"use_semantic": True},
         "generation": {"context_max_tokens": 2048},
         "models": {"llm_path": "models/Qwen2.5-7B-Instruct-Q4_K_M.gguf", "reranker": "models/MiniLM-L12-v2"},
     },
     "T3": {
-        "llm": {"n_gpu_layers": 28, "ctx_size": 4096, "threads": 8},
-        "retrieval": {"top_k_retrieval": 30, "top_k_rerank": 5, "query_expansion": "hyde"},
+        "llm": {"n_gpu_layers": 28, "ctx_size": 4096, "max_tokens": 150, "threads": 8},
+        "retrieval": {"top_k_retrieval": 30, "top_k_rerank": 5, "query_expansion": "none"},
         "chunking": {"use_semantic": True},
         "generation": {"context_max_tokens": 3072},
         "models": {"llm_path": "models/Qwen2.5-7B-Instruct-Q4_K_M.gguf", "reranker": "models/bge-reranker-base"},
@@ -191,9 +333,15 @@ def load_config(config_path: Path | None = None) -> RAGConfig:
       4. config.template.toml next to this file (read-only defaults)
       5. Built-in dataclass defaults
 
-    After loading, detects or resolves the hardware tier and applies
-    tier-specific defaults for any values not explicitly set.
+    Load order (Bug #3 fix — user config.toml wins over tier defaults):
+      1. Detect hardware tier
+      2. Apply tier defaults as a baseline
+      3. Apply user overrides from config.toml ON TOP of tier defaults
+         (so any value explicitly set in config.toml takes precedence)
     """
+    import logging as _log
+    _logger = _log.getLogger("rag.config")
+
     config = RAGConfig()
     raw: dict = {}
 
@@ -201,7 +349,6 @@ def load_config(config_path: Path | None = None) -> RAGConfig:
     if config_path:
         candidates.append(Path(config_path))
 
-    # Look in CWD and project root
     cwd = Path.cwd()
     pkg_root = Path(__file__).parent.parent  # rag/ → project root
     candidates += [
@@ -216,8 +363,19 @@ def load_config(config_path: Path | None = None) -> RAGConfig:
                 raw = tomllib.load(f)
             break
 
-    # Populate dataclass fields from the raw TOML dict
+    # ── Step 1: Resolve the tier ────────────────────────────────────────────
+    # Read hardware section from raw first to check for manual tier override
     _populate_section(config.hardware, raw.get("hardware", {}))
+
+    if config.hardware.tier == "auto":
+        config.resolved_tier = detect_hardware_tier()
+    else:
+        config.resolved_tier = config.hardware.tier.upper()
+
+    # ── Step 2: Apply tier defaults as the baseline ──────────────────────────
+    _apply_tier_defaults(config, config.resolved_tier)
+
+    # ── Step 3: Apply user overrides from config.toml (user always wins) ────
     _populate_section(config.models, raw.get("models", {}))
     _populate_section(config.llm, raw.get("llm", {}))
     _populate_section(config.retrieval, raw.get("retrieval", {}))
@@ -226,14 +384,22 @@ def load_config(config_path: Path | None = None) -> RAGConfig:
     _populate_section(config.storage, raw.get("storage", {}))
     _populate_section(config.parsers, raw.get("parsers", {}))
 
-    # Resolve tier
-    if config.hardware.tier == "auto":
-        config.resolved_tier = detect_hardware_tier()
-    else:
-        config.resolved_tier = config.hardware.tier.upper()
+    # ── Step 4: Resolve and set backend ──────────────────────────────────────
+    config.hardware.backend = _resolve_backend(config.resolved_tier)
 
-    # Apply tier-specific defaults
-    _apply_tier_defaults(config, config.resolved_tier)
+    # ── Step 5: CUDA toolkit warning for T2/T3 on Windows/Linux ──────────────
+    if (
+        config.resolved_tier in ("T2", "T3")
+        and config.hardware.backend == "cuda"
+        and not _check_cuda_toolkit()
+    ):
+        _logger.warning(
+            "Tier %s detected but CUDA_PATH is not set. "
+            "GPU inference will be silently disabled. "
+            "Install CUDA Toolkit 12.x to enable GPU acceleration: "
+            "https://developer.nvidia.com/cuda-downloads",
+            config.resolved_tier,
+        )
 
     return config
 

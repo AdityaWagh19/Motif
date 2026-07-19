@@ -47,17 +47,27 @@ class AudioParser(BaseParser):
         return self._group_segments(segments)
 
     def _get_whisper_model_path(self) -> Path:
+        """
+        Resolve the Whisper model path.
+
+        Relative paths are resolved against the project root (where pyproject.toml
+        lives), NOT the process CWD. This ensures audio ingestion works regardless
+        of which directory the user runs `motif` from.
+        """
         cfg = self._config
         whisper_model = cfg.models.whisper
         path = Path(whisper_model)
         if not path.is_absolute():
-            # Relative to project root
-            path = Path(cfg.models.llm_path).parent.parent / whisper_model
-            
+            # Anchor relative paths to the project root:
+            # rag/ingestion/parsers/audio.py → rag/ingestion/parsers/ → rag/ingestion/ → rag/ → project_root
+            project_root = Path(__file__).parent.parent.parent.parent
+            path = project_root / whisper_model
+
         if not path.exists():
             raise FileNotFoundError(
                 f"Whisper model not found: {path}\n"
-                f"Run `motif setup` to download it."
+                f"Run `motif setup` to download it.\n"
+                f"(Configured whisper path: {whisper_model!r})"
             )
         return path
 

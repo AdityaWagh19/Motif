@@ -98,23 +98,57 @@ class ModelManager:
         """
         Return the loaded Reranker, loading it on first call.
 
+        Supports both file-form and directory-form model paths:
+          - File: models/MiniLM-L12-v2/onnx/model_O3.onnx  (explicit ONNX file)
+          - Dir:  models/MiniLM-L12-v2/                     (auto-discovers ONNX inside)
+          - Dir:  models/bge-reranker-base/                  (T3 model)
+
         Raises:
-            FileNotFoundError: If the model directory does not exist.
+            FileNotFoundError: If the model directory/file does not exist.
         """
         if self._reranker is None:
             from rag.models.reranker import Reranker  # lazy import
 
             model_path = Path(config.models.reranker)
             if not model_path.is_absolute():
-                model_path = Path(config.models.reranker).resolve()
+                model_path = model_path.resolve()
 
             if not model_path.exists():
                 raise FileNotFoundError(
                     f"Reranker model not found: {model_path}\n"
                     f"Run `motif setup` to download models."
                 )
-            log.info("Loading reranker from %s", model_path)
-            self._reranker = Reranker(model_path)
+
+            # If model_path is a directory, find the best ONNX variant inside it.
+            # Priority: O3 (most optimised) > O4 > standard > base
+            if model_path.is_dir():
+                onnx_dir = model_path / "onnx"
+                candidates = [
+                    "model_O3.onnx",
+                    "model_O4.onnx",
+                    "model_optimized.onnx",
+                    "model.onnx",
+                ]
+                resolved_onnx = None
+                search_dir = onnx_dir if onnx_dir.exists() else model_path
+                for candidate in candidates:
+                    candidate_path = search_dir / candidate
+                    if candidate_path.exists():
+                        resolved_onnx = candidate_path
+                        break
+
+                if resolved_onnx is None:
+                    raise FileNotFoundError(
+                        f"No ONNX model file found in {model_path}. "
+                        f"Expected one of: {candidates}. "
+                        f"Run `motif setup` to download models."
+                    )
+                log.info("Loading reranker from %s (resolved: %s)", model_path, resolved_onnx)
+                self._reranker = Reranker(resolved_onnx)
+            else:
+                log.info("Loading reranker from %s", model_path)
+                self._reranker = Reranker(model_path)
+
             self._reranker._load()
 
         return self._reranker

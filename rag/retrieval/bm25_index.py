@@ -109,6 +109,14 @@ class BM25Index:
             self._bm25 = None
         else:
             self._bm25 = BM25Okapi(self._corpus_tokens)
+            chunk_count = len(self._chunk_ids)
+            if chunk_count > 5_000:
+                log.warning(
+                    "BM25 index has %d chunks. Startup rebuild will take >10 s at 50K+ chunks. "
+                    "Consider migrating to bm25s for incremental indexing. "
+                    "Phase 10 documents the migration path.",
+                    chunk_count,
+                )
 
     @staticmethod
     def _tokenize(text: str) -> List[str]:

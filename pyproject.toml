@@ -11,6 +11,20 @@ license = { text = "MIT" }
 requires-python = ">=3.11"
 keywords = ["rag", "llm", "offline", "local", "documents", "multimodal"]
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Compatible Version Stack (as of 2025-07-19)
+# ─────────────────────────────────────────────────────────────────────────────
+# Python:                3.11 – 3.12
+# llama-cpp-python:      0.3.x  (0.2.x lacks Qwen2.5 GGUF support)
+# onnxruntime:           1.18.x (CPU) or onnxruntime-gpu 1.17+ (CUDA)
+# transformers:          4.40 – 4.50 (tokenizer only; not used for inference)
+# qdrant-client:         1.10+ (embedded local mode, no server required)
+# rank-bm25:             0.2.x
+# pymupdf:               1.24+
+# huggingface-hub:       0.23+
+# ragas:                 0.1.x  (v0.2 has breaking API changes)
+# ─────────────────────────────────────────────────────────────────────────────
+
 dependencies = [
     # Interface
     "prompt_toolkit>=3.0",
@@ -23,17 +37,19 @@ dependencies = [
     "rank-bm25>=0.2",
 
     # Embedding + reranker inference (ONNX, no torch at query time)
+    # NOTE: install onnxruntime-gpu instead for GPU-accelerated embedding.
+    # See: pip install motif-rag[gpu]
     "onnxruntime>=1.18",
 
     # Tokenizer (used only for token counting; not for inference)
     "tokenizers>=0.19",
     "transformers>=4.40",
 
-    # Document parsers (Phase 1: PDF + Markdown)
+    # Document parsers
     "pymupdf>=1.24",
     "markdown-it-py>=3.0",
 
-    # DOCX parser (Phase 3)
+    # DOCX parser
     "python-docx>=1.1",
 
     # Model download
@@ -42,25 +58,34 @@ dependencies = [
     # LLM inference — CPU wheel by default.
     # The installer script (install.sh / install.ps1) upgrades this to the
     # appropriate CUDA pre-built wheel when a CUDA-capable GPU is detected.
-    "llama-cpp-python>=0.2.80",
+    # Minimum 0.3.0 required for Qwen2.5 and Phi-3.5 GGUF Q4_K_M support.
+    "llama-cpp-python>=0.3.0",
 
     # Progress display during model download
     "tqdm>=4.66",
 ]
 
 [project.optional-dependencies]
-# Offline evaluation (Phase 4)
+# GPU-accelerated ONNX for the embedder and reranker.
+# Install with: pip install motif-rag[gpu]
+# Requires CUDA 11.8+ or ROCm 5.6+.
+gpu = [
+    "onnxruntime-gpu>=1.17",
+]
+
+# Offline evaluation
+# Pin <0.2 — RAGAS v0.2 has breaking API changes (evaluate() signature changed).
 eval = [
-    "ragas>=0.1",
+    "ragas>=0.1,<0.2",
     "datasets>=2.0",
 ]
 
-# Audio ingestion (Phase 3)
+# Audio ingestion
 audio = [
     "pywhispercpp>=1.0",
 ]
 
-# Semantic chunking (Phase 2)
+# Semantic chunking
 semantic = [
     "semantic-text-splitter>=0.12",
 ]

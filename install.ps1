@@ -7,6 +7,7 @@
 $MotifRepo      = "https://github.com/AdityaWagh19/Motif"
 $UvInstallUrl   = "https://astral.sh/uv/install.ps1"
 $LlamaCppIndex  = "https://abetlen.github.io/llama-cpp-python/whl"
+$LlamaCppRocm   = "https://abetlen.github.io/llama-cpp-python/whl/rocm"
 
 # ── Formatting helpers ────────────────────────────────────────────────────────
 function Write-Header($msg)  { Write-Host "`n$msg" -ForegroundColor White }
@@ -55,7 +56,10 @@ Write-Ok "motif installed"
 # Add uv tool bin dir to PATH for this session
 & uv tool update-shell 2>$null
 
-# ── Step 3: GPU / CUDA detection ─────────────────────────────────────────────
+# ── Step 3: GPU / accelerator detection ──────────────────────────────────────
+$MotifEnv = & uv tool dir motif 2>$null
+
+# ── 3a. NVIDIA CUDA ───────────────────────────────────────────────────────────
 $CudaVersion = ""
 try {
     $NvSmiOut = & nvidia-smi 2>$null
@@ -65,13 +69,14 @@ try {
 } catch { }
 
 if ($CudaVersion) {
-    # Map "12.4" → "cu124"
-    $CudaTag = "cu" + $CudaVersion.Replace(".", "")
+    # Bug #7 fix: Take only major.minor components to build the wheel tag.
+    # "12.4.0" → "12.4" → "cu124"  (cu1240 is invalid and causes silent fallback to CPU)
+    $CudaShort = ($CudaVersion -split '\.')[0..1] -join '.'
+    $CudaTag = "cu" + $CudaShort.Replace(".", "")
 
-    Write-Info "NVIDIA GPU detected — CUDA $CudaVersion."
+    Write-Info "NVIDIA GPU detected — CUDA $CudaVersion (wheel tag: $CudaTag)."
     Write-Info "Installing GPU-enabled llama-cpp-python ($CudaTag pre-built wheel)..."
 
-    $MotifEnv = & uv tool dir motif 2>$null
     if ($MotifEnv) {
         $pythonExe = Join-Path $MotifEnv "Scripts\python.exe"
         try {
@@ -89,9 +94,35 @@ if ($CudaVersion) {
     } else {
         Write-Warn "Could not locate Motif tool environment. CUDA wheel not installed."
     }
+
+# ── 3b. AMD ROCm ──────────────────────────────────────────────────────────────
+} elseif (Get-Command rocm-smi -ErrorAction SilentlyContinue) {
+    Write-Info "AMD ROCm GPU detected."
+    Write-Info "Installing ROCm-enabled llama-cpp-python..."
+
+    if ($MotifEnv) {
+        $pythonExe = Join-Path $MotifEnv "Scripts\python.exe"
+        try {
+            & uv pip install llama-cpp-python `
+                --python $pythonExe `
+                --extra-index-url $LlamaCppRocm `
+                --force-reinstall `
+                --quiet
+            Write-Ok "llama-cpp-python with ROCm support installed"
+        } catch {
+            Write-Warn "Pre-built ROCm wheel not found. Falling back to CPU inference."
+            Write-Warn "To retry manually:"
+            Write-Warn "  uv pip install llama-cpp-python --extra-index-url $LlamaCppRocm --force-reinstall"
+        }
+    } else {
+        Write-Warn "Could not locate Motif tool environment. ROCm wheel not installed."
+    }
+
+# ── 3c. CPU fallback ──────────────────────────────────────────────────────────
 } else {
-    Write-Info "No NVIDIA GPU detected. CPU inference will be used (Tier 1)."
-    Write-Info "Generation will work but will be slower (~11s P95 latency)."
+    Write-Info "No GPU accelerator detected. CPU inference will be used (Tier T1)."
+    Write-Info "Generation will work but will be slower (~2-3 min P50 for 7B models)."
+    Write-Info "Phi-3.5-mini (T1 model) is much faster: ~11 s P95 on modern CPUs."
 }
 
 # ── Done ──────────────────────────────────────────────────────────────────────

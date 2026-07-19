@@ -128,6 +128,41 @@ def _download_file(repo_id: str, filename: str, local_name: str, size_label: str
     return target
 
 
+def _get_nomic_onnx_patterns() -> list[str]:
+    """
+    Return the minimal allow_patterns for the nomic-embed-text ONNX download.
+
+    The nomic HuggingFace repo contains ~520 MB of ONNX variants:
+      model_quantized.onnx             — x86_64 INT8 (131 MB, ~4x faster than fp32)
+      model_quantized_arm64.onnx       — ARM64 INT8 (Apple Silicon, Raspberry Pi)
+      model.onnx                       — fp32 baseline
+      model_fp16.onnx                  — float16
+      model_avx512.onnx / model_avx2.onnx — SIMD-specific variants
+      model_openvino.xml / .bin        — Intel OpenVINO
+
+    We download only what is needed for this platform.
+    """
+    import platform as _plat
+    machine = _plat.machine().lower()
+    if "arm" in machine or "aarch64" in machine:
+        # Apple Silicon (M1/M2/M3) and ARM Linux
+        return [
+            "onnx/model_quantized_arm64.onnx",
+            "onnx/model_quantized_arm64_data_0.onnx",  # external weights if present
+            "tokenizer*",
+            "config.json",
+            "special_tokens_map.json",
+        ]
+    else:
+        # x86_64 Windows, Linux, and Intel Mac
+        return [
+            "onnx/model_quantized.onnx",
+            "tokenizer*",
+            "config.json",
+            "special_tokens_map.json",
+        ]
+
+
 def _download_snapshot(repo_id: str, local_name: str, size_label: str) -> Path:
     """Download a full HuggingFace repo snapshot to models/<local_name>/."""
     dest = MODELS_DIR / local_name
@@ -136,10 +171,12 @@ def _download_snapshot(repo_id: str, local_name: str, size_label: str) -> Path:
         return dest
 
     console.print(f"  [cyan]down[/cyan]  {local_name}/ ({size_label})")
-    snapshot_kwargs = {}
+    snapshot_kwargs: dict = {}
     if "nomic" in repo_id:
-        snapshot_kwargs["allow_patterns"] = ["onnx/*", "tokenizer*", "config.json"]
-        
+        # Download only the platform-appropriate ONNX variant.
+        # Without this, HuggingFace downloads all ~520 MB of variants.
+        snapshot_kwargs["allow_patterns"] = _get_nomic_onnx_patterns()
+
     snapshot_download(
         repo_id=repo_id,
         local_dir=dest,

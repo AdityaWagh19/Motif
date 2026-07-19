@@ -6,6 +6,7 @@ set -euo pipefail
 MOTIF_REPO="https://github.com/AdityaWagh19/Motif"
 UV_INSTALL_URL="https://astral.sh/uv/install.sh"
 LLAMA_CPP_CUDA_INDEX="https://abetlen.github.io/llama-cpp-python/whl"
+LLAMA_CPP_ROCM_INDEX="https://abetlen.github.io/llama-cpp-python/whl/rocm"
 
 # ── Formatting helpers ────────────────────────────────────────────────────────
 bold()    { printf "\033[1m%s\033[0m\n" "$*"; }
@@ -40,7 +41,10 @@ success "motif installed"
 # Ensure uv tool bin dir is on PATH
 uv tool update-shell 2>/dev/null || true
 
-# ── Step 3: GPU / CUDA detection ─────────────────────────────────────────────
+# ── Step 3: GPU / accelerator detection ──────────────────────────────────────
+MOTIF_ENV=$(uv tool dir motif 2>/dev/null || echo "")
+
+# ── 3a. NVIDIA CUDA ───────────────────────────────────────────────────────────
 CUDA_VERSION=""
 if command -v nvidia-smi &>/dev/null; then
     CUDA_VERSION=$(nvidia-smi 2>/dev/null \
@@ -49,15 +53,14 @@ if command -v nvidia-smi &>/dev/null; then
 fi
 
 if [ -n "$CUDA_VERSION" ]; then
-    # Map "12.4" → "cu124", "12.1" → "cu121", etc.
-    CUDA_TAG="cu$(echo "$CUDA_VERSION" | tr -d '.')"
-    CUDA_MAJOR=$(echo "$CUDA_VERSION" | cut -d. -f1)
+    # Bug #6 fix: Take only major.minor (e.g. "12.4" not "12.4.0")
+    # nvidia-smi sometimes reports a 3-part version string; cu1240 is invalid.
+    CUDA_MAJOR_MINOR=$(echo "$CUDA_VERSION" | cut -d. -f1,2)
+    CUDA_TAG="cu$(echo "$CUDA_MAJOR_MINOR" | tr -d '.')"
 
-    info "NVIDIA GPU detected — CUDA ${CUDA_VERSION}."
+    info "NVIDIA GPU detected — CUDA ${CUDA_VERSION} (wheel tag: ${CUDA_TAG})."
     info "Installing GPU-enabled llama-cpp-python (${CUDA_TAG} pre-built wheel)..."
 
-    # Use uv pip inside the tool's isolated environment
-    MOTIF_ENV=$(uv tool dir motif 2>/dev/null || echo "")
     if [ -n "$MOTIF_ENV" ]; then
         uv pip install llama-cpp-python \
             --python "${MOTIF_ENV}/bin/python" \
@@ -70,9 +73,47 @@ if [ -n "$CUDA_VERSION" ]; then
         warn "Could not locate Motif tool environment. CUDA wheel not installed."
         warn "Re-run with: uv pip install llama-cpp-python --extra-index-url ${LLAMA_CPP_CUDA_INDEX}/${CUDA_TAG} --force-reinstall"
     fi
+
+# ── 3b. Apple Silicon (Metal) ─────────────────────────────────────────────────
+elif [ "$(uname)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
+    info "Apple Silicon detected — llama.cpp will use Metal (GPU) automatically."
+    info "The standard llama-cpp-python wheel includes Metal support on macOS arm64."
+    info "No additional install step needed."
+    success "Metal GPU inference enabled (llama.cpp built-in)"
+
+    # Retrieve unified memory size for user info
+    RAM_BYTES=$(sysctl -n hw.memsize 2>/dev/null || echo 0)
+    RAM_GB=$(( RAM_BYTES / 1073741824 ))
+    if [ "$RAM_GB" -ge 16 ]; then
+        info "Detected ${RAM_GB} GB unified memory → Tier T3 (full Metal offload)"
+    elif [ "$RAM_GB" -ge 8 ]; then
+        info "Detected ${RAM_GB} GB unified memory → Tier T2 (partial Metal offload)"
+    else
+        info "Detected ${RAM_GB} GB unified memory → Tier T1 (CPU only recommended)"
+    fi
+
+# ── 3c. AMD ROCm ──────────────────────────────────────────────────────────────
+elif command -v rocm-smi &>/dev/null; then
+    info "AMD ROCm GPU detected."
+    info "Installing ROCm-enabled llama-cpp-python..."
+
+    if [ -n "$MOTIF_ENV" ]; then
+        uv pip install llama-cpp-python \
+            --python "${MOTIF_ENV}/bin/python" \
+            --extra-index-url "${LLAMA_CPP_ROCM_INDEX}" \
+            --force-reinstall \
+            --quiet 2>/dev/null && \
+        success "llama-cpp-python with ROCm support installed" || \
+        warn "Pre-built ROCm wheel not found. Falling back to CPU inference."
+    else
+        warn "Could not locate Motif tool environment. ROCm wheel not installed."
+    fi
+
+# ── 3d. CPU fallback ──────────────────────────────────────────────────────────
 else
-    info "No NVIDIA GPU detected. CPU inference will be used (Tier 1)."
-    info "Generation will work but will be slower (~11s P95 latency)."
+    info "No GPU accelerator detected. CPU inference will be used (Tier T1)."
+    info "Generation will work but will be slower (~2-3 min P50 for 7B models)."
+    info "Phi-3.5-mini (T1 model) is much faster: ~11 s P95 on modern CPUs."
 fi
 
 # ── Done ──────────────────────────────────────────────────────────────────────

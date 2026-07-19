@@ -90,7 +90,7 @@ class QueryPipeline:
         file_filter: Optional[str] = None,
         type_filter: Optional[str] = None,
         page_range: Optional[str] = None,
-        use_hyde: bool = True,   # Phase 4: controls HyDE expansion routing
+        use_hyde: bool = False,   # Phase 3: opt-in only. Pass True or use /hyde modifier.
         show_sources: bool = True,
     ) -> AnswerResult:
         """
@@ -195,6 +195,16 @@ class QueryPipeline:
         # ── 4. Rerank ──────────────────────────────────────────────────────────
         top_k_rerank: int = cfg.retrieval.top_k_rerank
         threshold: float = cfg.retrieval.relevance_threshold
+
+        # ── Reranker candidate guard ───────────────────────────────────────
+        MAX_EFFICIENT_RERANK = 20
+        if len(candidates) > MAX_EFFICIENT_RERANK:
+            log.debug(
+                "Reranker received %d candidates (efficient max: %d). "
+                "Each extra candidate adds ~8 ms reranking latency.",
+                len(candidates),
+                MAX_EFFICIENT_RERANK,
+            )
 
         try:
             reranked = rerank(

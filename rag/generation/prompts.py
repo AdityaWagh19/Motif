@@ -37,11 +37,13 @@ You are a precise research assistant. Answer the question using ONLY the \
 information in the provided context passages. Do not speculate or use outside \
 knowledge.
 
-If the answer is not present in the context, say exactly:
+Rules:
+- Answer in 1-3 sentences maximum. Be direct and concise.
+- Do not repeat yourself or rephrase the same point multiple times.
+- If the answer is not in the context, say only: \
 "I cannot find an answer to this in the available documents."
-
-Cite each piece of information with its passage number in square brackets, \
-e.g. [1], [2]. If multiple passages support a point, cite all of them, e.g. [1][3].
+- Cite each source with its passage number in square brackets, e.g. [1]. \
+Use each citation number at most once.
 
 Context:
 {context}
@@ -58,7 +60,8 @@ You are a precise research assistant continuing a conversation. Prior context:
 {history}
 
 Answer the current question using ONLY the provided document passages. \
-Maintain consistency with your previous answers. Cite sources with [N]."""
+Maintain consistency with your previous answers. \
+Answer in 1-3 sentences. Cite sources with [N] (each number used at most once)."""
 
 
 # Prompt used by HyDE (Phase 4) to generate a hypothetical answer.

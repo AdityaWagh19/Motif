@@ -12,8 +12,19 @@ Modes:
 
     One-shot (scripting):   `motif ask "query"` / `motif ingest ./docs`
         Executes a single command and exits. No REPL, no session.
+
+Thread pool env vars are set at module import time BEFORE numpy/onnxruntime/
+numexpr are imported. Setting them after import has no effect.
 """
 from __future__ import annotations
+
+# ── Thread pool limits — MUST be set before numpy/onnxruntime/numexpr import ─
+import os
+os.environ.setdefault("NUMEXPR_MAX_THREADS", "2")
+os.environ.setdefault("OMP_NUM_THREADS", "2")
+os.environ.setdefault("MKL_NUM_THREADS", "2")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "2")
+# ─────────────────────────────────────────────────────────────────────────────
 
 import sys
 from pathlib import Path
@@ -43,6 +54,7 @@ def _render_welcome(config: RAGConfig, session: Session) -> None:
     """Render the startup welcome panel with system info and session state."""
 
     tier_label = config.resolved_tier
+    backend_label = getattr(config.hardware, "backend", "cpu").upper()
     llm_name = Path(config.models.llm_path).stem
     db_root = config.db_root
     cwd = Path.cwd()
@@ -55,7 +67,8 @@ def _render_welcome(config: RAGConfig, session: Session) -> None:
         f"[bold white]Motif[/bold white] [dim]v{__version__}[/dim]",
         "",
         f"  Tier    [bold]{tier_label}[/bold]  "
-        f"[dim]|[/dim]  {llm_name}",
+        f"[dim]|[/dim]  {llm_name}  "
+        f"[dim]({backend_label})[/dim]",
     ]
 
     if chunk_count is not None:
@@ -155,11 +168,12 @@ def _handle_query(raw: str, session: Session, config: RAGConfig) -> None:
         /file FILENAME    — restrict retrieval to this file
         /type TYPE        — restrict to document type (pdf, md, audio, image)
         /pages MIN-MAX    — restrict to page range
-        /no-hyde          — skip HyDE query expansion
+        /hyde             — enable HyDE query expansion (opt-in, adds ~2-5 s)
         /no-sources       — suppress citations in output
 
     Example:
         What does section 3 say? /file thesis.pdf /pages 20-40
+        Explain attention mechanism /hyde
     """
     # Parse inline modifiers
     query, modifiers = _parse_query_modifiers(raw)
@@ -191,7 +205,7 @@ def _handle_query(raw: str, session: Session, config: RAGConfig) -> None:
             file_filter=modifiers.get("file"),
             type_filter=modifiers.get("type"),
             page_range=modifiers.get("pages"),
-            use_hyde=not modifiers.get("no-hyde", False),
+            use_hyde=bool(modifiers.get("hyde", False)),   # opt-in HyDE
             show_sources=not modifiers.get("no-sources", False),
         )
         session.add_turn(query, answer.text)
@@ -210,8 +224,8 @@ def _parse_query_modifiers(raw: str) -> tuple[str, dict]:
         (query_text, modifiers_dict)
 
     Example:
-        "What is X? /file report.pdf /no-hyde"
-        → ("What is X?", {"file": "report.pdf", "no-hyde": True})
+        "What is X? /file report.pdf /hyde"
+        → ("What is X?", {"file": "report.pdf", "hyde": True})
     """
     tokens = raw.strip().split()
     query_tokens: list[str] = []
@@ -239,7 +253,7 @@ def _parse_query_modifiers(raw: str) -> tuple[str, dict]:
 # Interactive REPL
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _interactive_mode() -> None:
+def _interactive_mode(no_prewarm: bool = False) -> None:
     """Launch the interactive prompt_toolkit REPL."""
 
     # Load config and session
@@ -248,12 +262,19 @@ def _interactive_mode() -> None:
     session.load()
 
     # Ensure db_root exists
-    import os
     os.makedirs(str(config.db_root), exist_ok=True)
 
     # Setup file logging
     import rag.logging_config
     rag.logging_config.setup(config)
+
+    # ── Pre-warm models (Phase 4) ─────────────────────────────────────────────
+    if not no_prewarm:
+        try:
+            from rag.warmup import prewarm_models
+            prewarm_models(config, console=console)
+        except Exception as exc:
+            console.print(f"[yellow]Pre-warm skipped:[/yellow] {exc}")
 
     # Auto-calibrate threshold (will fast-path return if already done or index empty)
     from rag.retrieval.calibrate import calibrate_threshold
@@ -359,15 +380,22 @@ def main() -> None:
     """
     Main entry point registered in pyproject.toml.
 
-    If arguments are provided, run in one-shot mode.
+    Flags:
+        --no-prewarm   Skip model pre-loading (first query will have cold-start latency).
+
+    If additional arguments are provided, run in one-shot mode.
     Otherwise, launch the interactive REPL.
     """
     args = sys.argv[1:]
 
+    # Handle --no-prewarm flag before routing
+    no_prewarm = "--no-prewarm" in args
+    args = [a for a in args if a != "--no-prewarm"]
+
     if args:
         _one_shot_mode(args)
     else:
-        _interactive_mode()
+        _interactive_mode(no_prewarm=no_prewarm)
 
 
 if __name__ == "__main__":
