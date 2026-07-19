@@ -112,9 +112,42 @@ class QueryPipeline:
         from rich.console import Console
         console = Console()
         t_start = time.monotonic()
-
-        # ── 0a. Query cache check ──────────────────────────────────────────────
         cfg = self._config
+
+        # ── 0a. Intent Classification (Runs before cache) ──────────────────────
+        try:
+            embedder = get_model_manager().get_embedder(cfg)
+        except FileNotFoundError as exc:
+            console.print(f"[red]Embedder not available:[/red] {exc}")
+            return AnswerResult(
+                text=str(exc),
+                citations=[],
+                passages_used=0,
+            )
+
+        if self._intent_classifier is None:
+            from rag.intent import IntentClassifier
+            self._intent_classifier = IntentClassifier(embedder, threshold=cfg.retrieval.chitchat_threshold)
+            
+        from rag.intent import Intent
+        intent = self._intent_classifier.classify(query)
+        if intent == Intent.GREETING_FAST:
+            result = AnswerResult(
+                text="Hello! Ask me anything about your documents.",
+                citations=[],
+                passages_used=0,
+                latency_ms=(time.monotonic() - t_start) * 1000,
+                retrieval_latency_ms=0,
+                generation_latency_ms=0,
+                tier=cfg.resolved_tier,
+            )
+            console.print(f"\n{result.text}\n")
+            return result
+        elif intent == Intent.CHITCHAT:
+            result = self._handle_chitchat(query, cfg, console, t_start)
+            return result
+
+        # ── 0b. Query cache check ──────────────────────────────────────────────
         if getattr(cfg.storage, "query_cache_enabled", False):
             from rag.storage.query_cache import QueryCache
             if self._cache is None:
@@ -146,42 +179,6 @@ class QueryPipeline:
             )
 
         # ── 1. Expand query → embedding ──────────────────────────────────────────────
-        try:
-            embedder = get_model_manager().get_embedder(cfg)
-        except FileNotFoundError as exc:
-            console.print(f"[red]Embedder not available:[/red] {exc}")
-            return AnswerResult(
-                text=str(exc),
-                citations=[],
-                passages_used=0,
-            )
-
-        if self._intent_classifier is None:
-            from rag.intent import IntentClassifier
-            self._intent_classifier = IntentClassifier(embedder, threshold=cfg.retrieval.chitchat_threshold)
-            
-        from rag.intent import Intent
-        intent = self._intent_classifier.classify(query)
-        if intent == Intent.GREETING_FAST:
-            result = AnswerResult(
-                text="Hello! Ask me anything about your documents.",
-                citations=[],
-                passages_used=0,
-                latency_ms=(time.monotonic() - t_start) * 1000,
-                retrieval_latency_ms=0,
-                generation_latency_ms=0,
-                tier=cfg.resolved_tier,
-            )
-            console.print(f"\n{result.text}\n")
-            if getattr(cfg.storage, "query_cache_enabled", False) and self._cache is not None:
-                self._cache.put(query, result, file_filter, type_filter, page_range)  # type: ignore[union-attr]
-            return result
-        elif intent == Intent.CHITCHAT:
-            result = self._handle_chitchat(query, cfg, console, t_start)
-            if getattr(cfg.storage, "query_cache_enabled", False) and self._cache is not None:
-                self._cache.put(query, result, file_filter, type_filter, page_range)  # type: ignore[union-attr]
-            return result
-
         query_vector, effective_query = self._expander.expand(query, cfg, embedder)
 
         # ── 2. Retrieve ────────────────────────────────────────────────────────
