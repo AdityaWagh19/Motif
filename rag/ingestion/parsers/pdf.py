@@ -185,9 +185,9 @@ class PDFParser(BaseParser):
                 
             if self._ocr is None:
                 log.info("Initialising PaddleOCR for scanned PDF page...")
-                self._ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
+                self._ocr = PaddleOCR(use_angle_cls=True, lang="en")
                 
-            result = self._ocr.ocr(tmp_path, cls=True)
+            result = self._ocr.predict(tmp_path)
             if not result or not result[0]:
                 return ""
             return " ".join(line[1][0] for line in result[0] if line[1][1] >= 0.6)

@@ -149,7 +149,11 @@ class ModelManager:
                 log.info("Loading reranker from %s", model_path)
                 self._reranker = Reranker(model_path)
 
-            self._reranker._load()
+            try:
+                self._reranker._load()
+            except Exception:
+                self._reranker = None
+                raise
 
         return self._reranker
 

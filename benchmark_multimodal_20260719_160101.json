@@ -1,0 +1,207 @@
+{
+  "parse_results": [
+    {
+      "modality": "pdf",
+      "filename": "attention_is_all_you_need.pdf",
+      "pages": 15,
+      "chunks": 15,
+      "chars": 39483,
+      "parse_time_ms": 9781.000000000005,
+      "embed_time_ms": 34187.999999999985,
+      "ingest_time_ms": 43983.99999999998,
+      "error": null
+    },
+    {
+      "modality": "pdf",
+      "filename": "llama_paper.pdf",
+      "pages": 27,
+      "chunks": 32,
+      "chars": 87844,
+      "parse_time_ms": 25078.000000000033,
+      "embed_time_ms": 105187.99999999999,
+      "ingest_time_ms": 130266.00000000001,
+      "error": null
+    },
+    {
+      "modality": "image",
+      "filename": "paddleocr_sample.jpg",
+      "pages": 0,
+      "chunks": 0,
+      "chars": 0,
+      "parse_time_ms": 147484.00000000003,
+      "embed_time_ms": 0.0,
+      "ingest_time_ms": 0.0,
+      "error": "Unknown argument: show_log"
+    },
+    {
+      "modality": "audio",
+      "filename": "jfk_speech.wav",
+      "pages": 1,
+      "chunks": 1,
+      "chars": 106,
+      "parse_time_ms": 1562.0000000000118,
+      "embed_time_ms": 484.0000000000373,
+      "ingest_time_ms": 2046.000000000049,
+      "error": null
+    }
+  ],
+  "query_results": [
+    {
+      "query": "What is the main topic of this document?",
+      "modality": "pdf",
+      "latency_ms": 72625.0,
+      "passages_used": 4,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "Summarise the key findings.",
+      "modality": "pdf",
+      "latency_ms": 577.9999999999745,
+      "passages_used": 0,
+      "answer_non_empty": false,
+      "error": "Reranker is not loaded. Call _load() before score()."
+    },
+    {
+      "query": "What methods are described?",
+      "modality": "pdf",
+      "latency_ms": 31.000000000062755,
+      "passages_used": 0,
+      "answer_non_empty": false,
+      "error": "Reranker is not loaded. Call _load() before score()."
+    },
+    {
+      "query": "What is this document about?",
+      "modality": "docx",
+      "latency_ms": 30.99999999994907,
+      "passages_used": 0,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "List the main sections.",
+      "modality": "docx",
+      "latency_ms": 32.00000000003911,
+      "passages_used": 0,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "What does this document cover?",
+      "modality": "md",
+      "latency_ms": 30.99999999994907,
+      "passages_used": 0,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "What are the key points in section 2?",
+      "modality": "md",
+      "latency_ms": 31.000000000062755,
+      "passages_used": 0,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "What text appears in this image?",
+      "modality": "image",
+      "latency_ms": 15.99999999996271,
+      "passages_used": 0,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "Describe the content of this image.",
+      "modality": "image",
+      "latency_ms": 109.00000000003729,
+      "passages_used": 0,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "What was discussed in this recording?",
+      "modality": "audio",
+      "latency_ms": 15.99999999996271,
+      "passages_used": 0,
+      "answer_non_empty": false,
+      "error": "Reranker is not loaded. Call _load() before score()."
+    },
+    {
+      "query": "Summarise the audio content.",
+      "modality": "audio",
+      "latency_ms": 16.000000000076398,
+      "passages_used": 0,
+      "answer_non_empty": false,
+      "error": "Reranker is not loaded. Call _load() before score()."
+    }
+  ],
+  "summaries": [
+    {
+      "modality": "pdf",
+      "files_tested": 2,
+      "total_chunks": 47,
+      "total_chars": 127327,
+      "avg_parse_ms": 17429.50000000002,
+      "avg_embed_ms": 69687.99999999999,
+      "avg_ingest_ms": 87125.0,
+      "avg_query_ms": 24411.333333333347,
+      "answer_rate": 1.0,
+      "retrieval_hit_rate": 1.0,
+      "errors": []
+    },
+    {
+      "modality": "docx",
+      "files_tested": 0,
+      "total_chunks": 0,
+      "total_chars": 0,
+      "avg_parse_ms": 0.0,
+      "avg_embed_ms": 0.0,
+      "avg_ingest_ms": 0.0,
+      "avg_query_ms": 31.49999999999409,
+      "answer_rate": 1.0,
+      "retrieval_hit_rate": 0.0,
+      "errors": []
+    },
+    {
+      "modality": "md",
+      "files_tested": 0,
+      "total_chunks": 0,
+      "total_chars": 0,
+      "avg_parse_ms": 0.0,
+      "avg_embed_ms": 0.0,
+      "avg_ingest_ms": 0.0,
+      "avg_query_ms": 31.00000000000591,
+      "answer_rate": 1.0,
+      "retrieval_hit_rate": 0.0,
+      "errors": []
+    },
+    {
+      "modality": "image",
+      "files_tested": 1,
+      "total_chunks": 0,
+      "total_chars": 0,
+      "avg_parse_ms": 147484.00000000003,
+      "avg_embed_ms": 0.0,
+      "avg_ingest_ms": 0.0,
+      "avg_query_ms": 62.5,
+      "answer_rate": 1.0,
+      "retrieval_hit_rate": 0.0,
+      "errors": [
+        "Unknown argument: show_log"
+      ]
+    },
+    {
+      "modality": "audio",
+      "files_tested": 1,
+      "total_chunks": 1,
+      "total_chars": 106,
+      "avg_parse_ms": 1562.0000000000118,
+      "avg_embed_ms": 484.0000000000373,
+      "avg_ingest_ms": 2046.000000000049,
+      "avg_query_ms": 16.000000000019554,
+      "answer_rate": 0.0,
+      "retrieval_hit_rate": 0.0,
+      "errors": []
+    }
+  ]
+}

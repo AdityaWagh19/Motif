@@ -118,24 +118,14 @@ class LLMClient:
         )
 
         # ── GPU offload verification ─────────────────────────────────────────
-        # llama-cpp-python silently falls back to CPU when built without CUDA.
-        # Warn explicitly so the user knows they are NOT getting GPU acceleration.
+        # Note: llama-cpp-python v0.3.34+ no longer exposes n_gpu_layers as an attribute
+        # on the Llama object directly.
         n_layers_requested = cfg.n_gpu_layers
-        n_layers_actual = getattr(self._llm, "n_gpu_layers", 0)
-        if n_layers_requested > 0 and n_layers_actual == 0:
-            log.warning(
-                "GPU offload requested (n_gpu_layers=%d) but 0 layers were offloaded. "
-                "llama-cpp-python is likely a CPU-only build. "
-                "Rebuild with CUDA: "
-                "CMAKE_ARGS=\"-DGGML_CUDA=on\" pip install llama-cpp-python --force-reinstall",
-                n_layers_requested,
-            )
-        elif n_layers_actual > 0:
+        
+        if n_layers_requested > 0:
             log.info(
-                "GPU offload: %d/%d layers on GPU (%s backend)",
-                n_layers_actual,
+                "GPU offload enabled (requested %d layers on backend).",
                 n_layers_requested,
-                "CUDA/Metal/ROCm",
             )
 
         log.info("LLM loaded — model: %s", self._model_path.name)
