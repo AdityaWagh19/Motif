@@ -36,9 +36,8 @@ class IntentClassifier:
             "hi", "hello", "hey", "good morning", "good evening", "good afternoon",
             "how are you", "how are you doing", "what's up", "how's it going",
             "thank you", "thanks", "thanks a lot", "thank you very much",
-            "who are you", "what are you", "what is your name",
             "you are helpful", "you're so helpful", "great job", "good bot",
-            "can you help me", "i need help", "i am confused", "what do you do"
+            "can you help me", "i need help", "i am confused"
         ]
         self._anchor_embeddings = None
 
