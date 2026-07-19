@@ -1183,6 +1183,485 @@ self._client.update_collection(
 
 ---
 
+## Phase 11 — Universal Hardware Tier System
+
+### Objective
+The current tier detection (`detect_hardware_tier()` in `config.py`) is **NVIDIA-only and Windows/Linux-biased**. It runs `nvidia-smi` and returns `T1` on every Mac, AMD GPU machine, Intel Arc GPU, or any system where `nvidia-smi` is absent. This makes Motif appear to be CPU-only on powerful hardware that is not NVIDIA.
+
+### 11a. Current Bugs in `detect_hardware_tier()`
+
+| Platform | Current Behavior | Correct Behavior |
+|----------|-----------------|-----------------|
+| Mac M1/M2/M3 (Metal) | T1 (CPU) | T2 or T3 depending on unified memory size |
+| Mac with AMD GPU | T1 (CPU) | T2/T3 if discrete VRAM >= 4 GB |
+| AMD Radeon GPU (ROCm) | T1 (CPU) | T2/T3 if VRAM >= 4 GB (via rocm-smi) |
+| Intel Arc GPU | T1 (CPU) | T2 if Arc A770 (16 GB), otherwise T1 |
+| NVIDIA GPU (CUDA not installed) | T2 correctly detected but CUDA silently fails | T2 detected; warn about missing CUDA separately |
+| Multiple NVIDIA GPUs | Only first GPU used | Use highest-VRAM GPU |
+
+**Critical Mac issue:** Apple Silicon Macs (M1 Pro = 16 GB unified memory, M2 Max = 32–96 GB) are extremely capable for LLM inference via Metal/MLX. Currently they auto-detect as T1 (CPU-only, Phi-3.5-mini). They should run Qwen 7B at T2 or T3 speed using llama.cpp's Metal backend.
+
+### 11b. What Needs to Change
+
+**[MODIFY] `rag/config.py`** — Replace `detect_hardware_tier()` with a multi-backend detector:
+
+```python
+import platform
+import subprocess
+
+def detect_hardware_tier() -> str:
+    """
+    Universal hardware tier detection.
+
+    Priority order:
+      1. NVIDIA GPU via nvidia-smi           (Windows / Linux)
+      2. Apple Silicon via sysctl            (macOS arm64)
+      3. AMD GPU via rocm-smi                (Linux ROCm)
+      4. Fallback: CPU-only T1
+    """
+    # --- 1. NVIDIA ---
+    tier = _detect_nvidia_tier()
+    if tier:
+        return tier
+
+    # --- 2. Apple Silicon ---
+    tier = _detect_apple_silicon_tier()
+    if tier:
+        return tier
+
+    # --- 3. AMD ROCm ---
+    tier = _detect_amd_tier()
+    if tier:
+        return tier
+
+    # --- 4. Fallback ---
+    return "T1"
+
+
+def _detect_nvidia_tier() -> str | None:
+    """Return tier string if NVIDIA GPU found, else None."""
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.total",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode != 0:
+            return None
+        lines = [l.strip() for l in result.stdout.strip().splitlines() if l.strip()]
+        if not lines:
+            return None
+        # Use highest VRAM GPU (multi-GPU support)
+        vram_mb = max(int(l) for l in lines)
+        if vram_mb >= 6000:
+            return "T3"
+        elif vram_mb >= 3800:
+            return "T2"
+        else:
+            return "T1"
+    except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
+        return None
+
+
+def _detect_apple_silicon_tier() -> str | None:
+    """Return tier string for Apple Silicon Macs, else None."""
+    if platform.system() != "Darwin" or platform.machine() != "arm64":
+        return None
+    try:
+        result = subprocess.run(
+            ["sysctl", "-n", "hw.memsize"],
+            capture_output=True, text=True, timeout=3,
+        )
+        if result.returncode != 0:
+            return None
+        # Unified memory in bytes
+        ram_bytes = int(result.stdout.strip())
+        ram_gb = ram_bytes / (1024 ** 3)
+        # M1/M2/M3: unified memory IS the effective VRAM for Metal inference
+        # 8 GB → T2 (can run Qwen 7B Q4 partially offloaded via Metal)
+        # 16 GB+ → T3 (full Metal offload)
+        if ram_gb >= 16:
+            return "T3"
+        elif ram_gb >= 8:
+            return "T2"
+        else:
+            return "T1"
+    except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
+        return None
+
+
+def _detect_amd_tier() -> str | None:
+    """Return tier string if AMD ROCm GPU found, else None."""
+    try:
+        result = subprocess.run(
+            ["rocm-smi", "--showmeminfo", "vram", "--csv"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode != 0:
+            return None
+        # rocm-smi CSV: GPU,VRAM Total Memory (B),VRAM Total Used Memory (B)
+        for line in result.stdout.splitlines():
+            if line.startswith("card") or line.startswith("GPU"):
+                continue
+            parts = line.strip().split(",")
+            if len(parts) >= 2:
+                vram_bytes = int(parts[1].strip())
+                vram_mb = vram_bytes / (1024 ** 2)
+                if vram_mb >= 6000:
+                    return "T3"
+                elif vram_mb >= 3800:
+                    return "T2"
+                else:
+                    return "T1"
+        return None
+    except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
+        return None
+```
+
+### 11c. Tier-Default Updates for Apple Silicon / ROCm
+
+The current T2 and T3 tier defaults set `n_gpu_layers` for CUDA. On Apple Silicon, llama.cpp uses **Metal** (not CUDA). `n_gpu_layers` still controls how many layers go to the Metal GPU — the parameter is the same. However, config.toml comments and documentation must reflect this.
+
+**[MODIFY] `config.toml`** — Update tier comments:
+
+```toml
+[hardware]
+# Tier detection (auto-detected from available hardware):
+#   T1  — CPU only: no GPU, < 4 GB VRAM, or Mac with < 8 GB unified memory
+#   T2  — 4–6 GB VRAM / Mac 8–15 GB unified memory (GTX 1650, M1 8 GB)
+#   T3  — 6+ GB VRAM / Mac 16+ GB unified memory (RTX 3050+, M2 Pro 16 GB+)
+#
+# Override with: tier = "T2"
+tier = "auto"
+```
+
+**[MODIFY] `config.py`** — Add Apple Silicon / AMD backends to `_TIER_DEFAULTS`:
+
+No changes to the actual defaults are needed — the same `n_gpu_layers` values work for Metal. However, a `backend` field (not currently tracked) should be added to `RAGConfig` to surface which backend was detected:
+
+```python
+@dataclass
+class HardwareConfig:
+    tier: str = "auto"
+    backend: str = "cpu"  # NEW: "cuda" | "metal" | "rocm" | "cpu"
+```
+
+And set in `load_config()` after detection:
+
+```python
+if config.resolved_tier != "T1":
+    import platform
+    if platform.system() == "Darwin" and platform.machine() == "arm64":
+        config.hardware.backend = "metal"
+    elif _detect_amd_tier():
+        config.hardware.backend = "rocm"
+    elif _detect_nvidia_tier():
+        config.hardware.backend = "cuda"
+```
+
+### 11d. install.sh — Missing macOS Metal Support
+
+**[MODIFY] `install.sh`** — Current: only detects `nvidia-smi`. Fix: add Metal detection branch.
+
+```bash
+# After the nvidia-smi block, add:
+elif [ "$(uname)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
+    info "Apple Silicon detected — llama.cpp will use Metal (GPU) automatically."
+    info "No additional install step needed. Metal support is built into llama-cpp-python."
+```
+
+Note: `llama-cpp-python` on macOS arm64 already compiles with Metal by default when installed from source or via the standard wheel. No `CMAKE_ARGS` override is needed. The installer currently does nothing for Mac — it just falls through to the "CPU" message, which is incorrect.
+
+### 11e. install.ps1 — Missing ROCm Branch
+
+**[MODIFY] `install.ps1`** — Current: only detects `nvidia-smi`. Fix: add ROCm detection branch.
+
+```powershell
+# After nvidia-smi block, add:
+elseif (Get-Command rocm-smi -ErrorAction SilentlyContinue) {
+    Write-Info "AMD ROCm GPU detected."
+    Write-Info "Installing ROCm-enabled llama-cpp-python..."
+    $pythonExe = Join-Path $MotifEnv "Scripts\python.exe"
+    & uv pip install llama-cpp-python `
+        --python $pythonExe `
+        --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/rocm" `
+        --force-reinstall --quiet
+}
+```
+
+### 11f. Files Changed Summary
+
+| File | Change |
+|------|--------|
+| `rag/config.py` | Replace `detect_hardware_tier()` with multi-backend version; add `HardwareConfig.backend` field |
+| `config.toml` | Update tier comments to mention Mac/AMD; add backend field |
+| `config.template.toml` | Same as config.toml |
+| `install.sh` | Add macOS Metal + AMD ROCm detection branches |
+| `install.ps1` | Add AMD ROCm detection branch |
+
+---
+
+## Phase 12 — Installation and Setup Bug Fixes
+
+### Objective
+A full audit of `install.sh`, `install.ps1`, `setup_models.py`, `pyproject.toml`, and `config.py` reveals **10 distinct bugs** ranging from version mismatches to config/code misalignment. All are documented and fixed here.
+
+---
+
+### Bug #1 — `llama-cpp-python` Version Floor is Too Low
+
+**File:** `pyproject.toml` line 45
+
+**Bug:**
+```toml
+"llama-cpp-python>=0.2.80"
+```
+Version `0.2.80` is from 2023 and predates the `n_gpu_layers` silent-clamping fix and GGUF format support for newer models (Qwen2.5, Phi-3.5). The GGUF `Q4_K_M` quantization for Qwen2.5 requires at least `0.3.0`. Installing `0.2.80` would fail to load the model.
+
+**Fix:**
+```toml
+"llama-cpp-python>=0.3.0",
+```
+
+---
+
+### Bug #2 — `onnxruntime>=1.18` But Actual Requirement is 1.17+
+
+**File:** `pyproject.toml` line 26
+
+**Bug:** The nomic-embed-text ONNX model uses INT8 quantization. `onnxruntime` 1.17 added INT8 quantization support on CPU. Setting `>=1.18` is fine, but the CUDA-enabled variant `onnxruntime-gpu` is never specified. If a user has CUDA installed but installs `onnxruntime` (CPU) instead of `onnxruntime-gpu`, the embedder and reranker run on CPU even after GPU is set up.
+
+**Fix:** Add an optional `gpu` extra:
+```toml
+[project.optional-dependencies]
+gpu = [
+    "onnxruntime-gpu>=1.17",   # GPU-accelerated ONNX for embedder + reranker
+]
+```
+And document in README: `pip install motif-rag[gpu]` for GPU-accelerated embedding.
+
+---
+
+### Bug #3 — `config.toml` Has T2 Values Hardcoded as Defaults
+
+**File:** `config.toml` lines 24, 47, 51, 54, 62, 70, 74, 85
+
+**Bug:** `config.toml` is supposed to be a user-editable override file. But the shipped `config.toml` has T2 values hardcoded (e.g., `n_gpu_layers = 20`, `ctx_size = 3072`, `query_expansion = "hyde"`). These values **override the tier-based defaults** from `_apply_tier_defaults()` for every user, regardless of their actual hardware tier.
+
+A T1 user who installs Motif and does not edit `config.toml` will get `n_gpu_layers = 20` and `query_expansion = "hyde"` — both incorrect for CPU-only hardware.
+
+**Root Cause:** `_populate_section()` applies config.toml values **before** `_apply_tier_defaults()`, but `_apply_tier_defaults()` **overwrites** them. Wait — actually checking the loader order in `load_config()`:
+```python
+_populate_section(...)  # applies config.toml values
+_apply_tier_defaults()  # OVERWRITES config.toml values!
+```
+This means any user customization in `config.toml` is silently overwritten by tier defaults. This is a logic inversion bug.
+
+**Fix:** Reverse the order — apply tier defaults first, then overlay config.toml values:
+```python
+# Apply tier defaults first as a base
+_apply_tier_defaults(config, config.resolved_tier)
+# Then overlay with explicit user settings from config.toml (user wins)
+_populate_section(config.llm, raw.get("llm", {}))
+_populate_section(config.retrieval, raw.get("retrieval", {}))
+# ... etc
+```
+
+**Additionally:** Ship a `config.toml` that has all values commented out except `tier = "auto"` so it acts as documentation rather than an accidental override.
+
+---
+
+### Bug #4 — `AudioParser` Whisper Model Path Resolution is Broken
+
+**File:** `rag/ingestion/parsers/audio.py` line 55
+
+**Bug:**
+```python
+path = Path(cfg.models.llm_path).parent.parent / whisper_model
+```
+This constructs the whisper model path as: `(parent of parent of the LLM .gguf file) / "models/ggml-tiny-q5_1.bin"`.
+
+If `llm_path = "models/Qwen2.5-7B-Instruct-Q4_K_M.gguf"`, then:
+- `Path("models/Qwen2.5-7B-Instruct-Q4_K_M.gguf").parent` = `models/`
+- `.parent` = `.` (project root)
+- `/ "models/ggml-tiny-q5_1.bin"` = `./models/ggml-tiny-q5_1.bin`
+
+This accidentally works, but **only when the CWD is the project root**. Running `motif` from any other directory breaks audio ingestion silently (raises `FileNotFoundError`).
+
+**Fix:** Resolve relative paths against the project root reliably:
+```python
+def _get_whisper_model_path(self) -> Path:
+    whisper_model = self._config.models.whisper
+    path = Path(whisper_model)
+    if not path.is_absolute():
+        # Resolve relative to the project root (where pyproject.toml lives)
+        project_root = Path(__file__).parent.parent.parent.parent
+        path = project_root / whisper_model
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Whisper model not found: {path}\n"
+            f"Run `motif setup` to download it."
+        )
+    return path
+```
+
+---
+
+### Bug #5 — `setup_models.py` Downloads All ONNX Variants Despite `allow_patterns`
+
+**File:** `setup_models.py` lines 140–141
+
+**Bug:**
+```python
+if "nomic" in repo_id:
+    snapshot_kwargs["allow_patterns"] = ["onnx/*", "tokenizer*", "config.json"]
+```
+`allow_patterns = ["onnx/*"]` downloads the **entire `onnx/` folder** from the nomic repo, which includes fp32, fp16, int8, arm64, avx512, and OpenVINO variants — totaling ~520 MB instead of the 131 MB quantized model. The current audit (`benchmark_audit.md` Section 6) confirmed this is what caused ~391 MB of "unused ONNX variants" on disk.
+
+**Fix:** Download only the one needed variant per platform:
+```python
+import platform as _plat
+
+def _get_nomic_pattern() -> list[str]:
+    """Return the minimal set of ONNX files needed for this platform."""
+    machine = _plat.machine().lower()
+    if "arm" in machine or "aarch64" in machine:
+        return ["onnx/model_quantized_arm64.onnx", "onnx/model_quantized_arm64_data_0.onnx",
+                "tokenizer*", "config.json"]
+    else:
+        return ["onnx/model_quantized.onnx", "tokenizer*", "config.json"]
+```
+
+---
+
+### Bug #6 — `install.sh` CUDA Tag Mapping Drops the Minor Version
+
+**File:** `install.sh` line 53
+
+**Bug:**
+```bash
+CUDA_TAG="cu$(echo "$CUDA_VERSION" | tr -d '.')"
+```
+If `CUDA_VERSION = "12.4"`, then `CUDA_TAG = "cu124"`.
+But if `CUDA_VERSION = "12.4.0"` (3-part version from some nvidia-smi outputs), then `CUDA_TAG = "cu1240"` — which is an invalid tag and the wheel lookup fails silently (falls back to CPU).
+
+**Fix:**
+```bash
+# Take only the first two version components (major.minor)
+CUDA_MAJOR_MINOR=$(echo "$CUDA_VERSION" | cut -d. -f1,2)
+CUDA_TAG="cu$(echo "$CUDA_MAJOR_MINOR" | tr -d '.')"
+```
+
+---
+
+### Bug #7 — `install.ps1` Same CUDA Tag Bug
+
+**File:** `install.ps1` line 69
+
+**Bug:**
+```powershell
+$CudaTag = "cu" + $CudaVersion.Replace(".", "")
+```
+Same issue as `install.sh` — if CUDA version is `12.4.0`, tag becomes `cu1240` instead of `cu124`.
+
+**Fix:**
+```powershell
+$CudaShort = ($CudaVersion -split '\.')[0..1] -join '.'
+$CudaTag = "cu" + $CudaShort.Replace(".", "")
+```
+
+---
+
+### Bug #8 — T3 Reranker Model Name Mismatch Between `config.py` and `setup_models.py`
+
+**File:** `rag/config.py` line 165 vs `setup_models.py` line 68
+
+**Bug:**
+```python
+# config.py T3 defaults:
+"models": {"reranker": "models/bge-reranker-base"}
+```
+```python
+# setup_models.py RERANKER_MODELS:
+("BAAI/bge-reranker-base", None, "bge-reranker-base", {"T3"}, "280 MB")
+# Downloads to: models/bge-reranker-base/
+```
+```python
+# ModelsConfig default (line 28):
+reranker: str = "models/MiniLM-L12-v2"
+```
+The T3 tier default sets `reranker = "models/bge-reranker-base"` but `setup_models.py` downloads it to `models/bge-reranker-base/` (a directory, not a file). The reranker loader in `rag/models/model_manager.py` needs to handle both a directory path (for ONNX snapshot downloads) and a file path. If there is a mismatch in what was downloaded vs what the loader expects, the reranker silently fails or falls back to the wrong model.
+
+**Fix:** Standardize — always use the directory form in config, and verify the loader resolves `model_O3.onnx` inside it:
+```python
+# In the reranker loader:
+reranker_path = Path(config.models.reranker)
+if reranker_path.is_dir():
+    # Look for the best ONNX variant inside the directory
+    candidates = ["model_O3.onnx", "model_optimized.onnx", "model.onnx"]
+    onnx_file = next(
+        (reranker_path / "onnx" / c for c in candidates
+         if (reranker_path / "onnx" / c).exists()), None
+    )
+```
+
+---
+
+### Bug #9 — `ragas>=0.1` in Optional Deps is Too Broad
+
+**File:** `pyproject.toml` line 54
+
+**Bug:**
+```toml
+"ragas>=0.1",
+```
+RAGAS had a breaking API change between v0.1 and v0.2. The `run_config`, `evaluate()` signature, and `SingleTurnSample` dataclasses changed entirely. The project's `ragas_runner.py` likely uses the v0.1 API. Installing v0.2 (which pip will do by default as the latest) breaks the runner.
+
+**Fix:**
+```toml
+"ragas>=0.1,<0.2",   # v0.2 has breaking API changes incompatible with ragas_runner.py
+```
+Or migrate `ragas_runner.py` to the v0.2 API and change to `ragas>=0.2`.
+
+---
+
+### Bug #10 — `config.toml` and `config.py` Defaults Are Out of Sync
+
+**Files:** `config.toml` vs `rag/config.py`
+
+**Bug:**
+
+| Setting | `config.py` default | `config.toml` value | Result |
+|---------|---------------------|---------------------|--------|
+| `max_tokens` | `400` | `400` | In sync |
+| `query_cache_enabled` | `False` | `false` | In sync |
+| `query_expansion` | `"none"` | `"hyde"` | **OUT OF SYNC** — config.toml enables HyDE but dataclass default is none |
+| `use_semantic` | `False` | `false` | In sync, but T2 tier default sets `True` — then config.toml overwrites to `false` (Bug #3) |
+| `top_k_retrieval` | `20` | `25` | **OUT OF SYNC** — config.toml hardcodes T2 value |
+| `top_k_rerank` | `3` | `5` | **OUT OF SYNC** |
+| `n_gpu_layers` | `0` | `20` | **OUT OF SYNC** — config.toml hardcodes T2 value |
+| `ctx_size` | `2048` | `3072` | **OUT OF SYNC** — config.toml hardcodes T2 value |
+
+**Fix:** As noted in Bug #3, ship a `config.toml` that only contains `[hardware]\ntier = "auto"` by default. All other values should come from tier defaults. Users override only what they need.
+
+---
+
+### 12a. Files Changed Summary — Phase 12
+
+| File | Bug(s) Fixed | Change |
+|------|-------------|--------|
+| `pyproject.toml` | #1, #2, #9 | Raise llama-cpp-python floor to 0.3.0; add `[gpu]` extra; pin ragas<0.2 |
+| `rag/config.py` | #3 | Reverse populate/apply_defaults order so user config.toml wins |
+| `rag/ingestion/parsers/audio.py` | #4 | Fix whisper path resolution to use project root anchor |
+| `setup_models.py` | #5 | Download only the platform-appropriate ONNX variant |
+| `install.sh` | #6 | Fix CUDA tag mapping to handle 3-part version strings |
+| `install.ps1` | #7 | Fix CUDA tag mapping to handle 3-part version strings |
+| `rag/models/model_manager.py` | #8 | Fix reranker ONNX file resolution for directory-form paths |
+| `config.toml` | #10 | Remove hardcoded T2 values; ship with only `tier = "auto"` as active config |
+| `config.template.toml` | #3, #10 | Add clear comments explaining tier-override semantics |
+
+---
+
 ## Open Questions
 
 > [!IMPORTANT]
