@@ -19,9 +19,10 @@ Output format (JSONL, clean):
     {"question": "Real question?", "ground_truth": "...", "contexts": [...]}
 
 Usage:
+    python scripts/clean_benchmark.py                                    # uses default paths
     python scripts/clean_benchmark.py input.jsonl output.jsonl
-    python scripts/clean_benchmark.py input.jsonl           # prints to stdout
-    python scripts/clean_benchmark.py --check input.jsonl   # count polluted rows
+    python scripts/clean_benchmark.py input.jsonl                        # prints to stdout
+    python scripts/clean_benchmark.py --check input.jsonl                # count polluted rows
 """
 from __future__ import annotations
 
@@ -101,13 +102,19 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Strip injected system prompts from benchmark JSONL question sets."
     )
-    parser.add_argument("input", type=Path, help="Input JSONL file path")
+    parser.add_argument(
+        "input",
+        type=Path,
+        nargs="?",
+        default=None,
+        help="Input JSONL file path (default: rag/evaluation/benchmark_dataset.json)",
+    )
     parser.add_argument(
         "output",
         type=Path,
         nargs="?",
         default=None,
-        help="Output JSONL file path (default: print to stdout)",
+        help="Output JSONL file path (default: stdout, or benchmark_dataset_clean.json if using default input)",
     )
     parser.add_argument(
         "--check",
@@ -115,6 +122,12 @@ def main() -> None:
         help="Count polluted rows without writing output",
     )
     args = parser.parse_args()
+
+    if not args.input:
+        project_root = Path(__file__).parent.parent
+        args.input = project_root / "rag" / "evaluation" / "benchmark_dataset.json"
+        if not args.output:
+            args.output = args.input.with_name("benchmark_dataset_clean.json")
 
     if not args.input.exists():
         print(f"Input file not found: {args.input}", file=sys.stderr)

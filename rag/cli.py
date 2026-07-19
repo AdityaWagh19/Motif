@@ -392,7 +392,13 @@ def main() -> None:
     no_prewarm = "--no-prewarm" in args
     args = [a for a in args if a != "--no-prewarm"]
 
+    # Handle --hyde flag for one-shot mode (appends /hyde modifier)
+    use_hyde = "--hyde" in args
+    args = [a for a in args if a != "--hyde"]
+
     if args:
+        if use_hyde and args[0].lower() == "ask":
+            args.append("/hyde")
         _one_shot_mode(args)
     else:
         _interactive_mode(no_prewarm=no_prewarm)
