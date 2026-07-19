@@ -1,0 +1,1 @@
+This is a plain text fixture for testing the TXT parser.

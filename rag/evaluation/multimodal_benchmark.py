@@ -179,15 +179,35 @@ class MultimodalBenchmark:
                     )
                     result.chunks = len(chunks)
 
-                    # Embed
+                    # Embed and Store
                     t1 = time.monotonic()
                     try:
+                        from rag.pipeline import QueryPipeline
+                        pipeline = QueryPipeline(self._config)
+                        
                         embedder = get_model_manager().get_embedder(self._config)
-                        embedder.encode_batch([c.text for c in chunks])
+                        vectors = embedder.encode_batch([c.text for c in chunks])
+                        
+                        for c in chunks:
+                            pipeline._chunk_store.insert(c)
+                            pipeline._bm25.add(c)
+                        
+                        payloads = [
+                            {
+                                "source": c.source,
+                                "filename": c.filename,
+                                "source_type": c.source_type,
+                            }
+                            for c in chunks
+                        ]
+                        pipeline._vector_store.upsert_batch(
+                            [c.id for c in chunks], vectors, payloads
+                        )
+                        
                         result.embed_time_ms = (time.monotonic() - t1) * 1000
                     except Exception as emb_exc:
                         result.embed_time_ms = -1
-                        result.error = f"embed: {emb_exc}"
+                        result.error = f"embed/store: {emb_exc}"
 
                     result.ingest_time_ms = (time.monotonic() - t0) * 1000
 

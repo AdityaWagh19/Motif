@@ -1,0 +1,209 @@
+{
+  "parse_results": [
+    {
+      "modality": "pdf",
+      "filename": "attention_is_all_you_need.pdf",
+      "pages": 15,
+      "chunks": 15,
+      "chars": 39483,
+      "parse_time_ms": 2375.0,
+      "embed_time_ms": 19514.999999999873,
+      "ingest_time_ms": 21889.999999999873,
+      "error": null
+    },
+    {
+      "modality": "pdf",
+      "filename": "llama_paper.pdf",
+      "pages": 27,
+      "chunks": 32,
+      "chars": 87844,
+      "parse_time_ms": 5500.0,
+      "embed_time_ms": 69702.99999999997,
+      "ingest_time_ms": 75219.00000000006,
+      "error": null
+    },
+    {
+      "modality": "image",
+      "filename": "paddleocr_sample.jpg",
+      "pages": 0,
+      "chunks": 0,
+      "chars": 0,
+      "parse_time_ms": 14.99999999987267,
+      "embed_time_ms": 0.0,
+      "ingest_time_ms": 0.0,
+      "error": "PaddleOCR is not installed. Run: pip install paddleocr"
+    },
+    {
+      "modality": "audio",
+      "filename": "jfk_speech.wav",
+      "pages": 0,
+      "chunks": 0,
+      "chars": 0,
+      "parse_time_ms": 0.0,
+      "embed_time_ms": 0.0,
+      "ingest_time_ms": 0.0,
+      "error": "pywhispercpp is not installed. Run: pip install pywhispercpp"
+    }
+  ],
+  "query_results": [
+    {
+      "query": "What is the main topic of this document?",
+      "modality": "pdf",
+      "latency_ms": 30.99999999994907,
+      "passages_used": 0,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "Summarise the key findings.",
+      "modality": "pdf",
+      "latency_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "What methods are described?",
+      "modality": "pdf",
+      "latency_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "What is this document about?",
+      "modality": "docx",
+      "latency_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "List the main sections.",
+      "modality": "docx",
+      "latency_ms": 14.99999999987267,
+      "passages_used": 0,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "What does this document cover?",
+      "modality": "md",
+      "latency_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "What are the key points in section 2?",
+      "modality": "md",
+      "latency_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "What text appears in this image?",
+      "modality": "image",
+      "latency_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "Describe the content of this image.",
+      "modality": "image",
+      "latency_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "What was discussed in this recording?",
+      "modality": "audio",
+      "latency_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "Summarise the audio content.",
+      "modality": "audio",
+      "latency_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": true,
+      "error": null
+    }
+  ],
+  "summaries": [
+    {
+      "modality": "pdf",
+      "files_tested": 2,
+      "total_chunks": 47,
+      "total_chars": 127327,
+      "avg_parse_ms": 3937.5,
+      "avg_embed_ms": 44608.99999999992,
+      "avg_ingest_ms": 48554.49999999996,
+      "avg_query_ms": 10.333333333316356,
+      "answer_rate": 1.0,
+      "retrieval_hit_rate": 0.0,
+      "errors": []
+    },
+    {
+      "modality": "docx",
+      "files_tested": 0,
+      "total_chunks": 0,
+      "total_chars": 0,
+      "avg_parse_ms": 0.0,
+      "avg_embed_ms": 0.0,
+      "avg_ingest_ms": 0.0,
+      "avg_query_ms": 7.499999999936335,
+      "answer_rate": 1.0,
+      "retrieval_hit_rate": 0.0,
+      "errors": []
+    },
+    {
+      "modality": "md",
+      "files_tested": 0,
+      "total_chunks": 0,
+      "total_chars": 0,
+      "avg_parse_ms": 0.0,
+      "avg_embed_ms": 0.0,
+      "avg_ingest_ms": 0.0,
+      "avg_query_ms": 0.0,
+      "answer_rate": 1.0,
+      "retrieval_hit_rate": 0.0,
+      "errors": []
+    },
+    {
+      "modality": "image",
+      "files_tested": 1,
+      "total_chunks": 0,
+      "total_chars": 0,
+      "avg_parse_ms": 14.99999999987267,
+      "avg_embed_ms": 0.0,
+      "avg_ingest_ms": 0.0,
+      "avg_query_ms": 0.0,
+      "answer_rate": 1.0,
+      "retrieval_hit_rate": 0.0,
+      "errors": [
+        "PaddleOCR is not installed. Run: pip install paddleocr"
+      ]
+    },
+    {
+      "modality": "audio",
+      "files_tested": 1,
+      "total_chunks": 0,
+      "total_chars": 0,
+      "avg_parse_ms": 0.0,
+      "avg_embed_ms": 0.0,
+      "avg_ingest_ms": 0.0,
+      "avg_query_ms": 0.0,
+      "answer_rate": 1.0,
+      "retrieval_hit_rate": 0.0,
+      "errors": [
+        "pywhispercpp is not installed. Run: pip install pywhispercpp"
+      ]
+    }
+  ]
+}
