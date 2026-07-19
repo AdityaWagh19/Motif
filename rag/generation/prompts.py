@@ -64,6 +64,16 @@ Maintain consistency with your previous answers. \
 Answer in 1-3 sentences. Cite sources with [N] (each number used at most once)."""
 
 
+# Prompt used when the intent classifier flags the query as casual chit-chat.
+CHITCHAT_PROMPT = """\
+You are Motif, a helpful AI research assistant. The user is making casual conversation. \
+Respond politely and concisely in 1-2 sentences. Do not offer factual claims or attempt \
+to search documents.
+
+Question: {query}
+Answer:"""
+
+
 # Prompt used by HyDE (Phase 4) to generate a hypothetical answer.
 HYDE_PROMPT = """\
 Write a short, factual passage (2-3 sentences) that would answer the following \

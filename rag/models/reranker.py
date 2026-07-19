@@ -128,7 +128,7 @@ class Reranker:
         self._session = ort.InferenceSession(  # type: ignore[attr-defined]
             str(onnx_path),
             sess_opts,
-            providers=["CPUExecutionProvider"],
+            providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
         )
 
         tokenizer = Tokenizer.from_file(str(tok_path))  # type: ignore[attr-defined]

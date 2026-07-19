@@ -108,7 +108,7 @@ class Embedder:
         self._session = _ort.InferenceSession(
             str(onnx_path),
             sess_opts,
-            providers=["CPUExecutionProvider"],
+            providers=["CUDAExecutionProvider", "CPUExecutionProvider"],
         )
 
         log.debug("Loading tokenizer from %s", tok_path)

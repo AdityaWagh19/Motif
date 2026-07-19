@@ -67,6 +67,7 @@ class RetrievalConfig:
     top_k_retrieval: int = 20
     top_k_rerank: int = 3
     relevance_threshold: float = 0.3
+    chitchat_threshold: float = 0.85
     query_expansion: str = "none"   # "none" | "hyde"
     bm25_backend: str = "rank_bm25"
 

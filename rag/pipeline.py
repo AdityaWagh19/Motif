@@ -78,6 +78,7 @@ class QueryPipeline:
         self._vector_store = VectorStore(config)
         self._context_builder = ContextBuilder()
         self._expander = QueryExpander()
+        self._intent_classifier = None
         # Cache is lazily initialised on first query if enabled.
         self._cache: object = None  # Optional[QueryCache]
 
@@ -154,6 +155,32 @@ class QueryPipeline:
                 citations=[],
                 passages_used=0,
             )
+
+        if self._intent_classifier is None:
+            from rag.intent import IntentClassifier
+            self._intent_classifier = IntentClassifier(embedder, threshold=cfg.retrieval.chitchat_threshold)
+            
+        from rag.intent import Intent
+        intent = self._intent_classifier.classify(query)
+        if intent == Intent.GREETING_FAST:
+            result = AnswerResult(
+                text="Hello! Ask me anything about your documents.",
+                citations=[],
+                passages_used=0,
+                latency_ms=(time.monotonic() - t_start) * 1000,
+                retrieval_latency_ms=0,
+                generation_latency_ms=0,
+                tier=cfg.resolved_tier,
+            )
+            console.print(f"\n{result.text}\n")
+            if getattr(cfg.storage, "query_cache_enabled", False) and self._cache is not None:
+                self._cache.put(query, result, file_filter, type_filter, page_range)  # type: ignore[union-attr]
+            return result
+        elif intent == Intent.CHITCHAT:
+            result = self._handle_chitchat(query, cfg, console, t_start)
+            if getattr(cfg.storage, "query_cache_enabled", False) and self._cache is not None:
+                self._cache.put(query, result, file_filter, type_filter, page_range)  # type: ignore[union-attr]
+            return result
 
         query_vector, effective_query = self._expander.expand(query, cfg, embedder)
 
@@ -312,6 +339,41 @@ class QueryPipeline:
         return result
 
     # ── Private helpers ────────────────────────────────────────────────────────
+
+    def _handle_chitchat(self, query: str, cfg, console, start_time: float) -> AnswerResult:
+        from rag.generation.prompts import CHITCHAT_PROMPT
+        prompt = CHITCHAT_PROMPT.format(query=query)
+        
+        t_gen_start = time.monotonic()
+        try:
+            llm = get_model_manager().get_llm(cfg)
+        except FileNotFoundError as exc:
+            console.print(f"[red]LLM not available:[/red] {exc}")
+            return AnswerResult(text=str(exc), citations=[], passages_used=0)
+            
+        console.print()
+        full_answer = ""
+        try:
+            for token in llm.stream(prompt, max_tokens=cfg.llm.max_tokens, temperature=cfg.llm.temperature):
+                print(token, end="", flush=True)
+                full_answer += token
+        finally:
+            print()
+            
+        t_gen_ms = (time.monotonic() - t_gen_start) * 1000
+        t_total_ms = (time.monotonic() - start_time) * 1000
+        
+        log.info("Chit-chat query complete: %.1f ms total (gen %.1f ms)", t_total_ms, t_gen_ms)
+        
+        return AnswerResult(
+            text=full_answer,
+            citations=[],
+            passages_used=0,
+            latency_ms=t_total_ms,
+            retrieval_latency_ms=0,
+            generation_latency_ms=t_gen_ms,
+            tier=cfg.resolved_tier,
+        )
 
     def _get_history_context(self, full_history: List[dict]) -> List[dict]:
         """Return a rolling window of history that fits within the token budget."""

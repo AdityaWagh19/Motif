@@ -70,7 +70,8 @@ class ModelManager:
 
             model_path = Path(config.models.embed_model)
             if not model_path.is_absolute():
-                model_path = Path(config.models.embed_model).resolve()
+                pkg_root = Path(__file__).parent.parent.parent
+                model_path = (pkg_root / config.models.embed_model).resolve()
 
             if not model_path.exists():
                 raise FileNotFoundError(
@@ -111,7 +112,8 @@ class ModelManager:
 
             model_path = Path(config.models.reranker)
             if not model_path.is_absolute():
-                model_path = model_path.resolve()
+                pkg_root = Path(__file__).parent.parent.parent
+                model_path = (pkg_root / config.models.reranker).resolve()
 
             if not model_path.exists():
                 raise FileNotFoundError(
@@ -119,35 +121,8 @@ class ModelManager:
                     f"Run `motif setup` to download models."
                 )
 
-            # If model_path is a directory, find the best ONNX variant inside it.
-            # Priority: O3 (most optimised) > O4 > standard > base
-            if model_path.is_dir():
-                onnx_dir = model_path / "onnx"
-                candidates = [
-                    "model_O3.onnx",
-                    "model_O4.onnx",
-                    "model_optimized.onnx",
-                    "model.onnx",
-                ]
-                resolved_onnx = None
-                search_dir = onnx_dir if onnx_dir.exists() else model_path
-                for candidate in candidates:
-                    candidate_path = search_dir / candidate
-                    if candidate_path.exists():
-                        resolved_onnx = candidate_path
-                        break
-
-                if resolved_onnx is None:
-                    raise FileNotFoundError(
-                        f"No ONNX model file found in {model_path}. "
-                        f"Expected one of: {candidates}. "
-                        f"Run `motif setup` to download models."
-                    )
-                log.info("Loading reranker from %s (resolved: %s)", model_path, resolved_onnx)
-                self._reranker = Reranker(resolved_onnx)
-            else:
-                log.info("Loading reranker from %s", model_path)
-                self._reranker = Reranker(model_path)
+            log.info("Loading reranker from %s", model_path)
+            self._reranker = Reranker(model_path)
 
             try:
                 self._reranker._load()
@@ -180,7 +155,8 @@ class ModelManager:
 
             model_path = Path(config.models.llm_path)
             if not model_path.is_absolute():
-                model_path = model_path.resolve()
+                pkg_root = Path(__file__).parent.parent.parent
+                model_path = (pkg_root / config.models.llm_path).resolve()
 
             if not model_path.exists():
                 raise FileNotFoundError(
@@ -211,7 +187,8 @@ class ModelManager:
             # Look up captioner model path, default to models/moondream2
             model_path = Path(getattr(config.models, "captioner", "models/moondream2"))
             if not model_path.is_absolute():
-                model_path = Path(config.models.llm_path).parent.parent / getattr(config.models, "captioner", "models/moondream2")
+                pkg_root = Path(__file__).parent.parent.parent
+                model_path = (pkg_root / getattr(config.models, "captioner", "models/moondream2")).resolve()
                 
             if not model_path.exists():
                 raise FileNotFoundError(
