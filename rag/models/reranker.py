@@ -83,6 +83,9 @@ class Reranker:
                 "onnxruntime is not installed. Run: pip install onnxruntime"
             ) from exc
 
+        # Suppress ONNX runtime warnings/errors about missing CUDA dependencies etc.
+        ort.set_default_logger_severity(4)
+
         try:
             from tokenizers import Tokenizer  # type: ignore[import]
         except ImportError as exc:

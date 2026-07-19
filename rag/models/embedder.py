@@ -84,6 +84,9 @@ class Embedder:
                 "Run: pip install onnxruntime tokenizers"
             ) from exc
 
+        # Suppress ONNX runtime warnings/errors about missing CUDA dependencies etc.
+        _ort.set_default_logger_severity(4)
+
         onnx_path = self._model_dir / "onnx" / "model_quantized.onnx"
         tok_path = self._model_dir / "tokenizer.json"
 
