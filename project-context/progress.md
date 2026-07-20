@@ -17,6 +17,7 @@
 | **5** | Multimodal (OCR, DOCX, image, audio) | ✅ Done | 2026-07-18 | 2026-07-18 |
 | **6** | Evaluation & Production Hardening | ✅ Done | 2026-07-18 | 2026-07-18 |
 | **7** | UX Hardening (intent classifier, warmup, warning suppression, global install) | ✅ Done | 2026-07-20 | 2026-07-20 |
+| **8** | Repository Cleanup & Finalization | ✅ Done | 2026-07-20 | 2026-07-20 |
 
 Legend: 🔲 Not started | 🔄 In progress | ✅ Done | ❌ Blocked
 
@@ -265,6 +266,26 @@ Re-running the same command produces zero new chunks (deduplication).
 - ✅ Casual queries answered by LLM without triggering document retrieval
 - ✅ 5-file multimodal ingest succeeds: 246 chunks across PDF, DOCX, MD, WebP, WAV
 - ✅ All 5 document types answer correctly after calibrated-threshold restart
+
+---
+
+## Phase 8 — Repository Cleanup & Finalization
+
+**Goal:** Remove obsolete synthetic data, test corpora, experimental scripts, duplicate local model quantizations, and redundant Gemini artifacts to yield a clean project state.
+
+### Tasks (Completed)
+
+- ✅ Remove timestamped benchmark runs and synthetic datasets from tracking and local storage
+- ✅ Un-track and delete obsolete generated artifacts (`implementation_plan.md`, `walkthrough.md`, `issues.md`, `benchmark_audit.md`, etc.)
+- ✅ Un-track and delete test corpora directories (`benchmark_corpus/`, `test_data_multimodal/`)
+- ✅ Remove heavy one-off experimental scripts (`custom_scorer.py`, `download_benchmark.py`, `clean_benchmark.py`, etc.)
+- ✅ Delete duplicate/experimental ONNX models and unused py-weights (`model_O1.onnx`, `model_O2.onnx`, `pytorch_model.bin`, `flax_model.msgpack`)
+- ✅ Add exhaustive exclusions to `.gitignore` to prevent future repo bloat
+
+### Phase 8 Acceptance Checkpoint
+- ✅ Repository footprint strictly reflects production-ready code and contextual documentation
+- ✅ Local `.venv/` and `models/` caches minimized to necessary pipeline runtimes
+- ✅ `.gitignore` enforces exclusion of `.md` root artifacts, benchmarking logs, and test data
 
 ---
 
