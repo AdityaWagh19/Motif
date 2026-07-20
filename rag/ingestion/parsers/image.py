@@ -78,7 +78,7 @@ class ImageParser(BaseParser):
         # Lazy-load PaddleOCR (slow first-time init — downloads models if missing)
         if self._ocr is None:
             log.info("Initialising PaddleOCR...")
-            self._ocr = PaddleOCR(use_angle_cls=True, lang="en")
+            self._ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
             
         result = self._ocr.ocr(str(path), cls=True)
         if not result or not result[0]:

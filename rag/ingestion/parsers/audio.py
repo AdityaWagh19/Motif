@@ -4,8 +4,11 @@ rag/ingestion/parsers/audio.py — Parser for audio (whisper.cpp transcription).
 from __future__ import annotations
 
 import logging
+import os
+import sys
 from pathlib import Path
 from typing import List, TYPE_CHECKING
+from contextlib import contextmanager
 
 from rag.ingestion.parsers.base import BaseParser, ParsedPage
 
@@ -13,6 +16,24 @@ if TYPE_CHECKING:
     from rag.config import RAGConfig
 
 log = logging.getLogger(__name__)
+
+@contextmanager
+def suppress_c_stderr():
+    """Context manager to suppress C-level stderr (e.g., from whisper.cpp)."""
+    try:
+        null_fd = os.open(os.devnull, os.O_RDWR)
+        save_fd = os.dup(sys.stderr.fileno())
+        os.dup2(null_fd, sys.stderr.fileno())
+        yield
+    except Exception:
+        yield
+    finally:
+        try:
+            os.dup2(save_fd, sys.stderr.fileno())
+            os.close(null_fd)
+            os.close(save_fd)
+        except Exception:
+            pass
 
 TARGET_WORDS = 350  # ≈ 512 tokens at 0.75 words/token ratio
 
@@ -84,10 +105,11 @@ class AudioParser(BaseParser):
             ) from exc
             
         log.info("Loading Whisper model from %s", model_path)
-        model = Model(str(model_path), n_threads=self._config.llm.threads)
-        
-        log.info("Transcribing %s", audio_path.name)
-        segments = model.transcribe(str(audio_path))
+        with suppress_c_stderr():
+            model = Model(str(model_path), n_threads=self._config.llm.threads, print_realtime=False, print_progress=False, print_timestamps=False)
+            
+            log.info("Transcribing %s", audio_path.name)
+            segments = model.transcribe(str(audio_path))
         
         return [
             {
