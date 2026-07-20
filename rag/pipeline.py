@@ -282,18 +282,24 @@ class QueryPipeline:
         console.print()
         full_answer = ""
         ttft_ms = 0.0
+        
+        from rich.live import Live
+        from rich.markdown import Markdown
+        
         try:
-            for i, token in enumerate(llm.stream(
-                prompt,
-                max_tokens=cfg.llm.max_tokens,
-                temperature=cfg.llm.temperature,
-            )):
-                if i == 0:
-                    ttft_ms = (time.monotonic() - t_gen_start) * 1000
-                print(token, end="", flush=True)
-                full_answer += token
-        finally:
-            print()  # always print newline after streamed answer
+            # refresh_per_second throttles terminal updates to prevent flickering
+            with Live(Markdown(""), console=console, refresh_per_second=15, transient=False) as live:
+                for i, token in enumerate(llm.stream(
+                    prompt,
+                    max_tokens=cfg.llm.max_tokens,
+                    temperature=cfg.llm.temperature,
+                )):
+                    if i == 0:
+                        ttft_ms = (time.monotonic() - t_gen_start) * 1000
+                    full_answer += token
+                    live.update(Markdown(full_answer))
+        except Exception as e:
+            console.print(f"[red]Error during generation: {e}[/red]")
 
         t_gen_ms = (time.monotonic() - t_gen_start) * 1000
 
@@ -351,12 +357,17 @@ class QueryPipeline:
             
         console.print()
         full_answer = ""
+        
+        from rich.live import Live
+        from rich.markdown import Markdown
+        
         try:
-            for token in llm.stream(prompt, max_tokens=cfg.llm.max_tokens, temperature=cfg.llm.temperature):
-                print(token, end="", flush=True)
-                full_answer += token
-        finally:
-            print()
+            with Live(Markdown(""), console=console, refresh_per_second=15, transient=False) as live:
+                for token in llm.stream(prompt, max_tokens=cfg.llm.max_tokens, temperature=cfg.llm.temperature):
+                    full_answer += token
+                    live.update(Markdown(full_answer))
+        except Exception as e:
+            console.print(f"[red]Error during generation: {e}[/red]")
             
         t_gen_ms = (time.monotonic() - t_gen_start) * 1000
         t_total_ms = (time.monotonic() - start_time) * 1000

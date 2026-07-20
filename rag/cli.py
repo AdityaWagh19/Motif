@@ -41,7 +41,7 @@ import sys
 from pathlib import Path
 
 from prompt_toolkit import PromptSession
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.completion import WordCompleter, NestedCompleter, PathCompleter
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.key_binding import KeyBindings
@@ -300,12 +300,33 @@ def _interactive_mode(no_prewarm: bool = False) -> None:
     # Welcome screen
     _render_welcome(config, session)
 
-    # Tab completion for slash commands
-    completer = WordCompleter(
-        list(SLASH_COMMANDS.keys()) + ["exit", "quit"],
-        sentence=True,
-        match_middle=False,
-    )
+    # Smart Autocomplete
+    def get_workspaces():
+        ws_dir = config.db_root.parent
+        if ws_dir.exists():
+            return [d.name for d in ws_dir.iterdir() if d.is_dir()]
+        return []
+
+    completer = NestedCompleter.from_nested_dict({
+        "/ingest": PathCompleter(expanduser=True),
+        "/sync": PathCompleter(expanduser=True),
+        "/workspace": {
+            "list": None,
+            "new": None,
+            "switch": WordCompleter(get_workspaces),
+            "delete": WordCompleter(get_workspaces),
+        },
+        "/remove": None,
+        "/status": None,
+        "/clear": None,
+        "/new": None,
+        "/setup": None,
+        "/help": None,
+        "/exit": None,
+        "/quit": None,
+        "exit": None,
+        "quit": None,
+    })
 
     # Key bindings: Ctrl+C at prompt exits gracefully
     bindings = KeyBindings()
@@ -314,11 +335,19 @@ def _interactive_mode(no_prewarm: bool = False) -> None:
     def _ctrl_c(event):
         raise KeyboardInterrupt()
 
+    def get_bottom_toolbar():
+        workspace = config.db_root.name
+        tier = config.resolved_tier
+        backend = getattr(config.hardware, "backend", "cpu").upper()
+        model = Path(config.models.llm_path).stem
+        return HTML(f' <b>Workspace:</b> {workspace}  |  <b>Model:</b> {model}  |  <b>HW:</b> {tier} ({backend}) ')
+
     prompt_session: PromptSession = PromptSession(
         history=InMemoryHistory(),
         completer=completer,
         key_bindings=bindings,
         enable_history_search=True,
+        bottom_toolbar=get_bottom_toolbar,
     )
 
     # ── REPL loop ─────────────────────────────────────────────────────────────

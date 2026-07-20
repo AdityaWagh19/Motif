@@ -29,8 +29,21 @@ def handle_ingest(args, session, config, console) -> None:
         return
 
     if not parsed.path:
-        console.print("[red]Usage:[/red] /ingest PATH [-r]")
-        return
+        from prompt_toolkit import prompt
+        from prompt_toolkit.completion import PathCompleter
+        from prompt_toolkit.formatted_text import HTML
+        
+        try:
+            path_str = prompt(
+                HTML("<ansiblue>?</ansiblue> Enter path to ingest: "),
+                completer=PathCompleter(expanduser=True)
+            ).strip()
+        except (KeyboardInterrupt, EOFError):
+            return
+            
+        if not path_str:
+            return
+        parsed.path = path_str
 
     target = Path(parsed.path).expanduser().resolve()  # type: ignore[union-attr]
     if not target.exists():

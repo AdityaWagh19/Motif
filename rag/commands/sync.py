@@ -27,8 +27,21 @@ def handle_sync(args, session, config, console) -> None:
         return
 
     if not parsed.directory:
-        console.print("[red]Usage:[/red] /sync DIR [-r]")
-        return
+        from prompt_toolkit import prompt
+        from prompt_toolkit.completion import PathCompleter
+        from prompt_toolkit.formatted_text import HTML
+        
+        try:
+            path_str = prompt(
+                HTML("<ansiblue>?</ansiblue> Enter directory to sync: "),
+                completer=PathCompleter(expanduser=True, only_directories=True)
+            ).strip()
+        except (KeyboardInterrupt, EOFError):
+            return
+            
+        if not path_str:
+            return
+        parsed.directory = path_str
 
     target = Path(parsed.directory).expanduser().resolve()
     if not target.is_dir():
