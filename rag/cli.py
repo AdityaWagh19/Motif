@@ -41,6 +41,7 @@ import sys
 from pathlib import Path
 
 from prompt_toolkit import PromptSession
+from prompt_toolkit.styles import Style
 from prompt_toolkit.completion import WordCompleter, NestedCompleter, PathCompleter
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import InMemoryHistory
@@ -347,12 +348,17 @@ def _interactive_mode(no_prewarm: bool = False) -> None:
             f'<style fg="#6b7280">HW:</style> <style fg="#818cf8">{tier}</style> <style fg="#6b7280">({backend})</style> '
         )
 
+    custom_style = Style.from_dict({
+        "bottom-toolbar": "noreverse bg:default",
+    })
+
     prompt_session: PromptSession = PromptSession(
         history=InMemoryHistory(),
         completer=completer,
         key_bindings=bindings,
         enable_history_search=True,
         bottom_toolbar=get_bottom_toolbar,
+        style=custom_style,
     )
 
     # ── REPL loop ─────────────────────────────────────────────────────────────
