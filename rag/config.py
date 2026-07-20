@@ -69,10 +69,10 @@ def migrate_if_needed(app_dir: Path | None = None) -> None:
         log.info(f"Migrating legacy database from {legacy_dir} to {app_dir}")
         
         # We ensure app_dir exists
-        os.makedirs(app_dir, exist_ok=True)
+        os.makedirs(str(app_dir), exist_ok=True)
         
         workspaces_dir = app_dir / "workspaces"
-        os.makedirs(workspaces_dir, exist_ok=True)
+        os.makedirs(str(workspaces_dir), exist_ok=True)
         
         # Move everything inside legacy_dir to workspaces_dir (or specific dirs)
         # Note: legacy structure had ~/.ragdb/<workspace>/... and ~/.ragdb/query_cache.db and ~/.ragdb/motif.log
@@ -83,11 +83,11 @@ def migrate_if_needed(app_dir: Path | None = None) -> None:
             elif item.name == "query_cache.db":
                 # Move into default workspace and rename
                 default_ws = workspaces_dir / "default"
-                os.makedirs(default_ws, exist_ok=True)
+                os.makedirs(str(default_ws), exist_ok=True)
                 shutil.move(str(item), str(default_ws / "query_cache.sqlite"))
             elif item.name == "motif.log":
                 logs_dir = app_dir / "logs"
-                os.makedirs(logs_dir, exist_ok=True)
+                os.makedirs(str(logs_dir), exist_ok=True)
                 shutil.move(str(item), str(logs_dir / "motif.log"))
             else:
                 if item.is_dir():
@@ -100,7 +100,7 @@ def migrate_if_needed(app_dir: Path | None = None) -> None:
             pass
             
     # Mark as done
-    os.makedirs(app_dir, exist_ok=True)
+    os.makedirs(str(app_dir), exist_ok=True)
     sentinel.touch()
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -462,7 +462,7 @@ def load_config(config_path: Path | None = None) -> RAGConfig:
     if not global_config.exists():
         template_path = Path(__file__).parent / "data" / "config.template.toml"
         if template_path.exists():
-            os.makedirs(app_dir, exist_ok=True)
+            os.makedirs(str(app_dir), exist_ok=True)
             shutil.copy2(str(template_path), str(global_config))
 
     candidates = []
