@@ -122,7 +122,7 @@ class RAGConfig:
     @property
     def db_root(self) -> Path:
         """Expanded, absolute path to the database root directory."""
-        base = Path(self.storage.db_path).expanduser().resolve()
+        base = Path(os.path.expanduser(str(self.storage.db_path))).resolve()
         return base / self.storage.workspace
 
 
@@ -324,7 +324,7 @@ def _get_models_dir() -> Path:
     pkg_root = Path(__file__).parent.parent
     if (pkg_root / "pyproject.toml").exists():
         return pkg_root / "models"
-    return Path.home() / ".ragdb" / "models"
+    return Path(os.path.expanduser("~")) / ".ragdb" / "models"
 
 
 # ─────────────────────────────────────────────────────────────────────────────

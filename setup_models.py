@@ -26,7 +26,7 @@ console = Console()
 # ─────────────────────────────────────────────────────────────────────────────
 
 from rag.config import _get_models_dir
-MODELS_DIR = _get_models_dir()
+MODELS_DIR: Path = _get_models_dir()
 
 # (repo_id, filename, local_name, tiers, size_label)
 LLM_MODELS = [
@@ -119,7 +119,7 @@ def _download_file(repo_id: str, filename: str, local_name: str, size_label: str
     path = hf_hub_download(
         repo_id=repo_id,
         filename=filename,
-        local_dir=MODELS_DIR,
+        local_dir=str(MODELS_DIR),
     )
     # Rename to local_name if different
     import shutil
@@ -127,9 +127,9 @@ def _download_file(repo_id: str, filename: str, local_name: str, size_label: str
     target = MODELS_DIR / local_name
     if actual != target:
         if actual.is_symlink():
-            shutil.copy2(actual.resolve(), target)
+            shutil.copy2(str(actual.resolve()), str(target))
         else:
-            shutil.copy2(actual, target)
+            shutil.copy2(str(actual), str(target))
     return target
 
 

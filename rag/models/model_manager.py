@@ -182,7 +182,7 @@ class ModelManager:
                     try:
                         log.debug("Running LLM GPU warm-up pass...")
                         # Pass a dummy string and request 1 token
-                        _ = next(self._llm.generate("hello", max_tokens=1))
+                        _ = self._llm.generate("hello", max_tokens=1)
                     except Exception:
                         pass
             except Exception:
