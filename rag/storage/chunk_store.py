@@ -165,6 +165,12 @@ class ChunkStore:
         self._conn.execute(_CREATE_INDEX_CONTENT_HASH)
         self._conn.commit()
 
+    def __enter__(self) -> "ChunkStore":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
+
     # ------------------------------------------------------------------
     # Writes
     # ------------------------------------------------------------------

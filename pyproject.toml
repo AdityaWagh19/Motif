@@ -39,7 +39,7 @@ dependencies = [
     # Embedding + reranker inference (ONNX, no torch at query time)
     # NOTE: install onnxruntime-gpu instead for GPU-accelerated embedding.
     # See: pip install motif-rag[gpu]
-    "onnxruntime-gpu>=1.17",
+    "onnxruntime>=1.18",
 
     # Tokenizer (used only for token counting; not for inference)
     "tokenizers>=0.19",
@@ -70,7 +70,7 @@ dependencies = [
 # Install with: pip install motif-rag[gpu]
 # Requires CUDA 11.8+ or ROCm 5.6+.
 gpu = [
-    "onnxruntime-gpu>=1.17",
+    "onnxruntime-gpu>=1.18",
 ]
 
 # Offline evaluation
@@ -88,6 +88,12 @@ audio = [
 # Semantic chunking
 semantic = [
     "semantic-text-splitter>=0.12",
+]
+
+# Image captioning (moondream2)
+captioning = [
+    "transformers>=4.40",
+    "Pillow>=10.0",
 ]
 
 # Development tools

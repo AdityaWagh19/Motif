@@ -6,15 +6,15 @@ Falls back to config.template.toml if config.toml does not exist.
 
 Hardware Tier Summary
 ---------------------
-T1  — CPU only / < 4 GB VRAM / Mac < 8 GB unified memory
+T1  — CPU only / < 3800 MB VRAM / Mac < 8 GB unified memory
         Model: Phi-3.5-mini-instruct-Q4_K_M.gguf (2.2 GB)
         n_gpu_layers: 0
 
-T2  — 4–6 GB VRAM / Mac 8–15 GB unified memory (GTX 1650 / M1 8 GB)
+T2  — 3800–6000 MB VRAM / Mac 8–15 GB unified memory (GTX 1650 / M1 8 GB)
         Model: Qwen2.5-7B-Instruct-Q4_K_M.gguf (4.2 GB)
         n_gpu_layers: 20 (CUDA/Metal)
 
-T3  — 6+ GB VRAM / Mac 16+ GB unified memory (RTX 3050+ / M2 Pro 16 GB+)
+T3  — >= 6000 MB VRAM / Mac 16+ GB unified memory (RTX 3050+ / M2 Pro 16 GB+)
         Model: Qwen2.5-7B-Instruct-Q4_K_M.gguf (4.2 GB)
         n_gpu_layers: 28 (CUDA/Metal)
 
@@ -33,6 +33,10 @@ import subprocess
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+
+# Hardware detection cache
+_hw_cache: dict[str, str | None] = {}
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -90,6 +94,7 @@ class GenerationConfig:
 @dataclass
 class StorageConfig:
     db_path: str = "~/.ragdb"
+    workspace: str = "default"
     query_cache_enabled: bool = True
     query_cache_ttl_hours: int = 24
 
@@ -117,7 +122,8 @@ class RAGConfig:
     @property
     def db_root(self) -> Path:
         """Expanded, absolute path to the database root directory."""
-        return Path(self.storage.db_path).expanduser().resolve()  # type: ignore[union-attr]
+        base = Path(self.storage.db_path).expanduser().resolve()
+        return base / self.storage.workspace
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -129,6 +135,9 @@ def _detect_nvidia_tier() -> str | None:
     Return tier string if an NVIDIA GPU is found via nvidia-smi, else None.
     Uses the highest-VRAM GPU when multiple GPUs are present.
     """
+    if "nvidia" in _hw_cache:
+        return _hw_cache["nvidia"]
+
     try:
         result = subprocess.run(
             [
@@ -150,12 +159,15 @@ def _detect_nvidia_tier() -> str | None:
         # Use the highest VRAM GPU (multi-GPU support)
         vram_mb = max(int(l) for l in lines)
         if vram_mb >= 6000:
-            return "T3"
+            tier = "T3"
         elif vram_mb >= 3800:
-            return "T2"
+            tier = "T2"
         else:
-            return "T1"
+            tier = "T1"
+        _hw_cache["nvidia"] = tier
+        return tier
     except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
+        _hw_cache["nvidia"] = None
         return None
 
 
@@ -168,7 +180,11 @@ def _detect_apple_silicon_tier() -> str | None:
       8–15 GB unified memory → T2 (Qwen2.5-7B Q4 partial Metal offload)
       16 GB+  unified memory → T3 (full Metal offload)
     """
+    if "apple" in _hw_cache:
+        return _hw_cache["apple"]
+
     if platform.system() != "Darwin" or platform.machine() != "arm64":
+        _hw_cache["apple"] = None
         return None
     try:
         result = subprocess.run(
@@ -182,12 +198,15 @@ def _detect_apple_silicon_tier() -> str | None:
         ram_bytes = int(result.stdout.strip())
         ram_gb = ram_bytes / (1024 ** 3)
         if ram_gb >= 16:
-            return "T3"
+            tier = "T3"
         elif ram_gb >= 8:
-            return "T2"
+            tier = "T2"
         else:
-            return "T1"
+            tier = "T1"
+        _hw_cache["apple"] = tier
+        return tier
     except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
+        _hw_cache["apple"] = None
         return None
 
 
@@ -196,6 +215,9 @@ def _detect_amd_tier() -> str | None:
     Return tier string if an AMD ROCm GPU is found via rocm-smi, else None.
     Parses the CSV output to find maximum VRAM across all GPUs.
     """
+    if "amd" in _hw_cache:
+        return _hw_cache["amd"]
+
     try:
         result = subprocess.run(
             ["rocm-smi", "--showmeminfo", "vram", "--csv"],
@@ -221,14 +243,18 @@ def _detect_amd_tier() -> str | None:
                     continue
 
         if max_vram_mb == 0:
+            _hw_cache["amd"] = None
             return None
         if max_vram_mb >= 6000:
-            return "T3"
+            tier = "T3"
         elif max_vram_mb >= 3800:
-            return "T2"
+            tier = "T2"
         else:
-            return "T1"
+            tier = "T1"
+        _hw_cache["amd"] = tier
+        return tier
     except (FileNotFoundError, subprocess.TimeoutExpired, ValueError):
+        _hw_cache["amd"] = None
         return None
 
 
@@ -243,9 +269,9 @@ def detect_hardware_tier() -> str:
       4. Fallback: CPU-only T1
 
     Returns:
-        "T1" — CPU only, or GPU with < 4 GB VRAM
-        "T2" — 4–6 GB VRAM / Mac 8–15 GB unified memory
-        "T3" — >= 6 GB VRAM / Mac 16+ GB unified memory
+        "T1" — CPU only, or GPU with < 3800 MB VRAM
+        "T2" — 3800–6000 MB VRAM / Mac 8–15 GB unified memory
+        "T3" — >= 6000 MB VRAM / Mac 16+ GB unified memory
     """
     tier = _detect_nvidia_tier()
     if tier:
@@ -278,7 +304,27 @@ def _resolve_backend(tier: str) -> str:
 def _check_cuda_toolkit() -> bool:
     """Return True if CUDA Toolkit is installed and CUDA_PATH is set."""
     cuda_path = os.environ.get("CUDA_PATH", "")
-    return bool(cuda_path) and Path(cuda_path).exists()
+    if bool(cuda_path) and Path(cuda_path).exists():
+        return True
+
+    if platform.system() == "Windows":
+        known_paths = Path("C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA")
+        if known_paths.exists() and any(known_paths.iterdir()):
+            return True
+
+    return False
+
+
+def _get_models_dir() -> Path:
+    """
+    Resolve the models directory:
+    - If running from source (project root has pyproject.toml): project_root / "models"
+    - If installed as package: Path.home() / ".ragdb" / "models"
+    """
+    pkg_root = Path(__file__).parent.parent
+    if (pkg_root / "pyproject.toml").exists():
+        return pkg_root / "models"
+    return Path.home() / ".ragdb" / "models"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -407,6 +453,10 @@ def load_config(config_path: Path | None = None) -> RAGConfig:
 
 def _populate_section(obj: object, data: dict) -> None:
     """Set attributes on a dataclass instance from a dict, ignoring unknown keys."""
+    import logging
+    log = logging.getLogger("rag.config")
     for key, value in data.items():
         if hasattr(obj, key):
             setattr(obj, key, value)
+        else:
+            log.warning("Unknown configuration key '%s' in section '%s'", key, obj.__class__.__name__)

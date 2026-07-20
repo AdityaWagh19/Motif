@@ -30,25 +30,34 @@ def handle_setup(args, session, config, console) -> None:
 
     tier = parsed.tier or config.resolved_tier
 
-    # Locate setup_models.py (project root, relative to this file's package)
-    pkg_root = Path(__file__).parent.parent.parent  # rag/commands/ → project root
-    setup_script = pkg_root / "setup_models.py"
+    # Try to import setup_models. If not available, temporarily add pkg_root to sys.path
+    pkg_root = Path(__file__).parent.parent.parent
+    try:
+        import setup_models
+    except ImportError:
+        sys.path.insert(0, str(pkg_root))
+        try:
+            import setup_models
+        except ImportError:
+            console.print(
+                "[red]setup_models.py not found[/red].\n"
+                "Ensure you are running from the Motif root."
+            )
+            sys.path.pop(0)
+            return
+        sys.path.pop(0)
 
-    if not setup_script.exists():
-        console.print(
-            f"[red]setup_models.py not found[/red] at {setup_script}.\n"
-            "If installed via 'motif', run: [bold]motif setup[/bold] instead."
-        )
-        return
-
-    cmd = [sys.executable, str(setup_script), "--tier", tier]
+    old_argv = sys.argv.copy()
+    sys.argv = ["setup_models.py", "--tier", tier]
     if parsed.captioning:
-        cmd.append("--captioning")
+        sys.argv.append("--captioning")
 
     console.print(f"[dim]Running model download for Tier {tier}…[/dim]\n")
     try:
-        subprocess.run(cmd, check=True)
-    except subprocess.CalledProcessError as exc:
-        console.print(f"[red]Setup failed[/red] (exit code {exc.returncode}).")
+        setup_models.main()
+    except Exception as exc:
+        console.print(f"[red]Setup failed:[/red] {exc}")
     except KeyboardInterrupt:
         console.print("\n[dim]Setup interrupted.[/dim]")
+    finally:
+        sys.argv = old_argv

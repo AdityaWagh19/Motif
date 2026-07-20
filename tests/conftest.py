@@ -42,11 +42,19 @@ def tmp_db_root(tmp_path: Path) -> Path:
 def skip_if_no_model(request, minimal_config):
     """Skip test if marked 'slow' and models are not downloaded."""
     if "slow" in request.keywords:
-        model_path = Path(minimal_config.models.embed_model)
-        if not model_path.is_absolute():
-            model_path = model_path.resolve()
-        if not model_path.exists():
-            pytest.skip(f"Embedding model not found at {model_path}. Run `motif setup`.")
+        embed_path = Path(minimal_config.models.embed_model)
+        if not embed_path.is_absolute():
+            from rag.config import _get_models_dir
+            embed_path = _get_models_dir() / embed_path.name
+        if not embed_path.exists():
+            pytest.skip(f"Embedding model not found at {embed_path}. Run `motif setup`.")
+            
+        llm_path = Path(minimal_config.models.llm_path)
+        if not llm_path.is_absolute():
+            from rag.config import _get_models_dir
+            llm_path = _get_models_dir() / llm_path.name
+        if not llm_path.exists():
+            pytest.skip(f"LLM model not found at {llm_path}. Run `motif setup`.")
 
 
 @pytest.fixture()

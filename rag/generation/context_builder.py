@@ -25,6 +25,8 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+_WORDS_PER_TOKEN = 0.75
+
 
 def _anti_middle_order(passages: List[ScoredPassage]) -> List[ScoredPassage]:
     """
@@ -174,10 +176,10 @@ class ContextBuilder:
         # ── Token budget ──────────────────────────────────────────────────────
         # word count ≈ tokens × 0.75, so tokens ≈ words / 0.75
         # We work in words throughout to avoid any tokenizer dependency.
-        budget_words = config.generation.context_max_tokens * 3 // 4
+        budget_words = int(config.generation.context_max_tokens * _WORDS_PER_TOKEN)
         history_words = sum(len(t["content"].split()) for t in history)
         overhead_words = 200  # RAG_PROMPT boilerplate + query
-        available_words = budget_words - history_words - overhead_words
+        available_words = max(100, budget_words - history_words - overhead_words)
 
         selected: List[ScoredPassage] = []
         used_words = 0
@@ -214,30 +216,38 @@ class ContextBuilder:
         selected.sort(key=lambda p: (p.chunk.source, p.chunk.char_start))
         selected = _merge_adjacent_chunks(selected)
         
-        # ── Anti-middle ordering ────────────────────────────────────────────
-        ordered = _anti_middle_order(selected)
-
-        # ── Prompt assembly ───────────────────────────────────────────────
-        prompt = build_prompt(query, ordered, history)
-
+        # A1: Re-sort by score descending after merging
+        selected.sort(key=lambda p: p.score, reverse=True)
+        
         # ── Dynamic token budget enforcement (Phase 8a) ──────────────────────
         # Guard against prompt overflow: trim passages if the prompt is larger
         # than the context window minus the answer budget.
         # ~4 chars per token (conservative English approximation).
         budget_chars = (config.llm.ctx_size - config.llm.max_tokens - 50) * 4
-        trim_iterations = 0
-        while len(prompt) > budget_chars and len(ordered) > 1:
-            ordered = ordered[:-1]   # remove least-relevant passage (last after anti-middle)
-            prompt = build_prompt(query, ordered, history)
-            trim_iterations += 1
+        trimmed_selected = []
+        for i in range(len(selected)):
+            test_prompt = build_prompt(query, selected[:i+1], history)
+            if len(test_prompt) > budget_chars and len(trimmed_selected) >= 1:
+                break
+            trimmed_selected.append(selected[i])
+            
+        trim_iterations = len(selected) - len(trimmed_selected)
+        selected = trimmed_selected
+
         if trim_iterations > 0:
             log.warning(
                 "Context trimmed from %d to %d passages to fit within token budget "
                 "(ctx_size=%d, max_tokens=%d).",
-                len(ordered) + trim_iterations,
-                len(ordered),
+                len(selected) + trim_iterations,
+                len(selected),
                 config.llm.ctx_size,
                 config.llm.max_tokens,
             )
+
+        # ── Anti-middle ordering ────────────────────────────────────────────
+        ordered = _anti_middle_order(selected)
+
+        # ── Prompt assembly ───────────────────────────────────────────────
+        prompt = build_prompt(query, ordered, history)
 
         return prompt, ordered

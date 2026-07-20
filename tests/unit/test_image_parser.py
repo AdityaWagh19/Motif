@@ -8,11 +8,12 @@ from unittest.mock import MagicMock
 from rag.ingestion.parsers.image import ImageParser
 from rag.ingestion.parsers.base import ParsedPage
 
-def test_image_parser_t1_raises(minimal_config):
+def test_image_parser_t1_returns_empty(minimal_config):
     minimal_config.resolved_tier = "T1"
     parser = ImageParser(minimal_config)
-    with pytest.raises(ValueError, match="T2 or T3"):
-        parser.parse(Path("image.png"))
+    
+    pages = parser.parse(Path("image.png"))
+    assert pages == []
 
 def test_image_parser_extension_check():
     assert ImageParser.can_parse(Path("photo.jpg")) is True

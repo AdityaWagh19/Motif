@@ -25,7 +25,8 @@ console = Console()
 # Model catalogue
 # ─────────────────────────────────────────────────────────────────────────────
 
-MODELS_DIR = Path(__file__).parent / "models"
+from rag.config import _get_models_dir
+MODELS_DIR = _get_models_dir()
 
 # (repo_id, filename, local_name, tiers, size_label)
 LLM_MODELS = [
@@ -121,10 +122,14 @@ def _download_file(repo_id: str, filename: str, local_name: str, size_label: str
         local_dir=MODELS_DIR,
     )
     # Rename to local_name if different
+    import shutil
     actual = Path(path)
     target = MODELS_DIR / local_name
     if actual != target:
-        actual.rename(target)
+        if actual.is_symlink():
+            shutil.copy2(actual.resolve(), target)
+        else:
+            shutil.copy2(actual, target)
     return target
 
 
@@ -150,6 +155,7 @@ def _get_nomic_onnx_patterns() -> list[str]:
             "onnx/model_quantized_arm64.onnx",
             "onnx/model_quantized_arm64_data_0.onnx",  # external weights if present
             "tokenizer*",
+            "tokenizer_config.json",
             "config.json",
             "special_tokens_map.json",
         ]
@@ -158,6 +164,7 @@ def _get_nomic_onnx_patterns() -> list[str]:
         return [
             "onnx/model_quantized.onnx",
             "tokenizer*",
+            "tokenizer_config.json",
             "config.json",
             "special_tokens_map.json",
         ]

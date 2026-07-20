@@ -41,9 +41,10 @@ class Session:
     def __init__(self, config: "RAGConfig | None" = None) -> None:
         self.config = config
         self.history: list[dict[str, str]] = []
-        self._db_root: Path = (
-            config.db_root if config is not None else _DEFAULT_DB_ROOT
-        )
+
+    @property
+    def _db_root(self) -> Path:
+        return self.config.db_root if self.config is not None else _DEFAULT_DB_ROOT / "default"
 
     # ── Properties ───────────────────────────────────────────────────────────
 
@@ -76,6 +77,11 @@ class Session:
         """
         self.history.append({"role": "user", "content": query})
         self.history.append({"role": "assistant", "content": answer})
+        
+        # Enforce history limit (each turn is 2 messages)
+        max_messages = (self.config.generation.history_turns * 2) if self.config else 6
+        if len(self.history) > max_messages:
+            self.history = self.history[-max_messages:]
 
     # ── Context budget management ─────────────────────────────────────────────
 
@@ -149,12 +155,20 @@ class Session:
 
     def clear(self) -> None:
         """
-        Clear in-memory history and delete ~/.ragdb/history.json.
+        Clear in-memory history and delete ~/.ragdb/<workspace>/history.json.
         Implements the /clear slash command.
         """
         self.history = []
         if self.history_path.exists():
             self.history_path.unlink()
+
+    def flush_cache(self) -> None:
+        """Clear all queries from the retrieval cache for the current workspace."""
+        if self.config:
+            from rag.storage.query_cache import QueryCache
+            cache = QueryCache(self.config)
+            cache.clear()
+            cache.close()
 
     def new(self) -> Path | None:
         """

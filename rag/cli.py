@@ -20,10 +20,14 @@ from __future__ import annotations
 
 # ── Thread pool limits — MUST be set before numpy/onnxruntime/numexpr import ─
 import os
-os.environ.setdefault("NUMEXPR_MAX_THREADS", "2")
-os.environ.setdefault("OMP_NUM_THREADS", "2")
-os.environ.setdefault("MKL_NUM_THREADS", "2")
-os.environ.setdefault("OPENBLAS_NUM_THREADS", "2")
+from rag.config import load_config
+_boot_config = load_config()
+_threads = str(_boot_config.llm.threads)
+
+os.environ.setdefault("NUMEXPR_MAX_THREADS", _threads)
+os.environ.setdefault("OMP_NUM_THREADS", _threads)
+os.environ.setdefault("MKL_NUM_THREADS", _threads)
+os.environ.setdefault("OPENBLAS_NUM_THREADS", _threads)
 # ─────────────────────────────────────────────────────────────────────────────
 import warnings
 warnings.filterwarnings("ignore")
@@ -221,7 +225,8 @@ def _handle_query(raw: str, session: Session, config: RAGConfig) -> None:
         session.add_turn(query, answer.text)
 
     except KeyboardInterrupt:
-        console.print("\n[dim]Generation interrupted.[/dim]")
+        console.print()
+        console.print("[dim]Generation interrupted.[/dim]")
     except Exception as exc:
         console.print(f"[red]Error:[/red] {exc}")
 
@@ -397,6 +402,17 @@ def main() -> None:
     Otherwise, launch the interactive REPL.
     """
     args = sys.argv[1:]
+
+    if "--version" in args:
+        from rag import __version__
+        print(f"Motif v{__version__}")
+        sys.exit(0)
+
+    verbose = "--verbose" in args
+    if verbose:
+        import logging
+        logging.getLogger().setLevel(logging.DEBUG)
+    args = [a for a in args if a != "--verbose"]
 
     # Handle --no-prewarm flag before routing
     no_prewarm = "--no-prewarm" in args

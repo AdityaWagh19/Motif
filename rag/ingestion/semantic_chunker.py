@@ -170,6 +170,8 @@ class SemanticChunker:
                     has_table=page.has_table,
                     has_image=page.has_image,
                     is_ocr=page.is_ocr,
+                    start_time=page.start_time,
+                    end_time=page.end_time,
                 )
                 sub_chunks = self._fallback.chunk(sub_page, source, filename, source_type)
                 chunks.extend(sub_chunks)
@@ -185,6 +187,8 @@ class SemanticChunker:
                     has_table=page.has_table,
                     has_image=page.has_image,
                     is_ocr=page.is_ocr,
+                    start_time=page.start_time,
+                    end_time=page.end_time,
                     token_count=word_count,
                     indexed_at=datetime.now(timezone.utc).isoformat(),
                 ))

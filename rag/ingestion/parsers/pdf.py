@@ -176,18 +176,10 @@ class PDFParser(BaseParser):
             tmp_path = tmp.name
             
         try:
-            try:
-                from paddleocr import PaddleOCR  # type: ignore[import]
-            except ImportError as exc:
-                raise RuntimeError(
-                    "PaddleOCR is not installed. Run: pip install paddleocr"
-                ) from exc
+            from rag.ingestion.parsers.ocr_engine import get_ocr
+            ocr = get_ocr()
                 
-            if self._ocr is None:
-                log.info("Initialising PaddleOCR for scanned PDF page...")
-                self._ocr = PaddleOCR(use_angle_cls=True, lang="en")
-                
-            result = self._ocr.predict(tmp_path)
+            result = ocr.ocr(tmp_path, cls=True)
             if not result or not result[0]:
                 return ""
             return " ".join(line[1][0] for line in result[0] if line[1][1] >= 0.6)

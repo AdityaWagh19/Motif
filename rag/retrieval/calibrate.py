@@ -66,7 +66,8 @@ def load_calibrated_threshold(config: "RAGConfig") -> Optional[float]:
 
         # Recompute if index has grown more than 50% since calibration.
         from rag.storage.chunk_store import ChunkStore
-        current_count = ChunkStore(config).count()
+        with ChunkStore(config) as chunk_store:
+            current_count = chunk_store.count()
         if cal_chunk_count > 0 and current_count > cal_chunk_count * 1.5:
             log.info(
                 "Index grew %.0f%% since last calibration — will recalibrate.",
@@ -125,52 +126,52 @@ def calibrate_threshold(
         from rag.retrieval.bm25_index import BM25Index
         from rag.retrieval.fusion import rrf_fuse, rrf_to_scored_passages
 
-        chunk_store = ChunkStore(config)
-        count = chunk_store.count()
-        if count == 0:
-            log.warning("Index is empty — cannot calibrate. Using default %.3f.", fallback)
-            return fallback
+        with ChunkStore(config) as chunk_store:
+            count = chunk_store.count()
+            if count == 0:
+                log.warning("Index is empty — cannot calibrate. Using default %.3f.", fallback)
+                return fallback
 
-        # Sample probe chunks randomly.
-        all_ids = chunk_store.list_ids()
-        sample_ids = random.sample(all_ids, min(n_probes, len(all_ids)))
-        probe_chunks = [c for c in [chunk_store.fetch(id_) for id_ in sample_ids] if c]
+            # Sample probe chunks randomly.
+            all_ids = chunk_store.list_ids()
+            sample_ids = random.sample(all_ids, min(n_probes, len(all_ids)))
+            probe_chunks = [c for c in [chunk_store.fetch(id_) for id_ in sample_ids] if c]
 
-        if not probe_chunks:
-            return fallback
+            if not probe_chunks:
+                return fallback
 
-        # Load models.
-        mm = get_model_manager()
-        embedder = mm.get_embedder(config)
-        reranker = mm.get_reranker(config)
-        vector_store = VectorStore(config)
-        bm25 = BM25Index(config)
+            # Load models.
+            mm = get_model_manager()
+            embedder = mm.get_embedder(config)
+            reranker = mm.get_reranker(config)
+            vector_store = VectorStore(config)
+            bm25 = BM25Index(config)
 
-        all_scores: List[float] = []
+            all_scores: List[float] = []
 
-        for chunk in probe_chunks:
-            # Use first 20 words as a probe query.
-            words = chunk.text.split()[:20]
-            query = " ".join(words)
-            if not query:
-                continue
-
-            try:
-                qvec = embedder.encode(query, prefix="search_query: ")
-                dense = vector_store.search_dense(qvec, top_k=15)
-                bm25_res = bm25.search(query, top_k=15)
-                fused = rrf_fuse([dense, bm25_res], top_k=15)
-                candidates = rrf_to_scored_passages(fused, chunk_store)
-                if not candidates:
+            for chunk in probe_chunks:
+                # Use first 20 words as a probe query.
+                words = chunk.text.split()[:20]
+                query = " ".join(words)
+                if not query:
                     continue
 
-                texts = [p.chunk.text for p in candidates]
-                scores = reranker.score(query, texts)
-                all_scores.extend(float(s) for s in scores)
+                try:
+                    qvec = embedder.encode(query, prefix="search_query: ")
+                    dense = vector_store.search_dense(qvec, top_k=15)
+                    bm25_res = bm25.search(query, top_k=15)
+                    fused = rrf_fuse([dense, bm25_res], top_k=15)
+                    candidates = rrf_to_scored_passages(fused, chunk_store)
+                    if not candidates:
+                        continue
 
-            except Exception as exc:
-                log.debug("Probe failed for chunk %s: %s", chunk.id, exc)
-                continue
+                    texts = [p.chunk.text for p in candidates]
+                    scores = reranker.score(query, texts)
+                    all_scores.extend(float(s) for s in scores)
+
+                except Exception as exc:
+                    log.debug("Probe failed for chunk %s: %s", chunk.id, exc)
+                    continue
 
         if not all_scores:
             log.warning("No probe scores collected — using default %.3f.", fallback)

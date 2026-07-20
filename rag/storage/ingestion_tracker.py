@@ -105,6 +105,12 @@ class IngestionTracker:
         self._conn.execute(_CREATE_TABLE)
         self._conn.commit()
 
+    def __enter__(self) -> "IngestionTracker":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
+
     # ------------------------------------------------------------------
     # Queries
     # ------------------------------------------------------------------

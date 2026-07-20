@@ -228,7 +228,14 @@ def ingest_path(
                     # Modified — remove old version first
                     if console:
                         console.print("[yellow]changed — re-indexing…[/yellow]", end="  ")
-                    remove_document(file, config)
+                    remove_document(
+                        file, 
+                        config, 
+                        chunk_store=chunk_store, 
+                        bm25=bm25, 
+                        vector_store=vector_store, 
+                        tracker=tracker
+                    )
 
             # ── Parse ────────────────────────────────────────────────────────
             parser = get_parser(file, config)
@@ -292,6 +299,10 @@ def ingest_path(
     # Persist BM25 index once after all files (atomic write)
     bm25.save()
 
+    # Release QdrantLocal file locks (important for Windows)
+    if hasattr(vector_store, "close"):
+        vector_store.close()
+
     # T1 memory policy: unload embedder before LLM is loaded
     model_manager.after_ingestion(config)
 
@@ -303,22 +314,26 @@ def ingest_path(
     )
 
 
-def remove_document(path: Path, config: "RAGConfig") -> int:
+
+def remove_document(
+    file_path: Path, 
+    config: "RAGConfig",
+    chunk_store=None,
+    bm25=None,
+    vector_store=None,
+    tracker=None
+) -> int:
     """
-    Remove a document and all its indexed chunks from the knowledge base.
-
-    The document file itself is NOT deleted from disk.
-
-    Steps:
-    1. Collect chunk IDs from ChunkStore (needed for BM25 delete).
-    2. Delete from ChunkStore (SQLite).
-    3. Delete from BM25Index and persist.
-    4. Delete from VectorStore (Qdrant).
-    5. Remove file record from IngestionTracker.
+    Remove a document and all its chunks from the vector store, BM25 index,
+    and SQLite chunk store.
 
     Args:
-        path:   Path to the source document (used to derive the source string).
-        config: Loaded RAGConfig.
+        file_path:   Path to the source document (used to derive the source string).
+        config:      Loaded RAGConfig.
+        chunk_store: Optional ChunkStore instance to reuse.
+        bm25:        Optional BM25Index instance to reuse.
+        vector_store: Optional VectorStore instance to reuse.
+        tracker:     Optional IngestionTracker instance to reuse.
 
     Returns:
         Number of chunks removed (from ChunkStore).
@@ -328,12 +343,14 @@ def remove_document(path: Path, config: "RAGConfig") -> int:
     from rag.retrieval.bm25_index import BM25Index
     from rag.retrieval.vector_store import VectorStore
 
-    source = str(path.resolve())
+    source = str(file_path.resolve())
 
-    chunk_store = ChunkStore(config)
-    bm25 = BM25Index(config)
-    vector_store = VectorStore(config)
-    tracker = IngestionTracker(config)
+    owns_vector_store = vector_store is None
+    
+    chunk_store = chunk_store or ChunkStore(config)
+    bm25 = bm25 or BM25Index(config)
+    vector_store = vector_store or VectorStore(config)
+    tracker = tracker or IngestionTracker(config)
 
     # Collect IDs before deletion (BM25 delete requires them)
     chunks = chunk_store.fetch_by_source(source)
@@ -345,9 +362,12 @@ def remove_document(path: Path, config: "RAGConfig") -> int:
         bm25.delete_by_source(source, chunk_ids)
         bm25.save()
     vector_store.delete_by_source(source)
-    tracker.remove(path)
+    tracker.remove(file_path)
+    
+    if owns_vector_store and hasattr(vector_store, "close"):
+        vector_store.close()
 
-    log.info("Removed document %s (%d chunks).", path.name, n)
+    log.info("Removed document %s (%d chunks).", file_path.name, n)
     return n
 
 

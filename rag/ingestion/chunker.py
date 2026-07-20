@@ -125,6 +125,8 @@ class SentenceChunker:
                 has_table=page.has_table,
                 has_image=page.has_image,
                 is_ocr=page.is_ocr,
+                start_time=page.start_time,
+                end_time=page.end_time,
                 token_count=len(chunk_text.split()),  # word-count approximation
                 indexed_at=datetime.now(timezone.utc).isoformat(),
             )

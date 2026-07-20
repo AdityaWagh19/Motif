@@ -4,7 +4,7 @@
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$MotifRepo      = "https://github.com/AdityaWagh19/Motif"
+$MotifRepo      = "https://github.com/AdityaWagh19/Motif"  # Add @<tag> here for version-pinning
 $UvInstallUrl   = "https://astral.sh/uv/install.ps1"
 $LlamaCppIndex  = "https://abetlen.github.io/llama-cpp-python/whl"
 $LlamaCppRocm   = "https://abetlen.github.io/llama-cpp-python/whl/rocm"
@@ -49,7 +49,7 @@ if ($uvCmd) {
 
 # ── Step 2: Install Motif ─────────────────────────────────────────────────────
 Write-Info "Installing motif..."
-& uv tool install "git+$MotifRepo" --force
+& uv tool install "git+$MotifRepo" --upgrade
 if ($LASTEXITCODE -ne 0) { Write-Fail "Motif installation failed." }
 Write-Ok "motif installed"
 
@@ -59,6 +59,10 @@ Write-Ok "motif installed"
 # ── Step 3: GPU / accelerator detection ──────────────────────────────────────
 $UvToolDir = & uv tool dir
 $MotifEnv = Join-Path $UvToolDir "motif-rag"
+
+if ([string]::IsNullOrWhiteSpace($MotifEnv) -or -not (Test-Path $MotifEnv)) {
+    Write-Fail "Could not determine Motif tool environment. Installation aborted."
+}
 
 # ── 3a. NVIDIA CUDA ───────────────────────────────────────────────────────────
 $CudaVersion = ""

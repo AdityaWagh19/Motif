@@ -7,17 +7,16 @@ from rich import box
 
 def handle_help(args, session, config, console) -> None:
     """Print all available slash commands with descriptions."""
-    from rag.commands import SLASH_COMMANDS, COMMAND_DESCRIPTIONS
+    from rag.commands import SLASH_COMMANDS, COMMAND_DESCRIPTIONS, COMMAND_EXAMPLES
 
-    table = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
+    table = Table(box=box.SIMPLE, show_header=True, padding=(0, 2))
     table.add_column("Command", style="bold cyan", no_wrap=True)
     table.add_column("Description", style="dim")
+    table.add_column("Example", style="dim italic")
 
     for cmd, desc in COMMAND_DESCRIPTIONS.items():
-        table.add_row(cmd, desc)
-
-    table.add_section()
-    table.add_row("exit / quit", "Save session and exit")
+        example = COMMAND_EXAMPLES.get(cmd, "")
+        table.add_row(cmd, desc, example)
 
     console.print()
     console.print(table)

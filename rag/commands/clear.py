@@ -21,12 +21,14 @@ def handle_new(args, session, config, console) -> None:
     /new — Archive the current history and start a fresh session.
 
     The current history is saved to history_YYYYMMDD_HHMMSS.json before clearing.
+    Also flushes the retrieval cache.
     """
     archive_path = session.new()
+    session.flush_cache()
     if archive_path:
         console.print(
-            f"[green]History archived[/green] to [dim]{archive_path.name}[/dim]. "
-            "Starting fresh session."
+            f"[green]History archived[/green] to [dim]{archive_path.resolve()}[/dim].\n"
+            "Query cache flushed. Starting fresh session."
         )
     else:
-        console.print("[dim]No history to archive. Already starting fresh.[/dim]")
+        console.print("[dim]No history to archive. Query cache flushed. Starting fresh session.[/dim]")

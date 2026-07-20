@@ -20,11 +20,10 @@ def handle_status(args, session, config, console) -> None:
     try:
         from rag.storage.chunk_store import ChunkStore
         from rag.retrieval.bm25_index import BM25Index
-        store = ChunkStore(config)
-        bm25 = BM25Index(config)
-        chunk_count = store.count()
-        doc_count = store.count_documents()
-        bm25_count = bm25.count()
+        with ChunkStore(config) as store:
+            chunk_count = store.count()
+            doc_count = store.count_documents()
+        bm25_count = BM25Index.count_from_disk(config)
     except Exception:
         pass
 
@@ -55,6 +54,7 @@ def handle_status(args, session, config, console) -> None:
     table.add_section()
 
     # Hardware
+    table.add_row("Workspace", config.storage.workspace)
     table.add_row("Tier", config.resolved_tier)
     table.add_row("LLM", Path(config.models.llm_path).name)
     table.add_row("GPU layers", str(config.llm.n_gpu_layers))

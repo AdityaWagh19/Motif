@@ -112,10 +112,8 @@ class BM25Index:
             chunk_count = len(self._chunk_ids)
             if chunk_count > 5_000:
                 log.warning(
-                    "BM25 index has %d chunks. Startup rebuild will take >10 s at 50K+ chunks. "
-                    "Consider migrating to bm25s for incremental indexing. "
-                    "Phase 10 documents the migration path.",
-                    chunk_count,
+                    "BM25 index has %d chunks. Tantivy backend will auto-activate at %d chunks.",
+                    chunk_count, TANTIVY_THRESHOLD,
                 )
 
     @staticmethod
@@ -403,3 +401,21 @@ class BM25Index:
     def count(self) -> int:
         """Return the number of chunks currently in the index."""
         return len(self._chunk_ids)
+
+    @classmethod
+    def count_from_disk(cls, config: "RAGConfig") -> int:
+        """
+        Return the number of chunks by reading the index from disk.
+        Does not load the BM25Okapi object into memory.
+        """
+        index_path = config.db_root / "bm25" / "index.pkl"
+        if not index_path.exists():
+            return 0
+        try:
+            with open(str(index_path), "rb") as f:
+                data = pickle.load(f)
+            if isinstance(data, dict):
+                return len(data.get("chunk_ids", []))
+            return 0
+        except Exception:
+            return 0

@@ -52,6 +52,7 @@ class ModelManager:
         self._reranker: Optional["Reranker"] = None
         self._llm: Optional["LLMClient"] = None
         self._captioner: Optional["Captioner"] = None
+        self._whisper = None
 
     # ------------------------------------------------------------------
     # Embedder
@@ -167,10 +168,23 @@ class ModelManager:
                     f"LLM model not found: {model_path}\n"
                     f"Run `motif setup` to download models."
                 )
+            if config.hardware.backend in ("cuda", "metal", "rocm") and config.llm.n_gpu_layers == 0:
+                log.warning(
+                    f"GPU offload requested ({config.hardware.backend}), but "
+                    f"n_gpu_layers is 0. Running in CPU mode."
+                )
+
             log.info("Loading LLM from %s", model_path)
             self._llm = LLMClient(model_path, config)
             try:
                 self._llm._load()
+                if config.hardware.backend in ("cuda", "metal", "rocm") and config.llm.n_gpu_layers > 0:
+                    try:
+                        log.debug("Running LLM GPU warm-up pass...")
+                        # Pass a dummy string and request 1 token
+                        _ = next(self._llm.generate("hello", max_tokens=1))
+                    except Exception:
+                        pass
             except Exception:
                 self._llm = None
                 raise
@@ -212,6 +226,47 @@ class ModelManager:
         return self._captioner
 
     # ------------------------------------------------------------------
+    # Whisper
+    # ------------------------------------------------------------------
+
+    def get_whisper(self, config: RAGConfig):
+        """Lazy-load pywhispercpp model."""
+        if self._whisper is None:
+            try:
+                from pywhispercpp.model import Model
+            except ImportError as exc:
+                raise RuntimeError("pywhispercpp is not installed") from exc
+
+            from rag.config import _get_models_dir
+            model_path = Path(config.models.whisper)
+            if not model_path.is_absolute():
+                model_path = _get_models_dir() / model_path.name
+                
+            if not model_path.exists():
+                raise FileNotFoundError(
+                    f"Whisper model not found: {model_path}\n"
+                    f"Run `motif setup` to download it."
+                )
+                
+            log.info("Loading Whisper model from %s", model_path)
+            from rag.ingestion.parsers.audio import suppress_c_stderr
+            with suppress_c_stderr():
+                self._whisper = Model(
+                    str(model_path), 
+                    n_threads=config.llm.threads, 
+                    print_realtime=False, 
+                    print_progress=False, 
+                    print_timestamps=False
+                )
+        return self._whisper
+        
+    def unload_whisper(self) -> None:
+        """Unload whisper model and release memory."""
+        if self._whisper is not None:
+            log.debug("Unloading Whisper")
+        self._whisper = None
+
+    # ------------------------------------------------------------------
     # Lifecycle helpers
     # ------------------------------------------------------------------
 
@@ -220,6 +275,7 @@ class ModelManager:
         self.unload_embedder()
         self.unload_reranker()
         self.unload_llm()
+        self.unload_whisper()
 
     def after_ingestion(self, config: RAGConfig) -> None:
         """

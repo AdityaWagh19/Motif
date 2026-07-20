@@ -77,10 +77,8 @@ class AudioParser(BaseParser):
         whisper_model = cfg.models.whisper
         path = Path(whisper_model)
         if not path.is_absolute():
-            # Anchor relative paths to the project root:
-            # rag/ingestion/parsers/audio.py → rag/ingestion/parsers/ → rag/ingestion/ → rag/ → project_root
-            project_root = Path(__file__).parent.parent.parent.parent
-            path = project_root / whisper_model
+            from rag.config import _get_models_dir
+            path = _get_models_dir() / path.name
 
         if not path.exists():
             raise FileNotFoundError(
@@ -95,18 +93,11 @@ class AudioParser(BaseParser):
         Run whisper.cpp transcription. Returns list of segment dicts:
         {"text": str, "start": float, "end": float}
         """
-        try:
-            from pywhispercpp.model import Model  # type: ignore[import]
-        except ImportError as exc:
-            raise RuntimeError(
-                "pywhispercpp is not installed. Run: pip install pywhispercpp"
-            ) from exc
+        from rag.models.model_manager import get_model_manager
+        model = get_model_manager().get_whisper(self._config)
             
-        log.info("Loading Whisper model from %s", model_path)
+        log.info("Transcribing %s", audio_path.name)
         with suppress_c_stderr():
-            model = Model(str(model_path), n_threads=self._config.llm.threads, print_realtime=False, print_progress=False, print_timestamps=False)
-            
-            log.info("Transcribing %s", audio_path.name)
             segments = model.transcribe(str(audio_path))
         
         return [
@@ -129,13 +120,13 @@ class AudioParser(BaseParser):
         current_word_count = 0
         chunk_start_time = segments[0]["start"]
 
-        for seg in segments:
+        for i, seg in enumerate(segments):
             words = seg["text"].split()
             if current_word_count + len(words) > TARGET_WORDS and current_texts:
                 pages.append(ParsedPage(
                     text=" ".join(current_texts),
                     start_time=chunk_start_time,
-                    end_time=segments[segments.index(seg) - 1]["end"],
+                    end_time=segments[i - 1]["end"],
                     is_ocr=False,
                 ))
                 current_texts = [seg["text"]]

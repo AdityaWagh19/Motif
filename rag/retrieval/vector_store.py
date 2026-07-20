@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-COLLECTION_NAME: str = "motif_chunks"
+COLLECTION_NAME_SUFFIX: str = "motif_chunks"
 VECTOR_SIZE: int = 768
 
 
@@ -65,9 +65,10 @@ class VectorStore:
 
         db_path = config.db_root / "qdrant"
         db_path.mkdir(parents=True, exist_ok=True)  # type: ignore[call-arg]
+        self._collection_name = f"{config.storage.workspace}_{COLLECTION_NAME_SUFFIX}"
         self._client = QdrantClient(path=str(db_path))
         self._ensure_collection()
-        log.debug("VectorStore initialised at %s", db_path)
+        log.debug("VectorStore initialised at %s, collection: %s", db_path, self._collection_name)
 
     # ------------------------------------------------------------------
     # Collection management
@@ -80,9 +81,9 @@ class VectorStore:
         existing_names = [
             c.name for c in self._client.get_collections().collections
         ]
-        if COLLECTION_NAME not in existing_names:
+        if self._collection_name not in existing_names:
             self._client.create_collection(
-                collection_name=COLLECTION_NAME,
+                collection_name=self._collection_name,
                 vectors_config=VectorParams(
                     size=VECTOR_SIZE,
                     distance=Distance.COSINE,
@@ -90,7 +91,7 @@ class VectorStore:
                 ),
                 hnsw_config={"m": 16, "ef_construct": 100, "on_disk": True},
             )
-            log.info("Created Qdrant collection '%s'.", COLLECTION_NAME)
+            log.info("Created Qdrant collection '%s'.", self._collection_name)
 
     # ------------------------------------------------------------------
     # Write path
@@ -106,7 +107,7 @@ class VectorStore:
         from qdrant_client.models import PointStruct  # type: ignore[import]
 
         self._client.upsert(
-            collection_name=COLLECTION_NAME,
+            collection_name=self._collection_name,
             points=[
                 PointStruct(
                     id=_str_to_uuid_int(chunk_id),
@@ -135,16 +136,23 @@ class VectorStore:
         if not chunk_ids:
             return
 
-        points = [
-            PointStruct(
-                id=_str_to_uuid_int(cid),
-                vector=vec.tolist(),
-                payload={**payload, "chunk_id": cid},
-            )
-            for cid, vec, payload in zip(chunk_ids, vectors, payloads)
-        ]
-        self._client.upsert(collection_name=COLLECTION_NAME, points=points)
-        log.debug("VectorStore: upserted %d points.", len(points))
+        BATCH_SIZE = 100
+        for i in range(0, len(chunk_ids), BATCH_SIZE):
+            batch_ids = chunk_ids[i:i + BATCH_SIZE]
+            batch_vectors = vectors[i:i + BATCH_SIZE]
+            batch_payloads = payloads[i:i + BATCH_SIZE]
+
+            points = [
+                PointStruct(
+                    id=_str_to_uuid_int(cid),
+                    vector=vec.tolist(),
+                    payload={**payload, "chunk_id": cid},
+                )
+                for cid, vec, payload in zip(batch_ids, batch_vectors, batch_payloads)
+            ]
+            self._client.upsert(collection_name=self._collection_name, points=points)
+
+        log.debug("VectorStore: upserted %d points.", len(chunk_ids))
 
     # ------------------------------------------------------------------
     # Delete path
@@ -169,7 +177,7 @@ class VectorStore:
         )
 
         self._client.delete(
-            collection_name=COLLECTION_NAME,
+            collection_name=self._collection_name,
             points_selector=FilterSelector(
                 filter=Filter(
                     must=[
@@ -211,19 +219,21 @@ class VectorStore:
         """
         qdrant_filter = _build_filter(filter_) if filter_ else None
         
+        limit = top_k if top_k is not None else 20
+
         if hasattr(self._client, "query_points"):
             results = self._client.query_points(
-                collection_name=COLLECTION_NAME,
+                collection_name=self._collection_name,
                 query=query_vector.tolist(),
-                limit=top_k,
+                limit=limit,
                 query_filter=qdrant_filter,
                 with_payload=True,
             ).points
         else:
             results = self._client.search(
-                collection_name=COLLECTION_NAME,
+                collection_name=self._collection_name,
                 query_vector=query_vector.tolist(),
-                limit=top_k,
+                limit=limit,
                 query_filter=qdrant_filter,
                 with_payload=True,
             )
@@ -231,7 +241,12 @@ class VectorStore:
 
     def count(self) -> int:
         """Return the total number of vectors in the collection."""
-        return self._client.count(collection_name=COLLECTION_NAME).count
+        return self._client.count(collection_name=self._collection_name).count
+
+    def close(self) -> None:
+        """Close the underlying QdrantClient to release file locks."""
+        if hasattr(self, "_client") and hasattr(self._client, "close"):
+            self._client.close()
 
 
 # ---------------------------------------------------------------------------

@@ -33,10 +33,11 @@ class ImageParser(BaseParser):
 
     def parse(self, path: Path) -> List[ParsedPage]:
         if self._config.resolved_tier == "T1":
-            raise ValueError(
+            log.warning(
                 "Image parsing requires T2 or T3 (PaddleOCR needs GPU or sufficient RAM). "
                 "T1 (CPU-only) does not support image ingestion."
             )
+            return []
 
         if not path.exists():
             raise FileNotFoundError(f"Image not found: {path}")
@@ -68,19 +69,10 @@ class ImageParser(BaseParser):
 
     def _run_ocr(self, path: Path) -> str:
         """Run PaddleOCR on the image. Returns extracted text."""
-        try:
-            from paddleocr import PaddleOCR  # type: ignore[import]
-        except ImportError as exc:
-            raise RuntimeError(
-                "PaddleOCR is not installed. Run: pip install paddleocr"
-            ) from exc
-
-        # Lazy-load PaddleOCR (slow first-time init — downloads models if missing)
-        if self._ocr is None:
-            log.info("Initialising PaddleOCR...")
-            self._ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
+        from rag.ingestion.parsers.ocr_engine import get_ocr
+        ocr = get_ocr()
             
-        result = self._ocr.ocr(str(path), cls=True)
+        result = ocr.ocr(str(path), cls=True)
         if not result or not result[0]:
             return ""
             
