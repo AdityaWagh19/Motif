@@ -57,7 +57,8 @@ Write-Ok "motif installed"
 & uv tool update-shell 2>$null
 
 # ── Step 3: GPU / accelerator detection ──────────────────────────────────────
-$MotifEnv = & uv tool dir motif 2>$null
+$UvToolDir = & uv tool dir
+$MotifEnv = Join-Path $UvToolDir "motif-rag"
 
 # ── 3a. NVIDIA CUDA ───────────────────────────────────────────────────────────
 $CudaVersion = ""
