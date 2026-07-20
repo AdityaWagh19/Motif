@@ -25,8 +25,6 @@ def suppress_c_stderr():
         save_fd = os.dup(sys.stderr.fileno())
         os.dup2(null_fd, sys.stderr.fileno())
         yield
-    except Exception:
-        yield
     finally:
         try:
             os.dup2(save_fd, sys.stderr.fileno())
