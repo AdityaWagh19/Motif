@@ -20,7 +20,9 @@ from __future__ import annotations
 
 # ── Thread pool limits — MUST be set before numpy/onnxruntime/numexpr import ─
 import os
-from rag.config import load_config
+from rag.config import load_config, migrate_if_needed
+
+migrate_if_needed()
 _boot_config = load_config()
 _threads = str(_boot_config.llm.threads)
 

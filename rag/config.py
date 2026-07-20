@@ -52,8 +52,11 @@ def get_app_dir() -> Path:
     # On macOS: ~/Library/Application Support/motif
     return Path(platformdirs.user_data_dir("motif", appauthor=False)).resolve()
 
-def _migrate_if_needed(app_dir: Path) -> None:
+def migrate_if_needed(app_dir: Path | None = None) -> None:
     """Migrate legacy ~/.ragdb to the new <APP_DIR> structure atomically."""
+    if app_dir is None:
+        app_dir = get_app_dir()
+        
     legacy_dir = Path(os.path.expanduser("~/.ragdb")).resolve()
     sentinel = app_dir / "migration.done"
     
@@ -454,7 +457,6 @@ def load_config(config_path: Path | None = None) -> RAGConfig:
     raw: dict = {}
     
     app_dir = get_app_dir()
-    _migrate_if_needed(app_dir)
     
     global_config = app_dir / "config.toml"
     if not global_config.exists():
