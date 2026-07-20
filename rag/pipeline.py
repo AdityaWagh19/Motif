@@ -143,8 +143,8 @@ class QueryPipeline:
             console.print(f"\n{result.text}\n")
             return result
         elif intent == Intent.CHITCHAT:
-            result = self._handle_chitchat(query, cfg, console, t_start)
-            return result
+            from rag.generation.prompts import CHITCHAT_PROMPT
+            return self._handle_llm_direct(query, CHITCHAT_PROMPT, cfg, console, t_start)
 
         # ── 0b. Query cache check ──────────────────────────────────────────────
         if getattr(cfg.storage, "query_cache_enabled", False):
@@ -165,16 +165,15 @@ class QueryPipeline:
                         console.print(f"  [structure]{c.format()}[/structure]")
                 return cached
 
-        # ── 0b. Guard: index must be populated ────────────────────────────────
+        # ── 0b. Guard: empty index fallback ─────────────────────────────────────
         if self._chunk_store.count() == 0:
-            console.print(
-                "[warning]No documents indexed.[/warning] "
-                "Run [bold]/ingest PATH[/bold] first."
-            )
-            return AnswerResult(
-                text="No documents are indexed. Run /ingest to add documents first.",
-                citations=[],
-                passages_used=0,
+            from rag.generation.prompts import FALLBACK_PROMPT_EMPTY_INDEX
+            return self._handle_llm_direct(
+                query, 
+                FALLBACK_PROMPT_EMPTY_INDEX, 
+                cfg, 
+                console, 
+                t_start
             )
 
         # ── 1. Expand query → embedding ──────────────────────────────────────────────
@@ -205,14 +204,14 @@ class QueryPipeline:
         t_retrieval_ms = (time.monotonic() - t_retrieval_start) * 1000
 
         if not candidates:
-            console.print(
-                "[warning]No relevant passages found for your query.[/warning]"
-            )
-            return AnswerResult(
-                text="I cannot find an answer to this in the available documents.",
-                citations=[],
-                passages_used=0,
-                retrieval_latency_ms=t_retrieval_ms,
+            from rag.generation.prompts import FALLBACK_PROMPT_NO_DOCS
+            return self._handle_llm_direct(
+                query, 
+                FALLBACK_PROMPT_NO_DOCS, 
+                cfg, 
+                console, 
+                t_start, 
+                retrieval_latency_ms=t_retrieval_ms
             )
 
         # ── 4. Rerank ──────────────────────────────────────────────────────────
@@ -343,9 +342,10 @@ class QueryPipeline:
 
     # ── Private helpers ────────────────────────────────────────────────────────
 
-    def _handle_chitchat(self, query: str, cfg, console, start_time: float) -> AnswerResult:
-        from rag.generation.prompts import CHITCHAT_PROMPT
-        prompt = CHITCHAT_PROMPT.format(query=query)
+    def _handle_llm_direct(
+        self, query: str, prompt_template: str, cfg, console, start_time: float, retrieval_latency_ms: float = 0.0
+    ) -> AnswerResult:
+        prompt = prompt_template.format(query=query)
         
         t_gen_start = time.monotonic()
         try:
@@ -371,14 +371,14 @@ class QueryPipeline:
         t_gen_ms = (time.monotonic() - t_gen_start) * 1000
         t_total_ms = (time.monotonic() - start_time) * 1000
         
-        log.info("Chit-chat query complete: %.1f ms total (gen %.1f ms)", t_total_ms, t_gen_ms)
+        log.info("LLM direct query complete: %.1f ms total (gen %.1f ms)", t_total_ms, t_gen_ms)
         
         return AnswerResult(
             text=full_answer,
             citations=[],
             passages_used=0,
             latency_ms=t_total_ms,
-            retrieval_latency_ms=0,
+            retrieval_latency_ms=retrieval_latency_ms,
             generation_latency_ms=t_gen_ms,
             tier=cfg.resolved_tier,
         )

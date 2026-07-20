@@ -74,6 +74,38 @@ Question: {query}
 Answer:"""
 
 
+# Fallback prompt when the index is completely empty (no documents ingested).
+FALLBACK_PROMPT_EMPTY_INDEX = """\
+You are Motif, a helpful AI research assistant. The user asked a question or made a statement, \
+but their workspace is completely empty (no documents are indexed). 
+
+If the user is making casual conversation, respond politely. \
+If the user is asking a factual question about their documents, inform them that you lack the context \
+to answer because no documents are indexed. 
+
+CRITICAL: Do not attempt to answer factual questions about the user's documents by guessing or \
+using general knowledge. Only acknowledge the missing context.
+
+Question: {query}
+Answer:"""
+
+
+# Fallback prompt when the index has documents, but retrieval returned 0 relevant candidates.
+FALLBACK_PROMPT_NO_DOCS = """\
+You are Motif, a helpful AI research assistant. The user asked a question or made a statement, \
+but no relevant documents in their workspace cover this topic.
+
+If the user is making casual conversation, respond politely. \
+If the user is asking a factual question about their documents, inform them that you lack the context \
+to answer because the available documents do not contain the answer.
+
+CRITICAL: Do not attempt to answer factual questions about the user's documents by guessing or \
+using general knowledge. Only acknowledge the missing context.
+
+Question: {query}
+Answer:"""
+
+
 # Prompt used by HyDE (Phase 4) to generate a hypothetical answer.
 HYDE_PROMPT = """\
 Write a short, factual passage (2-3 sentences) that would answer the following \
