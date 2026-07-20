@@ -43,7 +43,7 @@ def handle_sync(args, session, config, console) -> None:
             return
         parsed.directory = path_str
 
-    target = Path(parsed.directory).expanduser().resolve()
+    target = Path(str(parsed.directory)).expanduser().resolve()  # type: ignore[attr-defined]
     if not target.is_dir():
         console.print(f"[red]Not a directory:[/red] {target}")
         return
