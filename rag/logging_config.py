@@ -77,9 +77,23 @@ def setup(config: "RAGConfig") -> None:
     root.addHandler(file_handler)
 
     # ── Console handler (warnings only — don't pollute the REPL output) ───────
-    console_handler = logging.StreamHandler()
+    class RichConsoleHandler(logging.Handler):
+        def emit(self, record):
+            try:
+                from rag.theme import console
+                msg = self.format(record)
+                if record.levelno >= logging.ERROR:
+                    console.print(f"[error]ERROR[/error] [dim]{record.name}[/dim] {msg}")
+                elif record.levelno >= logging.WARNING:
+                    console.print(f"[warning]WARNING[/warning] [dim]{record.name}[/dim] {msg}")
+                else:
+                    console.print(msg)
+            except Exception:
+                self.handleError(record)
+
+    console_handler = RichConsoleHandler()
     console_handler.setLevel(_CONSOLE_LOG_LEVEL)
-    console_handler.setFormatter(logging.Formatter(_CONSOLE_FMT))
+    console_handler.setFormatter(logging.Formatter("%(message)s"))
     root.addHandler(console_handler)
 
     _configured = True
