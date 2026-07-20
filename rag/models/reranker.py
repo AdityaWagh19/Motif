@@ -128,10 +128,10 @@ class Reranker:
         sess_opts.graph_optimization_level = (
             ort.GraphOptimizationLevel.ORT_ENABLE_ALL  # type: ignore[attr-defined]
         )
-        self._session = ort.InferenceSession(  # type: ignore[attr-defined]
+        self._session = ort.InferenceSession(
             str(onnx_path),
             sess_opts,
-            providers=["CUDAExecutionProvider", "DmlExecutionProvider", "CPUExecutionProvider"],
+            providers=["DmlExecutionProvider", "CPUExecutionProvider"],
         )
 
         tokenizer = Tokenizer.from_file(str(tok_path))  # type: ignore[attr-defined]

@@ -1,7 +1,3 @@
-# Sample Document
-
-This document covers various topics.
-
-## Section 2
-
-The key points in section 2 are A, B, and C.
+# Project Alpha
+The secret launch code is Sierra-Tango-99.
+Do not share this with anyone.
