@@ -50,33 +50,35 @@ For development or manual install, see [`project-context/instructions.md`](proje
 
 ## Usage
 
+### Interactive REPL (primary interface)
+
 ```bash
-# Ingest a folder of documents
-python cli.py ingest ./documents/ --recursive
+# Launch the interactive session
+motif
 
-# Check index statistics
-python cli.py status
+# Inside the REPL:
+/ingest ./documents/          # Ingest a folder of documents
+/ingest ./documents/ -r       # Ingest recursively
+/status                       # Check index statistics
+/sync ./documents/            # Sync: add new, remove deleted, re-index changed
+/remove ./documents/old.pdf   # Remove a document
+/new                          # Start a fresh session
+/help                         # Show all commands
 
-# Ask a question
-python cli.py ask "What are the main findings?"
+# Ask questions — just type at the prompt:
+What are the main findings?
 
-# Restrict retrieval to a specific file
-python cli.py ask "Summarize section 3" --file report.pdf
+# Inline modifiers to restrict retrieval:
+Summarize section 3 /file report.pdf
+Explain the methodology /file thesis.pdf /pages 20-40
+What was said about X? /type audio
+```
 
-# Restrict to a page range
-python cli.py ask "Explain the methodology" --file thesis.pdf --pages 20-40
+### One-shot mode (scripting)
 
-# Filter by document type
-python cli.py ask "What was said about X?" --type audio
-
-# Skip HyDE query expansion (faster)
-python cli.py ask "Define gradient descent" --no-hyde
-
-# Remove a document from the index
-python cli.py remove ./documents/old_report.pdf
-
-# Sync a folder: add new files, remove deleted files, re-index changed files
-python cli.py sync ./documents/
+```bash
+motif ask "What are the main findings?"
+motif ingest ./docs --recursive
 ```
 
 ---
@@ -86,11 +88,11 @@ python cli.py sync ./documents/
 | Type | Extensions | Notes |
 |---|---|---|
 | PDF (text) | `.pdf` | All tiers via pymupdf |
-| PDF (scanned) | `.pdf` | PaddleOCR on T2; Surya on T3 |
+| PDF (scanned) | `.pdf` | PaddleOCR on T2/T3 |
 | Word documents | `.docx` | Tables serialized as markdown |
 | Markdown | `.md` | Heading hierarchy preserved |
-| Images | `.png`, `.jpg`, `.jpeg`, `.webp` | OCR text extraction; optional captioning on T3 |
-| Audio | `.mp3`, `.wav`, `.m4a`, `.ogg` | whisper.cpp transcription with timestamps |
+| Images | `.png`, `.jpg`, `.jpeg`, `.webp` | PaddleOCR text extraction; optional moondream2 captioning on T3 |
+| Audio | `.wav`, `.mp3`, `.m4a`, `.ogg`, `.flac` | whisper.cpp transcription; WAV must be 16000 Hz |
 
 ---
 
@@ -98,19 +100,24 @@ python cli.py sync ./documents/
 
 Motif is structured as a two-phase system:
 
-**Ingestion (one-time):** Documents are parsed by a modality-specific parser, split into semantic chunks (512 tokens, 64-token overlap), embedded with nomic-embed-text-v1.5 (ONNX INT8), and indexed into three complementary stores: a Qdrant HNSW vector index (dense), a Qdrant sparse index, and a BM25 lexical index. Chunk text and metadata are persisted in SQLite.
+**Ingestion (one-time):** Documents are parsed by a modality-specific parser, split into semantic chunks (T2/T3) or sentence chunks (T1), embedded with nomic-embed-text-v1.5 (ONNX INT8), and indexed into three complementary stores: a Qdrant HNSW vector index (dense), a rank_bm25 lexical index, and a SQLite chunk store.
 
-**Query (per-query):** The query is optionally expanded via HyDE (adaptive, based on query complexity). Results from all three retrieval paths are fused with Reciprocal Rank Fusion (k=60), re-ranked by a cross-encoder (MiniLM-L12 or bge-reranker-base), assembled into a token-budgeted context with anti-lost-in-the-middle ordering, and passed to the local LLM for grounded generation. Output streams to the terminal with source citations.
+**Query (per-query):** The query is first classified by an intent classifier (greetings → fast-path; chitchat → LLM without retrieval; document queries → full pipeline). Document queries are optionally expanded via HyDE, then retrieved via hybrid search (dense + BM25), fused with Reciprocal Rank Fusion (k=60), re-ranked by a cross-encoder, assembled into a token-budgeted context, and passed to the local LLM for streaming grounded generation with inline citations.
 
 ```
 Query
+  -> IntentClassifier (embedding cosine similarity)
+       -> GREETING_FAST: immediate canned response
+       -> CHITCHAT: LLM direct response (no retrieval)
+       -> QUERY: full RAG pipeline below
+  -> [QueryCache check]
   -> [HyDE expand, T2/T3 adaptive]
   -> nomic-embed encode
-  -> Qdrant dense + Qdrant sparse + BM25  ->  RRF fusion  ->  top-20
+  -> Qdrant dense + BM25  ->  RRF fusion  ->  top-N
   -> SQLite fetch (chunk text + metadata)
   -> Cross-encoder rerank  ->  top-3/5
   -> Context assembly (merge adjacent, anti-middle order, extractive compress)
-  -> LLM (llama.cpp, streaming)
+  -> LLM (llama.cpp, streaming via create_chat_completion)
   -> Answer + Citations
 ```
 
@@ -138,14 +145,20 @@ Full architecture, data flow diagrams, and interface contracts are documented in
 
 | Component | Library |
 |---|---|
-| LLM inference | llama-cpp-python |
+| LLM inference | llama-cpp-python (via `create_chat_completion`) |
 | Embedding model | nomic-embed-text-v1.5 (ONNX INT8) |
-| Reranker | MiniLM-L12 / bge-reranker-base (ONNX) |
-| Vector store | Qdrant (local, embedded) |
-| Lexical index | rank_bm25 / tantivy |
-| PDF parsing | pymupdf, PaddleOCR, Surya |
-| Audio transcription | whisper.cpp (pywhispercpp) |
-| CLI | click, rich |
+| Reranker | MiniLM-L12-v2 (T1/T2) / bge-reranker-base (T3) ONNX |
+| Vector store | Qdrant (local embedded mode, no server) |
+| Lexical index | rank_bm25 (auto-upgrades to tantivy >100K chunks) |
+| PDF parsing | pymupdf |
+| OCR | PaddleOCR (T2/T3) |
+| DOCX parsing | python-docx |
+| Markdown parsing | markdown-it-py |
+| Audio transcription | whisper.cpp (pywhispercpp); requires 16000 Hz WAV |
+| Image captioning | moondream2 Q4 (T3 opt-in, ingestion-only) |
+| Semantic chunking | semantic-text-splitter (T2/T3) |
+| Intent classification | embedding cosine similarity (nomic-embed anchors) |
+| CLI / REPL | prompt_toolkit + rich |
 | Evaluation | RAGAS (offline, local LLM judge) |
 
 ---
@@ -167,6 +180,9 @@ query_expansion = "hyde"    # T1: "none"; T2/T3: "hyde" or "none"
 
 [chunking]
 use_semantic = true         # T1: false (sentence split), T2/T3: true
+
+[storage]
+query_cache_enabled = false  # Enable SQLite LRU query cache (500-query limit)
 ```
 
 Full configuration reference is in [`project-context/instructions.md`](project-context/instructions.md).
@@ -175,18 +191,18 @@ Full configuration reference is in [`project-context/instructions.md`](project-c
 
 ## Research Foundation
 
-The architecture, model selections, and retrieval strategy are derived from a structured literature synthesis covering hybrid retrieval systems, quantized LLM inference, and multimodal document processing. The research reports are in [`docs/`](docs/) and the pre-implementation validation is in [`pre_implementation_resolution.md`](pre_implementation_resolution.md).
+The architecture, model selections, and retrieval strategy are derived from a structured literature synthesis covering hybrid retrieval systems, quantized LLM inference, and multimodal document processing. The research reports are in [`docs/`](docs/) and the pre-implementation validation is in the [gap analysis artifact](pre_implementation_resolution.md).
 
 ---
 
 ## Status
 
-Pre-implementation. Documentation and architecture complete. Phase 1 (Foundation) not yet started.
+**Fully implemented.** All six development phases (Infrastructure → Storage → Ingestion → Query Pipeline → Quality & Hardening → Multimodal → Evaluation) are complete. The system is installable globally via `uv tool install`, runs from any directory with the `motif` command, and correctly ingests PDF, DOCX, Markdown, image, and audio documents with grounded cited answers.
 
-See [`project-context/progress.md`](project-context/progress.md) for current implementation status.
+See [`project-context/progress.md`](project-context/progress.md) for detailed phase-by-phase status and metrics.
 
 ---
 
 ## License
 
-To be determined.
+MIT

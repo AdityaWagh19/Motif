@@ -137,7 +137,7 @@ Expected output:
 ✓ Embed:    models/nomic-embed-text-v1.5/model.onnx  (274 MB)
 ✓ Reranker: models/MiniLM-L12-v2/model.onnx          (134 MB)
 ✓ Whisper:  models/ggml-tiny-q5_1.bin                 (75 MB)
-All models present. Run: python cli.py status
+All models present. Run: motif
 ```
 
 ---
@@ -260,7 +260,7 @@ Tuning guide for `chunking.semantic_threshold`:
 | Poor table extraction | Chunker split the table | Ensure `use_semantic = true` or report as bug (tables should be protected) |
 | `tomllib` not found | Python < 3.11 | Upgrade Python: `python --version` must be ≥ 3.11 |
 | Qdrant HNSW slow on first query | Index warming not done | First query is slow (HNSW loads graph); subsequent queries are fast |
-| OCR output is garbled | Low-quality scan | Use Surya (T3) instead of PaddleOCR; set OCR confidence floor |
+| OCR output is garbled | Low-quality scan | Try a higher resolution scan or ensure PaddleOCR confidence is logged |
 
 ---
 
@@ -269,7 +269,7 @@ Tuning guide for `chunking.semantic_threshold`:
 ### 9.1 moondream2 Image Captioning (T3 opt-in)
 
 ```powershell
-python cli.py setup --captioning   # Downloads moondream2 Q4 (~900 MB)
+motif setup --captioning   # Downloads moondream2 Q4 (~900 MB)
 ```
 
 Then in `config.toml`:
@@ -310,4 +310,4 @@ In `config.toml`:
 bm25_backend = "tantivy"   # default: "rank_bm25"
 ```
 
-The `cli.py sync` command will rebuild the BM25 index in tantivy format on next run.
+The `/sync` command will rebuild the BM25 index in tantivy format on next run.

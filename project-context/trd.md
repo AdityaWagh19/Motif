@@ -13,7 +13,6 @@
 |---|---|---|
 | PDF (text) ingested correctly | ING-01 | Given a 10-page text PDF, all body text is extracted with no character loss on standard fonts |
 | PDF (scanned) ingested on T2/T3 | ING-02 | Given a scanned PDF, PaddleOCR extracts ≥ 90% of body text characters (measured vs ground truth) |
-| PDF (scanned) layout preserved on T3 | ING-03 | Surya correctly identifies column layout in a 2-column academic PDF |
 | DOCX ingested correctly | ING-04 | Tables are serialized as markdown tables; headings become section_title in metadata |
 | Markdown ingested correctly | ING-05 | Heading hierarchy preserved as section_title; code blocks extracted as separate chunks |
 | Images ingested (OCR) | ING-06 | A PNG containing typed text yields ≥ 85% character accuracy via PaddleOCR |

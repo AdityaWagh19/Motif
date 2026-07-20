@@ -54,3 +54,12 @@ Thumbs.db
 # ── uv / packaging ───────────────────────────────────────────────────────────
 .uv/
 uv.lock
+
+# ── Generated / Artifacts / Benchmarks ────────────────────────────────────────
+benchmark_multimodal_*.json
+ragas_results_cache.json
+benchmark_dataset.json
+benchmark_corpus/
+test_data_multimodal/
+/*.md
+!/README.md

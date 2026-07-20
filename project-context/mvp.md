@@ -40,7 +40,7 @@ These files are created before any pipeline code. They must exist before Phase 1
 
 ### Ingestion
 
-- [x] **PyMuPDF** text extraction (no OCR, no scanned PDF support)
+- [x] **PyMuPDF** text extraction (no OCR, no scanned PDF support in Phase 1)
 - [x] **Markdown** parser (markdown-it-py)
 - [x] **SentenceChunker** — sentence-boundary split, 512 tokens target, 64-token overlap (no semantic chunking)
 - [x] **nomic-embed-text-v1.5 ONNX INT8** — batch embedding at ingestion
@@ -81,32 +81,29 @@ These files are created before any pipeline code. They must exist before Phase 1
 
 These features are explicitly deferred. Do not implement them in Phase 1–2.
 
-| Feature | Deferred To |
+| Feature | Status / Phase |
 |---|---|
-| OCR (PaddleOCR, Surya) | Phase 3 |
-| DOCX parser | Phase 3 |
-| Audio ingestion (whisper.cpp) | Phase 3 |
-| Image ingestion | Phase 3 |
-| moondream2 captioning | Phase 3 |
-| Semantic chunking | Phase 2 (end of Phase 2) |
-| HyDE query expansion | Phase 2 |
-| `cli.py remove` | Phase 2 |
-| `cli.py sync` | Phase 2 |
-| Metadata filtering (`--file`, `--type`, `--pages`) | Phase 2 |
-| Adjacent chunk merging | Phase 2 |
-| Extractive compression | Phase 2 |
-| Query cache | Phase 4 |
-| Deduplicator | Phase 4 |
-| RAGAS evaluation runner | Phase 4 |
-| Synthetic QA generation | Phase 4 |
-| tantivy (large corpus BM25) | Phase 4 |
-| RAPTOR hierarchical indexing | Phase 5 |
-| Parent-document retrieval | Phase 3 (optional) |
-| NOUGAT parser | Phase 3 (optional, T3) |
-| `--consistency` flag (3× generation) | Phase 4 |
-| bge-reranker-base (T3 upgrade) | Phase 2 |
-| Desktop GUI | Post-Phase 4 |
-| REST API | Post-Phase 4 |
+| OCR (PaddleOCR) | ✅ Done (Phase 3) |
+| DOCX parser | ✅ Done (Phase 3) |
+| Audio ingestion (whisper.cpp) | ✅ Done (Phase 3) |
+| Image ingestion | ✅ Done (Phase 3) |
+| Semantic chunking | ✅ Done (Phase 4) |
+| HyDE query expansion | ✅ Done (Phase 4) |
+| `motif remove` command | ✅ Done (Phase 2) |
+| `motif sync` command | ✅ Done (Phase 2) |
+| Metadata filtering (`/file`, `/type`, `/pages`) | ✅ Done (Phase 2) |
+| Adjacent chunk merging | ✅ Done (Phase 2) |
+| Extractive compression | ✅ Done (Phase 2) |
+| Query cache | ✅ Done (Phase 4) |
+| Deduplicator | ✅ Done (Phase 4) |
+| RAGAS evaluation runner | ✅ Done (Phase 6) |
+| Synthetic QA generation | ✅ Done (Phase 6) |
+| Intent Classification | ✅ Done (Phase 7) |
+| bge-reranker-base (T3 upgrade) | ✅ Done (Phase 4) |
+| RAPTOR hierarchical indexing | Deferred to Phase 8 |
+| Parent-document retrieval | Deferred |
+| NOUGAT/Surya parsers | Dropped (PaddleOCR is sufficient) |
+| Desktop GUI / REST API | Deferred |
 
 ---
 

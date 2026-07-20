@@ -18,6 +18,16 @@ motif                          ← user runs the command
   │     if exists: load conversation_history list
   │     if not:    start with empty history []
   │
+  ├─└► prewarm_models(config, console)   ← rag/warmup.py
+  │     step 1: ModelManager.get_embedder()   (nomic-embed ONNX)
+  │     step 2: ModelManager.get_reranker()   (MiniLM / bge-reranker ONNX)
+  │     step 3: ModelManager.get_llm()        (GGUF via llama-cpp-python)
+  │     → prints: "Models ready in Xs (tier T2, backend CUDA)"
+  │
+  ├─└► calibrate_threshold()            ← rag/retrieval/calibrate.py
+  │     if index empty: default 0.300 with WARNING log
+  │     else: probe N random vectors → set threshold in [0.2, 0.5]
+  │
   ├─└► Print welcome screen (Rich panel)
   │     ┌──────────────────────────────────────────────┐
   │     │  Motif v0.1.0                                     │
@@ -29,10 +39,6 @@ motif                          ← user runs the command
   │     │  Type /new to start fresh.                        │
   │     └──────────────────────────────────────────────┘
   │
-  ├─└► ModelManager.get_embedder()     ← load nomic-embed ONNX (always needed at query time)
-  │     ModelManager.get_reranker()     ← load cross-encoder ONNX
-  │     ModelManager.get_llm()          ← lazy: load only on first query
-  │
   └─└► Enter prompt_toolkit REPL loop
         prompt "motif > "
 ```
@@ -43,14 +49,14 @@ motif                          ← user runs the command
 ### 1.1 Entry Point
 
 ```python
-# cli.py
-def ingest(paths: tuple[str], recursive: bool):
-    files = collect_files(paths, recursive, SUPPORTED_EXTENSIONS)
-    for filepath in files:
-        if not ingestion_tracker.is_indexed(filepath):
-            ingest_document(filepath)
-        else:
-            logger.info(f"Skipping already-indexed: {filepath.name}")
+# rag/cli.py — _handle_query() / REPL loop
+if raw_input.startswith("/"):
+    handle_slash_command(raw_input, session, config, console)
+elif raw_input.strip() in ("exit", "quit", ""):
+    session.save()
+    break
+else:
+    pipeline.answer(raw_input, history=session.history)
 ```
 
 ### 1.2 Per-Document Flow
@@ -61,23 +67,16 @@ filepath
   ├─► IngestionTracker.is_indexed(filepath)
   │     → bool (skip if True and hash unchanged)
   │
-  ├─► get_parser(filepath.suffix, config) → BasePDFParser | BaseParser
+  ├─► get_parser(filepath.suffix, config) → BaseParser
   │     Rules:
-  │       .pdf  → is_academic_pdf()? → NougatParser (T3 opt-in)
-  │             → needs_ocr()?       → SuryaParser (T3) | PaddleOCRParser (T2)
-  │                                  → PyMuPDFParser (T1, text-only PDFs)
-  │       .docx → DOCXParser
-  │       .md   → MarkdownParser
-  │       .png/.jpg/.jpeg/.webp → ImageParser
-  │       .mp3/.wav/.m4a/.ogg  → AudioParser
+  │       .pdf  → PDFParser (PyMuPDF + PaddleOCR fallback on T2/T3)
+  │       .docx → DOCXParser (python-docx)
+  │       .md   → MarkdownParser (markdown-it-py)
+  │       image → ImageParser (PaddleOCR + optional moondream2 caption)
+  │       audio → AudioParser (whisper.cpp via pywhispercpp)
   │
-  ├─► parser.extract(filepath) → Extraction
-  │     Extraction {
-  │       blocks: List[TextBlock]      # Raw text segments with position metadata
-  │       image_blocks: List[ImageBlock]  # For PDFs with embedded images
-  │       total_pages: int
-  │       image_page_count: int
-  │     }
+  ├─► BaseParser.parse(filepath) → Generator[Chunk, None, None]
+  │     yields sequence of raw Chunks (text + metadata)
   │
   ├─► [Image captioning gate — T3 moondream2, conditional]
   │     if tier == "T3" and moondream_available:
@@ -201,43 +200,58 @@ while True:
 ```
 raw_query: str
 history: List[Dict]          # last N turns, may be empty
-metadata_filter: Optional[QdrantFilter]
+metadata_filter: Optional[dict]
   │
-  ├─► QueryExpander.should_use_hyde(query, config)
-  │     word_count ≤ 7 AND starts with factual marker AND no reasoning marker
-  │       → skip HyDE
-  │     else (T2/T3 only)
-  │       → HYDE_PROMPT → LLMClient.generate() → hypothetical_doc: str
-  │         embed_query = hypothetical_doc   (HyDE: embed the fake answer)
+  ├─► IntentClassifier.classify(query)            ← rag/intent.py
+  │     embed query → cosine similarity vs. anchor phrases
+  │     GREETING_FAST (sim > 0.92) → return canned greeting, skip pipeline
+  │     CHITCHAT     (sim > threshold) → LLMClient.stream(CHITCHAT_PROMPT)
+  │     QUERY        (default) → proceed to full pipeline below
+  │
+  ├─► [Query cache check — if query_cache_enabled]
+  │     QueryCache.get(query, file_filter, type_filter, page_range)
+  │     HIT → return cached AnswerResult immediately
+  │
+  ├─► [Index guard]
+  │     ChunkStore.count() == 0 → return "No documents indexed" message
+  │
+  ├─► QueryExpander.expand(query, cfg, embedder)
+  │     should_use_hyde(query, config):
+  │       word_count ≤ 7 AND starts with factual marker AND no reasoning marker
+  │         → skip HyDE
+  │       else (T2/T3 only)
+  │         → HYDE_PROMPT → LLMClient.generate() → hypothetical_doc: str
+  │           embed_query = hypothetical_doc   (HyDE: embed the fake answer)
   │     T1: always skip HyDE
-  │
-  ├─► Embedder.encode(embed_query) → query_vector: np.ndarray  shape: (embed_dim,)
+  │     Returns: (query_vector: np.ndarray, effective_query: str)
   │
   ├─► [Parallel retrieval]
-  │     ├─ VectorStore.search_dense(query_vector, top_k, metadata_filter)
-  │     │    → List[ScoredPassage]  (Qdrant HNSW)
-  │     ├─ VectorStore.search_sparse(query_vector, top_k, metadata_filter)
-  │     │    → List[ScoredPassage]  (Qdrant sparse)
-  │     └─ BM25Index.search(raw_query, top_k)
-  │          → List[ScoredPassage]  (BM25 lexical)
+  │     ├─ VectorStore.search_dense(query_vector, top_k, filter_)
+  │     │    → List[(chunk_id, score)]  (Qdrant HNSW dense)
+  │     └─ BM25Index.search(effective_query, top_k)
+  │          → List[(chunk_id, score)]  (BM25 lexical)
   │
-  ├─► rrf_fuse(dense, sparse, bm25, k=60) → top-20: List[ScoredPassage]
-  │     RRF score = Σ 1/(k + rank_i) across all lists
+  ├─► rrf_fuse([dense_results, bm25_results], top_k) → fused List[(id, rrf_score)]
+  │     rrf_to_scored_passages(fused, chunk_store) → List[ScoredPassage]
   │
-  ├─► ChunkStore.fetch_batch(chunk_ids) → chunk texts + full ChunkMetadata
-  │
-  ├─► CrossEncoder.rerank(raw_query, passages, top_k=3|5) → List[ScoredPassage]
-  │     Always runs (never skipped — 85ms is non-negotiable)
+  ├─► CrossEncoder.rerank(raw_query, candidates, cfg, top_k=3|5)
   │     Relevance threshold: auto-calibrated (default 0.3)
+  │     If no passages meet threshold: fallback to top RRF candidates
+  │     If reranker model missing: fallback to RRF scores
   │
-  ├─► ContextBuilder.build(passages, query, config)
-  │     max_tokens=config.llm.max_tokens,
-  │     temperature=0.1
-  │   ) → Iterator[str]  (token stream)
+  ├─► ContextBuilder.build(reranked, query, history_context, cfg)
+  │     → (prompt: str, passages_used: List[ScoredPassage])
   │
-  └─► Assemble Answer(text, citations, latencies, tier, confidence)
-      → CLI: rich.Live → stream tokens as they arrive
-      → Citations: format and append after streaming completes
+  ├─► LLMClient.stream(prompt, max_tokens, temperature)
+  │     via create_chat_completion(stream=True)
+  │     → Iterator[str]  (token stream printed to terminal)
+  │
+  ├─► build_citations(passages_used) → List[Citation]
+  │     Citations printed after streaming completes
+  │
+  └─► AnswerResult(text, citations, passages_used, latency_ms, ttft_ms,
+                  retrieval_latency_ms, generation_latency_ms, tier)
+      → stored in QueryCache if enabled
 ```
 
 ---

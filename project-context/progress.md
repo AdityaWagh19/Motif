@@ -16,6 +16,7 @@
 | **4** | Quality & Hardening (RAGAS, HyDE, SemanticChunker, cache) | ✅ Done | 2026-07-18 | 2026-07-18 |
 | **5** | Multimodal (OCR, DOCX, image, audio) | ✅ Done | 2026-07-18 | 2026-07-18 |
 | **6** | Evaluation & Production Hardening | ✅ Done | 2026-07-18 | 2026-07-18 |
+| **7** | UX Hardening (intent classifier, warmup, warning suppression, global install) | ✅ Done | 2026-07-20 | 2026-07-20 |
 
 Legend: 🔲 Not started | 🔄 In progress | ✅ Done | ❌ Blocked
 
@@ -211,6 +212,7 @@ Re-running the same command produces zero new chunks (deduplication).
 | 2026-07-18 | Phase 3 | ~70% (Manual) | N/A | < 2s | < 4s | Baseline, direct query, simple chunking |
 | 2026-07-18 | Phase 4 | > 85% (Target) | > 80% (Target) | < 2.5s | < 5s | Includes HyDE and Semantic Chunking |
 | 2026-07-18 | Phase 6 | Run `ragas_runner.py` for baseline | — | — | — | RAGAS runner + latency test infra ready |
+| 2026-07-20 | Phase 7 | Manual: 4/5 correct (80%) | N/A | ~9s (T2, CUDA) | — | Live test: 5-file multimodal corpus (246 chunks). PDF ✅, DOCX ✅, MD ✅, Audio ✅, Image ✅ (threshold-sensitive). Models ready in 9–33s. |
 
 ---
 
@@ -239,6 +241,33 @@ Re-running the same command produces zero new chunks (deduplication).
 
 ---
 
+## Phase 7 — UX Hardening
+
+**Goal:** Clean CLI output, robust global installation, and stable multimodal ingestion for real-world use.
+
+### Tasks (Completed)
+
+- ✅ `rag/intent.py` — `IntentClassifier`: embedding cosine-similarity classifier (GREETING_FAST / CHITCHAT / QUERY), integrated into `QueryPipeline.answer()`
+- ✅ `rag/warmup.py` — `prewarm_models()`: loads embedder, reranker, LLM at startup with Rich spinner progress; prints `Models ready in Xs (tier TX, backend CUDA)` on exit
+- ✅ `rag/generation/prompts.py` — Added `CHITCHAT_PROMPT` template; updated `RAG_PROMPT` and `HISTORY_SYSTEM_PROMPT` citation format to `[1]` notation to prevent numeral-hallucination bug
+- ✅ `rag/generation/llm_client.py` — Switched from raw text completion (`self._llm()`) to `create_chat_completion` to correctly honor Qwen2.5 ChatML stop tokens
+- ✅ `rag/cli.py` — Global `warnings.filterwarnings("ignore")` and `logging.getLogger("ppocr").setLevel(ERROR)` to suppress C++-level and Python-level noise
+- ✅ `rag/ingestion/parsers/image.py` — `PaddleOCR(show_log=False)` to suppress Paddle init spam
+- ✅ `rag/ingestion/parsers/audio.py` — `suppress_c_stderr()` context manager; whisper model loaded with `print_realtime=False, print_progress=False, print_timestamps=False`; fixed generator-didn't-stop bug
+- ✅ `install.ps1` — Fixed `uv tool dir` package-name lookup (`motif` → `motif-rag`) for CUDA wheel upgrade step
+- ✅ Global `uv tool install` verified: `motif` accessible from any directory (e.g., `C:\Users\omen`)
+- ✅ Audio WAV resampling: pywhispercpp requires exactly 16000 Hz; documented requirement; resampled test file via scipy
+
+### Phase 7 Acceptance Checkpoint
+- ✅ No ONNX / PaddleOCR / llama.cpp warnings visible in terminal output
+- ✅ `Models ready in Xs` printed before welcome panel
+- ✅ `hi` → "Hello! Ask me anything about your documents." (no retrieval, <100ms)
+- ✅ Casual queries answered by LLM without triggering document retrieval
+- ✅ 5-file multimodal ingest succeeds: 246 chunks across PDF, DOCX, MD, WebP, WAV
+- ✅ All 5 document types answer correctly after calibrated-threshold restart
+
+---
+
 ## Active Blockers
 
 *None.*
@@ -254,8 +283,9 @@ Re-running the same command produces zero new chunks (deduplication).
 | Decision | Punted By | Revisit At | Context |
 |---|---|---|---|
 | HyDE vs multi-query | Pre-impl analysis | Phase 4 checkpoint | A/B test on synthetic QA |
-| Optimal relevance threshold | Pre-impl analysis | After first ingest | Auto-calibration default 0.3 |
+| Optimal relevance threshold | Pre-impl analysis | After first ingest | Auto-calibration default 0.3; known issue: threshold calibration requires populated index before CLI startup |
 | Switch to tantivy for BM25 | Phase 1 impl | Phase 4 (or >100K chunks) | rank_bm25 sufficient for MVP |
 | Parent-document retrieval | Phase 2 review | Phase 4 (if recall issues) | Storage cost 2×; validate first |
 | bge-reranker-base for T2 | Phase 2 review | Phase 4 (after RAGAS) | Small gain, 150 MB extra |
 | Sparse retrieval (SPLADE) | Phase 2 impl | Phase 3 (hybrid search) | Dense-only in Phase 2 per plan |
+| ffmpeg dependency for mp3 audio | Phase 7 | Post-MVP | pywhispercpp requires ffmpeg for non-WAV formats; WAV at 16000 Hz works natively |

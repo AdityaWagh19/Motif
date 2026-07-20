@@ -95,8 +95,7 @@ The system detects available hardware at startup and selects a configuration pro
 | Type | Extensions | Parser | Tier |
 |---|---|---|---|
 | Text PDF | `.pdf` (digital) | pymupdf | All |
-| Scanned PDF | `.pdf` (scanned) | PaddleOCR (T2) / Surya (T3) | T2, T3 |
-| Academic PDF | `.pdf` + academic markers | NOUGAT (opt-in, T3 only) | T3 |
+| Scanned PDF | `.pdf` (scanned) | PaddleOCR (T2, T3) | T2, T3 |
 | Word documents | `.docx` | python-docx | All |
 | Markdown | `.md` | markdown-it-py | All |
 | Images | `.png`, `.jpg`, `.jpeg`, `.webp` | PaddleOCR + moondream2 (T3 opt-in) | All |
@@ -154,7 +153,6 @@ These decisions are **final**. Revisiting them requires updating this file, `arc
 | RAPTOR hierarchical indexing | Phase 5 | Only for large corpora |
 | FLARE iterative retrieval | Phase 5 | Requires stable logit API in llama-cpp-python |
 | SQLCipher (encrypted cache) | User opt-in, advanced | Adds key management; not needed for most use cases |
-| NOUGAT academic PDF parser | T3 opt-in | Specialized; adds complexity for a narrow document type |
 | REST API / GUI | Post-Phase 4 | REPL-first is the primary interface; web UI is a non-goal until pipeline is stable |
 
 ---

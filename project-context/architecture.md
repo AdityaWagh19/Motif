@@ -7,7 +7,7 @@
 
 ## 1. System Overview
 
-Motif is a single-user, offline CLI application. There is no server process, no network calls, and no shared state between users. All components run in a single Python process (plus llama.cpp as a subprocess or via python bindings).
+Motif is a single-user, offline CLI application. There is no server process, no network calls, and no shared state between users. All components run in a single Python process (plus llama.cpp loaded via llama-cpp-python python bindings).
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -38,29 +38,34 @@ Motif is a single-user, offline CLI application. There is no server process, no 
 
 | Module | Responsibility | Key Classes/Functions |
 |---|---|---|
-| `rag/cli.py` | prompt_toolkit REPL entry point; routes plain-text queries and slash commands | `main()`, `_interactive_mode()`, `_handle_slash_command()`, `_handle_query()` |
+| `rag/cli.py` | prompt_toolkit REPL entry point; routes plain-text queries and slash commands; suppresses library warnings on startup | `main()`, `_interactive_mode()`, `_handle_slash_command()`, `_handle_query()` |
 | `rag/session.py` | Conversation history: list of turns, JSON persist, rolling window trim | `Session`, `Session.add_turn()`, `Session.get_history_for_context()`, `.save()`, `.load()`, `.clear()`, `.new()` |
 | `rag/types.py` | **Shared data contracts** — all cross-module dataclasses live here | `Chunk`, `ScoredPassage`, `Citation`, `AnswerResult`, `IngestResult`, `SyncResult` |
 | `rag/commands/` | Slash command handlers (one file per command) | `handle_ingest()`, `handle_remove()`, `handle_sync()`, `handle_status()`, `handle_clear()`, `handle_new()`, `handle_setup()`, `handle_help()` |
 | `rag/config.py` | Config dataclasses; TOML loading; tier detection | `RAGConfig`, `detect_hardware_tier()`, `load_config()` |
-| `rag/pipeline.py` | End-to-end query orchestration — coordinator only, no business logic | `QueryPipeline.answer()` |
+| `rag/pipeline.py` | End-to-end query orchestration — coordinator only, no business logic; integrates intent classifier and query cache | `QueryPipeline.answer()`, `QueryPipeline._handle_chitchat()` |
+| `rag/intent.py` | Zero-shot intent classifier using embedding cosine similarity | `IntentClassifier.classify()` → `Intent.GREETING_FAST` \| `CHITCHAT` \| `QUERY` |
+| `rag/warmup.py` | Pre-load all models at startup with Rich spinner progress | `prewarm_models(config, console)` |
 | `rag/models/model_manager.py` | Lazy load / unload of all models; single source of model instances | `ModelManager.get_embedder()`, `.get_reranker()`, `.get_llm()`, `.unload()` |
 | `rag/models/embedder.py` | nomic-embed-text-v1.5 ONNX INT8 inference wrapper | `Embedder.encode(text)`, `.encode_batch(texts)` |
-| `rag/models/reranker.py` | Cross-encoder ONNX inference wrapper (MiniLM / bge-reranker) | `Reranker.score(query, passages)` |
+| `rag/models/reranker.py` | Cross-encoder ONNX inference wrapper (MiniLM-L12-v2 / bge-reranker-base) | `Reranker.score(query, passages)` |
 | `rag/ingestion/__init__.py` | **Public ingestion API** — top-level functions consumed by commands | `ingest_path(path, config, recursive, console)`, `remove_document(path, config)`, `sync_directory(path, config, recursive, console)` |
 | `rag/ingestion/parsers/` | Modality-specific document parsing | `PDFParser`, `DOCXParser`, `MarkdownParser`, `ImageParser`, `AudioParser` |
-| `rag/ingestion/chunker.py` | Sentence / semantic chunking | `SentenceChunker`, `SemanticChunker` |
+| `rag/ingestion/chunker.py` | Sentence chunking (all tiers) | `SentenceChunker` |
+| `rag/ingestion/semantic_chunker.py` | Semantic boundary chunking (T2/T3) | `SemanticChunker` |
 | `rag/ingestion/deduplicator.py` | Near-duplicate chunk detection via SimHash | `Deduplicator.is_duplicate(chunk)` |
-| `rag/retrieval/vector_store.py` | Qdrant HNSW + sparse search wrapper | `VectorStore.search_dense()`, `.search_sparse()`, `.upsert()`, `.delete()` |
-| `rag/retrieval/bm25_index.py` | BM25 lexical search | `BM25Index.search()`, `.add()`, `.delete()`, `.rebuild()` |
-| `rag/retrieval/fusion.py` | Reciprocal Rank Fusion | `rrf_fuse(dense, sparse, bm25, k=60) -> List[ScoredPassage]` |
-| `rag/retrieval/expander.py` | HyDE query expansion + routing heuristic; calls ModelManager for embedder+LLM | `QueryExpander.expand()`, `should_use_hyde(query, config)` |
-| `rag/reranking/cross_encoder.py` | Reranking algorithm only — calls `ModelManager.get_reranker()` | `rerank(query, passages, top_k) -> List[ScoredPassage]` |
-| `rag/generation/llm_client.py` | llama-cpp-python streaming wrapper | `LLMClient.generate()`, `.stream()` |
+| `rag/retrieval/vector_store.py` | Qdrant HNSW dense search wrapper | `VectorStore.search_dense()`, `.upsert()`, `.delete()` |
+| `rag/retrieval/bm25_index.py` | BM25 lexical search; auto-switch to tantivy >100K chunks | `BM25Index.search()`, `.add()`, `.delete()`, `.rebuild()` |
+| `rag/retrieval/fusion.py` | Reciprocal Rank Fusion | `rrf_fuse(lists, top_k, k=60) -> List[ScoredPassage]` |
+| `rag/retrieval/expander.py` | HyDE query expansion + routing heuristic | `QueryExpander.expand()` |
+| `rag/retrieval/calibrate.py` | Auto-calibrate relevance threshold from index on startup | `calibrate_threshold(config, n_probes)` |
+| `rag/reranking/cross_encoder.py` | Reranking algorithm only — calls `ModelManager.get_reranker()` | `rerank(query, passages, config, top_k) -> List[ScoredPassage]` |
+| `rag/generation/llm_client.py` | llama-cpp-python streaming wrapper using `create_chat_completion` | `LLMClient.stream()`, `.generate()` |
 | `rag/generation/context_builder.py` | Context assembly: anti-middle ordering, history injection, token budget | `ContextBuilder.build(passages, query, history, config) -> str` |
-| `rag/generation/prompts.py` | All prompt templates | `RAG_PROMPT`, `HYDE_PROMPT`, `HISTORY_SYSTEM_PROMPT` |
+| `rag/generation/prompts.py` | All prompt templates and formatting utilities | `RAG_PROMPT`, `HYDE_PROMPT`, `HISTORY_SYSTEM_PROMPT`, `CHITCHAT_PROMPT`, `build_prompt()`, `build_citations()` |
 | `rag/storage/chunk_store.py` | SQLite CRUD for chunk text + ChunkMetadata | `ChunkStore.insert()`, `.fetch()`, `.fetch_batch()`, `.delete_by_source()`, `.count()`, `.count_documents()` |
 | `rag/storage/ingestion_tracker.py` | File hash tracking for incremental ingestion | `IngestionTracker.is_indexed()`, `.update()`, `.remove()` |
+| `rag/storage/query_cache.py` | SQLite LRU query cache (500-entry limit) | `QueryCache.get()`, `.put()` |
 | `rag/evaluation/ragas_runner.py` | Offline RAGAS evaluation with local LLM judge | `run_evaluation(dataset, metrics)` |
 | `rag/evaluation/test_generator.py` | Synthetic QA pair generation from corpus | `create_eval_dataset(chunks, llm, n=100)` |
 
@@ -113,23 +118,23 @@ All model access goes through `ModelManager` — no module instantiates a model 
 
 | Component | Library | Version (pinned) | Justification |
 |---|---|---|---|
-| **LLM inference** | llama-cpp-python | 0.3.x | CPU+GPU, mature offline inference, streaming |
-| **Embedding** | ONNX Runtime + nomic-embed-text-v1.5 | ort 1.20.x | No torch dependency at query time; INT8 quantization |
-| **Reranker** | ONNX Runtime + MiniLM-L12 / bge-reranker-base | ort 1.20.x | Same ONNX runtime, no extra dependency |
-| **Vector store** | qdrant-client (local mode) | 1.12.x | HNSW + sparse in one library, no server process |
+| **LLM inference** | llama-cpp-python | 0.3.x | CPU+GPU, mature offline inference, streaming via `create_chat_completion` |
+| **Embedding** | ONNX Runtime + nomic-embed-text-v1.5 | ort 1.17+ | No torch dependency at query time; INT8 quantization |
+| **Reranker** | ONNX Runtime + MiniLM-L12-v2 / bge-reranker-base | ort 1.17+ | Same ONNX runtime, no extra dependency |
+| **Vector store** | qdrant-client (local embedded mode) | 1.10+ | HNSW in one library, no server process |
 | **BM25 (small corpus)** | rank-bm25 | 0.2.x | Pure Python, zero setup |
 | **BM25 (large corpus)** | tantivy-py | 0.22.x | Rust-backed, memory-mapped, >100K chunks |
-| **PDF (text)** | pymupdf | 1.24.x | Fast, accurate text + layout extraction |
-| **PDF (scanned, T2)** | paddleocr | 2.8.x | Better than Tesseract; runs on CPU |
-| **PDF (scanned, T3)** | surya-ocr | 0.6.x | Layout-aware, best quality for complex PDFs |
+| **PDF (text)** | pymupdf | 1.24+ | Fast, accurate text + layout extraction |
+| **PDF (scanned) / Images (T2/T3)** | paddleocr | 2.8.x | Better than Tesseract; runs on CPU; `show_log=False` to suppress init noise |
 | **DOCX** | python-docx | 1.1.x | Standard; handles tables, headers, footnotes |
 | **Markdown** | markdown-it-py | 3.0.x | Accurate AST parse; handles GFM extensions |
-| **Audio** | pywhispercpp (whisper.cpp bindings) | 1.2.x | CPU-efficient, quantized, offline |
-| **Image captioning (T3)** | moondream2 Q4 | latest | Smallest capable generative VLM; ingestion-only |
-| **Semantic chunker** | semantic-text-splitter | 0.x | Rust-backed, fast, cosine-distance boundary detection |
-| **CLI** | click + rich | 8.x / 13.x | Streaming, progress bars, markdown rendering |
+| **Audio** | pywhispercpp (whisper.cpp bindings) | 1.2.x | CPU-efficient, quantized, offline; requires 16000 Hz WAV input |
+| **Image captioning (T3 opt-in)** | moondream2 Q4 | latest | Smallest capable generative VLM; ingestion-only |
+| **Semantic chunker** | semantic-text-splitter | 0.12.x | Rust-backed, fast, cosine-distance boundary detection |
+| **Intent classification** | nomic-embed cosine similarity | (via Embedder) | Zero additional model; reuses loaded embedder |
+| **CLI** | prompt_toolkit + rich | 3.0.x / 13.x | Streaming, progress bars, markdown rendering, tab completion |
 | **Config** | tomllib (stdlib) | builtin (3.11+) | Zero dependency |
-| **Evaluation** | ragas | 0.2.x | Local LLM judge support |
+| **Evaluation** | ragas | 0.1.x (<0.2) | Local LLM judge support; v0.2 has breaking API changes |
 | **Metadata filtering** | Qdrant payload filters | (via qdrant-client) | Native, no extra library |
 
 ---
@@ -192,11 +197,12 @@ class AnswerResult:
     text: str
     citations: list[Citation]
     passages_used: int
-    used_hyde: bool
-    latency_ms: float
-    retrieval_latency_ms: float
-    generation_latency_ms: float
-    tier: str
+    used_hyde: bool = False
+    latency_ms: float = 0.0
+    ttft_ms: float = 0.0           # Time-to-first-token (ms)
+    retrieval_latency_ms: float = 0.0
+    generation_latency_ms: float = 0.0
+    tier: str = ""
 
 @dataclass
 class IngestResult:
@@ -346,22 +352,24 @@ Motif/                              ← Git repo root
 │   ├── ingestion/
 │   │   ├── __init__.py             ← PUBLIC API: ingest_path(), remove_document(),
 │   │   │                              sync_directory() — consumed by commands layer
-│   │   ├── parsers/
-│   │   │   ├── base.py             ← BaseParser ABC
-│   │   │   ├── pdf.py              ← PyMuPDF + OCR fallback
-│   │   │   ├── docx.py             ← DOCX parser
-│   │   │   ├── markdown.py         ← Markdown parser
-│   │   │   ├── image.py            ← OCR + optional moondream2 caption
-│   │   │   └── audio.py            ← whisper.cpp
-│   │   ├── chunker.py              ← SentenceChunker / SemanticChunker
-│   │   └── deduplicator.py         ← SimHash near-dup detection
+│   │   ├── chunker.py              ← SentenceChunker (all tiers)
+│   │   ├── semantic_chunker.py     ← SemanticChunker (T2/T3 only)
+│   │   ├── deduplicator.py         ← SimHash near-dup detection
+│   │   └── parsers/
+│   │       ├── base.py             ← BaseParser ABC
+│   │       ├── pdf.py              ← PyMuPDF + PaddleOCR fallback
+│   │       ├── docx.py             ← DOCX parser (python-docx)
+│   │       ├── markdown.py         ← Markdown parser (markdown-it-py)
+│   │       ├── image.py            ← PaddleOCR + optional moondream2 caption
+│   │       └── audio.py            ← whisper.cpp (pywhispercpp); 16000 Hz WAV
 │   │
 │   ├── retrieval/
 │   │   ├── __init__.py
-│   │   ├── vector_store.py         ← Qdrant local client wrapper
-│   │   ├── bm25_index.py           ← rank_bm25 wrapper
+│   │   ├── vector_store.py         ← Qdrant local client wrapper (dense HNSW)
+│   │   ├── bm25_index.py           ← rank_bm25 wrapper; tantivy auto-switch >100K
 │   │   ├── fusion.py               ← RRF: rrf_fuse() → List[ScoredPassage]
-│   │   └── expander.py             ← HyDE + routing heuristic
+│   │   ├── expander.py             ← HyDE + routing heuristic
+│   │   └── calibrate.py            ← Auto-calibrate relevance threshold
 │   │
 │   ├── reranking/
 │   │   ├── __init__.py
@@ -369,14 +377,16 @@ Motif/                              ← Git repo root
 │   │
 │   ├── generation/
 │   │   ├── __init__.py
-│   │   ├── llm_client.py           ← llama-cpp-python streaming wrapper
+│   │   ├── llm_client.py           ← llama-cpp-python create_chat_completion wrapper
 │   │   ├── context_builder.py      ← Assembly, ordering, history injection
-│   │   └── prompts.py              ← RAG_PROMPT, HYDE_PROMPT, HISTORY_SYSTEM_PROMPT
+│   │   └── prompts.py              ← RAG_PROMPT, HYDE_PROMPT, HISTORY_SYSTEM_PROMPT,
+│   │                                  CHITCHAT_PROMPT
 │   │
 │   ├── storage/
 │   │   ├── __init__.py
 │   │   ├── chunk_store.py          ← SQLite: chunk text + Chunk metadata
-│   │   └── ingestion_tracker.py    ← SHA-256 file hash tracking
+│   │   ├── ingestion_tracker.py    ← SHA-256 file hash tracking
+│   │   └── query_cache.py          ← SQLite LRU query cache (500-entry)
 │   │
 │   └── evaluation/
 │       ├── __init__.py
@@ -390,17 +400,30 @@ Motif/                              ← Git repo root
 │   ├── conftest.py                 ← Shared pytest fixtures (tmp Qdrant, SQLite, docs)
 │   ├── unit/
 │   │   ├── __init__.py
-│   │   ├── test_types.py           ← Chunk, ScoredPassage, AnswerResult construction
+│   │   ├── test_parsers.py         ← PDFParser, MarkdownParser, DOCXParser, get_parser
 │   │   ├── test_chunker.py         ← SentenceChunker token boundaries
+│   │   ├── test_semantic_chunker.py ← SemanticChunker boundary detection
 │   │   ├── test_bm25.py            ← BM25Index add / search / rebuild
 │   │   ├── test_fusion.py          ← RRF score ordering
 │   │   ├── test_deduplicator.py    ← SimHash collision rate
 │   │   ├── test_citation.py        ← Citation formatting
-│   │   └── test_session.py         ← History add/save/load/clear/rolling window
+│   │   ├── test_context_builder.py ← Anti-middle ordering, token budget
+│   │   ├── test_embedder.py        ← Embedder encode shape / normalization
+│   │   ├── test_tracker.py         ← IngestionTracker hash tracking
+│   │   ├── test_chunk_store.py     ← ChunkStore CRUD
+│   │   ├── test_hyde.py            ← HyDE routing heuristic
+│   │   ├── test_audio_parser.py    ← AudioParser (mocked)
+│   │   ├── test_docx_parser.py     ← DOCXParser table serialization
+│   │   └── test_image_parser.py    ← ImageParser OCR (mocked)
 │   └── integration/
 │       ├── __init__.py
-│       ├── test_ingest_query.py    ← Full ingest → ask round-trip
-│       └── test_history.py         ← History persists across Session.save()/load()
+│       ├── test_ingestion.py       ← Full ingest pipeline end-to-end
+│       ├── test_query.py           ← Answerable / unanswerable query
+│       ├── test_sync.py            ← Delete and sync
+│       ├── test_history.py         ← History persists across Session.save()/load()
+│       ├── test_cache.py           ← Query cache hit / miss / LRU eviction
+│       ├── test_latency.py         ← P50/P95 latency measurement
+│       └── test_multimodal_ingestion.py ← Audio, DOCX, image ingestion
 │
 ├── project-context/                ← Engineering documentation
 │   ├── context.md
@@ -418,3 +441,4 @@ Motif/                              ← Git repo root
     ├── report-2 p2.md
     └── report-2 p3.md
 ```
+

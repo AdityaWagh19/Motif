@@ -199,7 +199,7 @@ def test_delete_removes_all_chunks(seeded_corpus, filepath, config):
 python -m rag.evaluation.download_frames --output tests/eval_corpus/frames/
 
 # Ingest them
-python cli.py ingest tests/eval_corpus/frames/ --recursive
+motif ingest tests/eval_corpus/frames/ -r
 
 # Run against FRAMES QA pairs
 python -m rag.evaluation.ragas_runner \
