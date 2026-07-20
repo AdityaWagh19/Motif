@@ -61,7 +61,7 @@ You are a precise research assistant continuing a conversation. Prior context:
 
 Answer the current question using ONLY the provided document passages. \
 Maintain consistency with your previous answers. \
-Answer in 1-3 sentences. Cite sources with [N] (each number used at most once)."""
+Answer in 1-3 sentences. Cite each source with its passage number in square brackets, e.g. [1]. Use each citation number at most once."""
 
 
 # Prompt used when the intent classifier flags the query as casual chit-chat.

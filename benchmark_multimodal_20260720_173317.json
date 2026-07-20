@@ -1,0 +1,284 @@
+{
+  "parse_results": [
+    {
+      "modality": "pdf",
+      "filename": "sample.pdf",
+      "pages": 1,
+      "chunks": 1,
+      "chars": 159,
+      "parse_time_ms": 311.99999999989814,
+      "embed_time_ms": 1000.0,
+      "ingest_time_ms": 1311.9999999998981,
+      "error": null
+    },
+    {
+      "modality": "docx",
+      "filename": "sample.docx",
+      "pages": 2,
+      "chunks": 2,
+      "chars": 107,
+      "parse_time_ms": 16.000000000531145,
+      "embed_time_ms": 46.99999999957072,
+      "ingest_time_ms": 63.00000000010186,
+      "error": null
+    },
+    {
+      "modality": "md",
+      "filename": "sample.md",
+      "pages": 2,
+      "chunks": 2,
+      "chars": 80,
+      "parse_time_ms": 92.9999999998472,
+      "embed_time_ms": 47.00000000048021,
+      "ingest_time_ms": 140.00000000032742,
+      "error": null
+    },
+    {
+      "modality": "md",
+      "filename": "sample.txt",
+      "pages": 1,
+      "chunks": 1,
+      "chars": 56,
+      "parse_time_ms": 0.0,
+      "embed_time_ms": 30.99999999994907,
+      "ingest_time_ms": 30.99999999994907,
+      "error": null
+    },
+    {
+      "modality": "image",
+      "filename": "sample.png",
+      "pages": 0,
+      "chunks": 0,
+      "chars": 0,
+      "parse_time_ms": 6203.9999999997235,
+      "embed_time_ms": 0.0,
+      "ingest_time_ms": 6203.9999999997235,
+      "error": null
+    },
+    {
+      "modality": "audio",
+      "filename": "sample.wav",
+      "pages": 1,
+      "chunks": 1,
+      "chars": 7,
+      "parse_time_ms": 811.9999999998981,
+      "embed_time_ms": 109.00000000037835,
+      "ingest_time_ms": 921.0000000002765,
+      "error": null
+    }
+  ],
+  "query_results": [
+    {
+      "query": "What is the main topic of this document?",
+      "modality": "pdf",
+      "latency_ms": 407.0000000001528,
+      "ttft_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": false,
+      "error": "[ONNXRuntimeError] : 1 : FAIL : Load model from C:\\Users\\omen\\OneDrive\\Desktop\\Motif\\models\\MiniLM-L12-v2\\onnx\\model_O3.onnx failed:D:\\a\\_work\\1\\s\\onnxruntime\\core/graph/model_load_utils.h:56 onnxruntime::model_load_utils::ValidateOpsetForDomain ONNX Runtime only *guarantees* support for models stamped with official released onnx opset versions. Opset 5 is under development and support for this is limited. The operator schemas and or other functionality may change before next ONNX release and in this case ONNX Runtime will not guarantee backward compatibility. Current official support for domain ai.onnx.ml is till opset 4.\n"
+    },
+    {
+      "query": "Summarise the key findings.",
+      "modality": "pdf",
+      "latency_ms": 217.9999999998472,
+      "ttft_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": false,
+      "error": "[ONNXRuntimeError] : 1 : FAIL : Load model from C:\\Users\\omen\\OneDrive\\Desktop\\Motif\\models\\MiniLM-L12-v2\\onnx\\model_O3.onnx failed:D:\\a\\_work\\1\\s\\onnxruntime\\core/graph/model_load_utils.h:56 onnxruntime::model_load_utils::ValidateOpsetForDomain ONNX Runtime only *guarantees* support for models stamped with official released onnx opset versions. Opset 5 is under development and support for this is limited. The operator schemas and or other functionality may change before next ONNX release and in this case ONNX Runtime will not guarantee backward compatibility. Current official support for domain ai.onnx.ml is till opset 4.\n"
+    },
+    {
+      "query": "What methods are described?",
+      "modality": "pdf",
+      "latency_ms": 203.00000000042928,
+      "ttft_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": false,
+      "error": "[ONNXRuntimeError] : 1 : FAIL : Load model from C:\\Users\\omen\\OneDrive\\Desktop\\Motif\\models\\MiniLM-L12-v2\\onnx\\model_O3.onnx failed:D:\\a\\_work\\1\\s\\onnxruntime\\core/graph/model_load_utils.h:56 onnxruntime::model_load_utils::ValidateOpsetForDomain ONNX Runtime only *guarantees* support for models stamped with official released onnx opset versions. Opset 5 is under development and support for this is limited. The operator schemas and or other functionality may change before next ONNX release and in this case ONNX Runtime will not guarantee backward compatibility. Current official support for domain ai.onnx.ml is till opset 4.\n"
+    },
+    {
+      "query": "What is this document about?",
+      "modality": "docx",
+      "latency_ms": 171.99999999957072,
+      "ttft_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": false,
+      "error": "[ONNXRuntimeError] : 1 : FAIL : Load model from C:\\Users\\omen\\OneDrive\\Desktop\\Motif\\models\\MiniLM-L12-v2\\onnx\\model_O3.onnx failed:D:\\a\\_work\\1\\s\\onnxruntime\\core/graph/model_load_utils.h:56 onnxruntime::model_load_utils::ValidateOpsetForDomain ONNX Runtime only *guarantees* support for models stamped with official released onnx opset versions. Opset 5 is under development and support for this is limited. The operator schemas and or other functionality may change before next ONNX release and in this case ONNX Runtime will not guarantee backward compatibility. Current official support for domain ai.onnx.ml is till opset 4.\n"
+    },
+    {
+      "query": "List the main sections.",
+      "modality": "docx",
+      "latency_ms": 235.00000000058208,
+      "ttft_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": false,
+      "error": "[ONNXRuntimeError] : 1 : FAIL : Load model from C:\\Users\\omen\\OneDrive\\Desktop\\Motif\\models\\MiniLM-L12-v2\\onnx\\model_O3.onnx failed:D:\\a\\_work\\1\\s\\onnxruntime\\core/graph/model_load_utils.h:56 onnxruntime::model_load_utils::ValidateOpsetForDomain ONNX Runtime only *guarantees* support for models stamped with official released onnx opset versions. Opset 5 is under development and support for this is limited. The operator schemas and or other functionality may change before next ONNX release and in this case ONNX Runtime will not guarantee backward compatibility. Current official support for domain ai.onnx.ml is till opset 4.\n"
+    },
+    {
+      "query": "What does this document cover?",
+      "modality": "md",
+      "latency_ms": 202.9999999995198,
+      "ttft_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": false,
+      "error": "[ONNXRuntimeError] : 1 : FAIL : Load model from C:\\Users\\omen\\OneDrive\\Desktop\\Motif\\models\\MiniLM-L12-v2\\onnx\\model_O3.onnx failed:D:\\a\\_work\\1\\s\\onnxruntime\\core/graph/model_load_utils.h:56 onnxruntime::model_load_utils::ValidateOpsetForDomain ONNX Runtime only *guarantees* support for models stamped with official released onnx opset versions. Opset 5 is under development and support for this is limited. The operator schemas and or other functionality may change before next ONNX release and in this case ONNX Runtime will not guarantee backward compatibility. Current official support for domain ai.onnx.ml is till opset 4.\n"
+    },
+    {
+      "query": "What are the key points in section 2?",
+      "modality": "md",
+      "latency_ms": 344.00000000005093,
+      "ttft_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": false,
+      "error": "[ONNXRuntimeError] : 1 : FAIL : Load model from C:\\Users\\omen\\OneDrive\\Desktop\\Motif\\models\\MiniLM-L12-v2\\onnx\\model_O3.onnx failed:D:\\a\\_work\\1\\s\\onnxruntime\\core/graph/model_load_utils.h:56 onnxruntime::model_load_utils::ValidateOpsetForDomain ONNX Runtime only *guarantees* support for models stamped with official released onnx opset versions. Opset 5 is under development and support for this is limited. The operator schemas and or other functionality may change before next ONNX release and in this case ONNX Runtime will not guarantee backward compatibility. Current official support for domain ai.onnx.ml is till opset 4.\n"
+    },
+    {
+      "query": "What text appears in this image?",
+      "modality": "image",
+      "latency_ms": 234.99999999967258,
+      "ttft_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": false,
+      "error": "[ONNXRuntimeError] : 1 : FAIL : Load model from C:\\Users\\omen\\OneDrive\\Desktop\\Motif\\models\\MiniLM-L12-v2\\onnx\\model_O3.onnx failed:D:\\a\\_work\\1\\s\\onnxruntime\\core/graph/model_load_utils.h:56 onnxruntime::model_load_utils::ValidateOpsetForDomain ONNX Runtime only *guarantees* support for models stamped with official released onnx opset versions. Opset 5 is under development and support for this is limited. The operator schemas and or other functionality may change before next ONNX release and in this case ONNX Runtime will not guarantee backward compatibility. Current official support for domain ai.onnx.ml is till opset 4.\n"
+    },
+    {
+      "query": "Describe the content of this image.",
+      "modality": "image",
+      "latency_ms": 203.00000000042928,
+      "ttft_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": false,
+      "error": "[ONNXRuntimeError] : 1 : FAIL : Load model from C:\\Users\\omen\\OneDrive\\Desktop\\Motif\\models\\MiniLM-L12-v2\\onnx\\model_O3.onnx failed:D:\\a\\_work\\1\\s\\onnxruntime\\core/graph/model_load_utils.h:56 onnxruntime::model_load_utils::ValidateOpsetForDomain ONNX Runtime only *guarantees* support for models stamped with official released onnx opset versions. Opset 5 is under development and support for this is limited. The operator schemas and or other functionality may change before next ONNX release and in this case ONNX Runtime will not guarantee backward compatibility. Current official support for domain ai.onnx.ml is till opset 4.\n"
+    },
+    {
+      "query": "What was discussed in this recording?",
+      "modality": "audio",
+      "latency_ms": 250.0,
+      "ttft_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": false,
+      "error": "[ONNXRuntimeError] : 1 : FAIL : Load model from C:\\Users\\omen\\OneDrive\\Desktop\\Motif\\models\\MiniLM-L12-v2\\onnx\\model_O3.onnx failed:D:\\a\\_work\\1\\s\\onnxruntime\\core/graph/model_load_utils.h:56 onnxruntime::model_load_utils::ValidateOpsetForDomain ONNX Runtime only *guarantees* support for models stamped with official released onnx opset versions. Opset 5 is under development and support for this is limited. The operator schemas and or other functionality may change before next ONNX release and in this case ONNX Runtime will not guarantee backward compatibility. Current official support for domain ai.onnx.ml is till opset 4.\n"
+    },
+    {
+      "query": "Summarise the audio content.",
+      "modality": "audio",
+      "latency_ms": 264.9999999994179,
+      "ttft_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": false,
+      "error": "[ONNXRuntimeError] : 1 : FAIL : Load model from C:\\Users\\omen\\OneDrive\\Desktop\\Motif\\models\\MiniLM-L12-v2\\onnx\\model_O3.onnx failed:D:\\a\\_work\\1\\s\\onnxruntime\\core/graph/model_load_utils.h:56 onnxruntime::model_load_utils::ValidateOpsetForDomain ONNX Runtime only *guarantees* support for models stamped with official released onnx opset versions. Opset 5 is under development and support for this is limited. The operator schemas and or other functionality may change before next ONNX release and in this case ONNX Runtime will not guarantee backward compatibility. Current official support for domain ai.onnx.ml is till opset 4.\n"
+    },
+    {
+      "query": "Relate the audio transcript to the image.",
+      "modality": "cross-modal",
+      "latency_ms": 266.00000000053114,
+      "ttft_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": false,
+      "error": "[ONNXRuntimeError] : 1 : FAIL : Load model from C:\\Users\\omen\\OneDrive\\Desktop\\Motif\\models\\MiniLM-L12-v2\\onnx\\model_O3.onnx failed:D:\\a\\_work\\1\\s\\onnxruntime\\core/graph/model_load_utils.h:56 onnxruntime::model_load_utils::ValidateOpsetForDomain ONNX Runtime only *guarantees* support for models stamped with official released onnx opset versions. Opset 5 is under development and support for this is limited. The operator schemas and or other functionality may change before next ONNX release and in this case ONNX Runtime will not guarantee backward compatibility. Current official support for domain ai.onnx.ml is till opset 4.\n"
+    },
+    {
+      "query": "What is the secret?",
+      "modality": "cross-modal",
+      "latency_ms": 186.99999999989814,
+      "ttft_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": false,
+      "error": "[ONNXRuntimeError] : 1 : FAIL : Load model from C:\\Users\\omen\\OneDrive\\Desktop\\Motif\\models\\MiniLM-L12-v2\\onnx\\model_O3.onnx failed:D:\\a\\_work\\1\\s\\onnxruntime\\core/graph/model_load_utils.h:56 onnxruntime::model_load_utils::ValidateOpsetForDomain ONNX Runtime only *guarantees* support for models stamped with official released onnx opset versions. Opset 5 is under development and support for this is limited. The operator schemas and or other functionality may change before next ONNX release and in this case ONNX Runtime will not guarantee backward compatibility. Current official support for domain ai.onnx.ml is till opset 4.\n"
+    },
+    {
+      "query": "Tell me about the revenue and password.",
+      "modality": "cross-modal",
+      "latency_ms": 250.0,
+      "ttft_ms": 0.0,
+      "passages_used": 0,
+      "answer_non_empty": false,
+      "error": "[ONNXRuntimeError] : 1 : FAIL : Load model from C:\\Users\\omen\\OneDrive\\Desktop\\Motif\\models\\MiniLM-L12-v2\\onnx\\model_O3.onnx failed:D:\\a\\_work\\1\\s\\onnxruntime\\core/graph/model_load_utils.h:56 onnxruntime::model_load_utils::ValidateOpsetForDomain ONNX Runtime only *guarantees* support for models stamped with official released onnx opset versions. Opset 5 is under development and support for this is limited. The operator schemas and or other functionality may change before next ONNX release and in this case ONNX Runtime will not guarantee backward compatibility. Current official support for domain ai.onnx.ml is till opset 4.\n"
+    }
+  ],
+  "summaries": [
+    {
+      "modality": "pdf",
+      "files_tested": 1,
+      "total_chunks": 1,
+      "total_chars": 159,
+      "avg_parse_ms": 311.99999999989814,
+      "avg_embed_ms": 1000.0,
+      "avg_ingest_ms": 1311.9999999998981,
+      "avg_query_ms": 276.0000000001431,
+      "avg_ttft_ms": 0.0,
+      "answer_rate": 0.0,
+      "retrieval_hit_rate": 0.0,
+      "errors": []
+    },
+    {
+      "modality": "docx",
+      "files_tested": 1,
+      "total_chunks": 2,
+      "total_chars": 107,
+      "avg_parse_ms": 16.000000000531145,
+      "avg_embed_ms": 46.99999999957072,
+      "avg_ingest_ms": 63.00000000010186,
+      "avg_query_ms": 203.5000000000764,
+      "avg_ttft_ms": 0.0,
+      "answer_rate": 0.0,
+      "retrieval_hit_rate": 0.0,
+      "errors": []
+    },
+    {
+      "modality": "md",
+      "files_tested": 2,
+      "total_chunks": 3,
+      "total_chars": 136,
+      "avg_parse_ms": 46.4999999999236,
+      "avg_embed_ms": 39.00000000021464,
+      "avg_ingest_ms": 85.50000000013824,
+      "avg_query_ms": 273.49999999978536,
+      "avg_ttft_ms": 0.0,
+      "answer_rate": 0.0,
+      "retrieval_hit_rate": 0.0,
+      "errors": []
+    },
+    {
+      "modality": "image",
+      "files_tested": 1,
+      "total_chunks": 0,
+      "total_chars": 0,
+      "avg_parse_ms": 6203.9999999997235,
+      "avg_embed_ms": 0.0,
+      "avg_ingest_ms": 6203.9999999997235,
+      "avg_query_ms": 219.00000000005093,
+      "avg_ttft_ms": 0.0,
+      "answer_rate": 0.0,
+      "retrieval_hit_rate": 0.0,
+      "errors": []
+    },
+    {
+      "modality": "audio",
+      "files_tested": 1,
+      "total_chunks": 1,
+      "total_chars": 7,
+      "avg_parse_ms": 811.9999999998981,
+      "avg_embed_ms": 109.00000000037835,
+      "avg_ingest_ms": 921.0000000002765,
+      "avg_query_ms": 257.49999999970896,
+      "avg_ttft_ms": 0.0,
+      "answer_rate": 0.0,
+      "retrieval_hit_rate": 0.0,
+      "errors": []
+    },
+    {
+      "modality": "cross-modal",
+      "files_tested": 0,
+      "total_chunks": 0,
+      "total_chars": 0,
+      "avg_parse_ms": 0.0,
+      "avg_embed_ms": 0.0,
+      "avg_ingest_ms": 0.0,
+      "avg_query_ms": 234.33333333347642,
+      "avg_ttft_ms": 0.0,
+      "answer_rate": 0.0,
+      "retrieval_hit_rate": 0.0,
+      "errors": []
+    }
+  ]
+}

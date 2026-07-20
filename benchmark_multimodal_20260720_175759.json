@@ -1,0 +1,286 @@
+{
+  "parse_results": [
+    {
+      "modality": "pdf",
+      "filename": "sample.pdf",
+      "pages": 1,
+      "chunks": 1,
+      "chars": 159,
+      "parse_time_ms": 235.00000000058208,
+      "embed_time_ms": 671.9999999995707,
+      "ingest_time_ms": 907.0000000001528,
+      "error": null
+    },
+    {
+      "modality": "docx",
+      "filename": "sample.docx",
+      "pages": 1,
+      "chunks": 1,
+      "chars": 102,
+      "parse_time_ms": 15.000000000327418,
+      "embed_time_ms": 30.99999999994907,
+      "ingest_time_ms": 46.000000000276486,
+      "error": null
+    },
+    {
+      "modality": "md",
+      "filename": "sample.md",
+      "pages": 1,
+      "chunks": 1,
+      "chars": 73,
+      "parse_time_ms": 78.99999999972351,
+      "embed_time_ms": 30.99999999994907,
+      "ingest_time_ms": 109.99999999967258,
+      "error": null
+    },
+    {
+      "modality": "md",
+      "filename": "sample.txt",
+      "pages": 1,
+      "chunks": 1,
+      "chars": 56,
+      "parse_time_ms": 0.0,
+      "embed_time_ms": 30.99999999994907,
+      "ingest_time_ms": 30.99999999994907,
+      "error": null
+    },
+    {
+      "modality": "image",
+      "filename": "sample.png",
+      "pages": 1,
+      "chunks": 1,
+      "chars": 30,
+      "parse_time_ms": 4734.000000000378,
+      "embed_time_ms": 32.000000000152795,
+      "ingest_time_ms": 4766.000000000531,
+      "error": null
+    },
+    {
+      "modality": "audio",
+      "filename": "sample.wav",
+      "pages": 0,
+      "chunks": 0,
+      "chars": 0,
+      "parse_time_ms": 250.0,
+      "embed_time_ms": 0.0,
+      "ingest_time_ms": 0.0,
+      "error": "file does not start with RIFF id"
+    }
+  ],
+  "query_results": [
+    {
+      "query": "What is the main topic of this document?",
+      "modality": "pdf",
+      "latency_ms": 219.00000000005093,
+      "ttft_ms": 0.0,
+      "passages_used": 3,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "Summarise the key findings.",
+      "modality": "pdf",
+      "latency_ms": 15.000000000327418,
+      "ttft_ms": 0.0,
+      "passages_used": 1,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "What methods are described?",
+      "modality": "pdf",
+      "latency_ms": 30.99999999994907,
+      "ttft_ms": 0.0,
+      "passages_used": 3,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "What is this document about?",
+      "modality": "docx",
+      "latency_ms": 15.99999999962165,
+      "ttft_ms": 0.0,
+      "passages_used": 1,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "List the main sections.",
+      "modality": "docx",
+      "latency_ms": 30.99999999994907,
+      "ttft_ms": 0.0,
+      "passages_used": 3,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "What does this document cover?",
+      "modality": "md",
+      "latency_ms": 16.000000000531145,
+      "ttft_ms": 0.0,
+      "passages_used": 1,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "What are the key points in section 2?",
+      "modality": "md",
+      "latency_ms": 15.99999999962165,
+      "ttft_ms": 0.0,
+      "passages_used": 1,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "What text appears in this image?",
+      "modality": "image",
+      "latency_ms": 30.99999999994907,
+      "ttft_ms": 0.0,
+      "passages_used": 1,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "Describe the content of this image.",
+      "modality": "image",
+      "latency_ms": 30.99999999994907,
+      "ttft_ms": 0.0,
+      "passages_used": 2,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "What was discussed in this recording?",
+      "modality": "audio",
+      "latency_ms": 30.99999999994907,
+      "ttft_ms": 0.0,
+      "passages_used": 2,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "Summarise the audio content.",
+      "modality": "audio",
+      "latency_ms": 16.000000000531145,
+      "ttft_ms": 0.0,
+      "passages_used": 2,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "Relate the audio transcript to the image.",
+      "modality": "cross-modal",
+      "latency_ms": 46.99999999957072,
+      "ttft_ms": 0.0,
+      "passages_used": 3,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "What is the secret?",
+      "modality": "cross-modal",
+      "latency_ms": 15.000000000327418,
+      "ttft_ms": 0.0,
+      "passages_used": 3,
+      "answer_non_empty": true,
+      "error": null
+    },
+    {
+      "query": "Tell me about the revenue and password.",
+      "modality": "cross-modal",
+      "latency_ms": 32.000000000152795,
+      "ttft_ms": 0.0,
+      "passages_used": 3,
+      "answer_non_empty": true,
+      "error": null
+    }
+  ],
+  "summaries": [
+    {
+      "modality": "pdf",
+      "files_tested": 1,
+      "total_chunks": 1,
+      "total_chars": 159,
+      "avg_parse_ms": 235.00000000058208,
+      "avg_embed_ms": 671.9999999995707,
+      "avg_ingest_ms": 907.0000000001528,
+      "avg_query_ms": 88.33333333344247,
+      "avg_ttft_ms": 0.0,
+      "answer_rate": 1.0,
+      "retrieval_hit_rate": 1.0,
+      "errors": []
+    },
+    {
+      "modality": "docx",
+      "files_tested": 1,
+      "total_chunks": 1,
+      "total_chars": 102,
+      "avg_parse_ms": 15.000000000327418,
+      "avg_embed_ms": 30.99999999994907,
+      "avg_ingest_ms": 46.000000000276486,
+      "avg_query_ms": 23.49999999978536,
+      "avg_ttft_ms": 0.0,
+      "answer_rate": 1.0,
+      "retrieval_hit_rate": 1.0,
+      "errors": []
+    },
+    {
+      "modality": "md",
+      "files_tested": 2,
+      "total_chunks": 2,
+      "total_chars": 129,
+      "avg_parse_ms": 39.49999999986176,
+      "avg_embed_ms": 30.99999999994907,
+      "avg_ingest_ms": 70.49999999981083,
+      "avg_query_ms": 16.000000000076398,
+      "avg_ttft_ms": 0.0,
+      "answer_rate": 1.0,
+      "retrieval_hit_rate": 1.0,
+      "errors": []
+    },
+    {
+      "modality": "image",
+      "files_tested": 1,
+      "total_chunks": 1,
+      "total_chars": 30,
+      "avg_parse_ms": 4734.000000000378,
+      "avg_embed_ms": 32.000000000152795,
+      "avg_ingest_ms": 4766.000000000531,
+      "avg_query_ms": 30.99999999994907,
+      "avg_ttft_ms": 0.0,
+      "answer_rate": 1.0,
+      "retrieval_hit_rate": 1.0,
+      "errors": []
+    },
+    {
+      "modality": "audio",
+      "files_tested": 1,
+      "total_chunks": 0,
+      "total_chars": 0,
+      "avg_parse_ms": 250.0,
+      "avg_embed_ms": 0.0,
+      "avg_ingest_ms": 0.0,
+      "avg_query_ms": 23.500000000240107,
+      "avg_ttft_ms": 0.0,
+      "answer_rate": 1.0,
+      "retrieval_hit_rate": 1.0,
+      "errors": [
+        "file does not start with RIFF id"
+      ]
+    },
+    {
+      "modality": "cross-modal",
+      "files_tested": 0,
+      "total_chunks": 0,
+      "total_chars": 0,
+      "avg_parse_ms": 0.0,
+      "avg_embed_ms": 0.0,
+      "avg_ingest_ms": 0.0,
+      "avg_query_ms": 31.33333333335031,
+      "avg_ttft_ms": 0.0,
+      "answer_rate": 1.0,
+      "retrieval_hit_rate": 1.0,
+      "errors": []
+    }
+  ]
+}

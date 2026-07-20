@@ -177,19 +177,22 @@ class LLMClient:
         if stop:
             stop_seqs.extend(stop)
 
-        output = self._llm(  # type: ignore[operator]
-            prompt,
+        messages = [
+            {"role": "user", "content": prompt}
+        ]
+
+        output = self._llm.create_chat_completion(  # type: ignore[operator]
+            messages=messages,
             max_tokens=max_tokens,
             temperature=temperature,
             stop=stop_seqs,
             stream=True,
-            echo=False,
         )
 
         for chunk in output:
-            token_text: str = chunk["choices"][0]["text"]
-            if token_text:
-                yield token_text
+            delta = chunk["choices"][0]["delta"]
+            if "content" in delta:
+                yield delta["content"]
 
     def generate(
         self,

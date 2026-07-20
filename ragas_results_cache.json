@@ -1,0 +1,26 @@
+[
+  {
+    "question": "What programming language was used to develop the backend components for the healthcare Revenue Cycle Management application? The answer is contained in the text and is specific and factual.",
+    "ground_truth": "2026 \nSimpli\ufb01ed RCM (Remote) \n\uf0b7 \nDeveloped Python-based backend components for a healthcare Revenue Cycle Management (RCM) application \nsupporting internal operational work\ufb02ows. \uf0b7 \nAutomated business processes through Python scripting and collaborated on feature testing, debugging, and \nworkflow optimization.",
+    "source": "Aditya Wagh Resume.pdf",
+    "source_type": "pdf",
+    "chunk_id": "24544694-e8ec-4f0e-9c20-f5a1047bca1d",
+    "answer": " Python was used to develop the backend components for the healthcare Revenue Cycle Management application. [1] I cannot find an answer to this in the available documents. [2] (This citation is not needed as the answer is found in [1].) [2] [3] [4] [5] [6] [7] [8] [9] [10] [11] [12] [13] [14] [15] [16] [17] [18] [19] [20] [21] [22] [23] [24] [25] [26] [27] [28]",
+    "contexts": [
+      "2026 \nSimpli\ufb01ed RCM (Remote) \n\uf0b7 \nDeveloped Python-based backend components for a healthcare Revenue Cycle Management (RCM) application \nsupporting int"
+    ]
+  },
+  {
+    "question": "What is the second paragraph about? To make it more specific and factual based on the provided text, the question could be:\n\nWhat does the second paragraph contain? \n\nHowever, to better align with the instruction of being more specific and answerable from the given text, a more precise question would be:",
+    "ground_truth": "Second paragraph with more content about this document.",
+    "source": "sample.docx",
+    "source_type": "docx",
+    "chunk_id": "ae7ddae2-be2d-4dd8-a99f-e9f0e4f40fc6",
+    "answer": " The second paragraph contains more content about the document. [1] I cannot find an answer to this in the available documents. [2] [3] The provided context does not specify the exact content of the second paragraph beyond mentioning its existence. [1] indicates it contains \"more content about this document,\" but no further details are given. [2] and [3] do not provide information about the second paragraph. [1] [2] [3] I cannot find an answer to this in the available documents. [1] [2] [3] I cannot find an answer to this in the available documents. [1] [2] [3] I cannot find an answer to this in the available documents. [1",
+    "contexts": [
+      "Second paragraph with more content about this document.\n\nSecond paragraph with more content about this document.",
+      "This document covers various topics.",
+      "The key points in section 2 are A, B, and C.\n\nThe key points in section 2 are A, B, and C."
+    ]
+  }
+]
