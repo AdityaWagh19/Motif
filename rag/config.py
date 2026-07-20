@@ -31,6 +31,8 @@ import os
 import platform
 import subprocess
 import tomllib
+import shutil
+import platformdirs
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -38,6 +40,65 @@ from pathlib import Path
 _hw_cache: dict[str, str | None] = {}
 
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Paths and Migration
+# ─────────────────────────────────────────────────────────────────────────────
+
+def get_app_dir() -> Path:
+    """Return the global application directory using OS conventions."""
+    # On Linux: ~/.local/share/motif
+    # On Windows: %LOCALAPPDATA%/motif
+    # On macOS: ~/Library/Application Support/motif
+    return Path(platformdirs.user_data_dir("motif", appauthor=False)).resolve()
+
+def _migrate_if_needed(app_dir: Path) -> None:
+    """Migrate legacy ~/.ragdb to the new <APP_DIR> structure atomically."""
+    legacy_dir = Path(os.path.expanduser("~/.ragdb")).resolve()
+    sentinel = app_dir / "migration.done"
+    
+    if sentinel.exists():
+        return
+        
+    if legacy_dir.exists() and legacy_dir.is_dir():
+        import logging
+        log = logging.getLogger("rag.config")
+        log.info(f"Migrating legacy database from {legacy_dir} to {app_dir}")
+        
+        # We ensure app_dir exists
+        app_dir.mkdir(parents=True, exist_ok=True)
+        
+        workspaces_dir = app_dir / "workspaces"
+        workspaces_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Move everything inside legacy_dir to workspaces_dir (or specific dirs)
+        # Note: legacy structure had ~/.ragdb/<workspace>/... and ~/.ragdb/query_cache.db and ~/.ragdb/motif.log
+        for item in legacy_dir.iterdir():
+            if item.name == "models":
+                # Models go to app_dir/models
+                shutil.move(str(item), str(app_dir / "models"))
+            elif item.name == "query_cache.db":
+                # Move into default workspace and rename
+                default_ws = workspaces_dir / "default"
+                default_ws.mkdir(exist_ok=True)
+                shutil.move(str(item), str(default_ws / "query_cache.sqlite"))
+            elif item.name == "motif.log":
+                logs_dir = app_dir / "logs"
+                logs_dir.mkdir(exist_ok=True)
+                shutil.move(str(item), str(logs_dir / "motif.log"))
+            else:
+                if item.is_dir():
+                    shutil.move(str(item), str(workspaces_dir / item.name))
+        
+        # Remove empty legacy dir
+        try:
+            shutil.rmtree(legacy_dir)
+        except Exception:
+            pass
+            
+    # Mark as done
+    app_dir.mkdir(parents=True, exist_ok=True)
+    sentinel.touch()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Dataclasses
@@ -93,7 +154,7 @@ class GenerationConfig:
 
 @dataclass
 class StorageConfig:
-    db_path: str = "~/.ragdb"
+    db_path: str = ""
     workspace: str = "default"
     query_cache_enabled: bool = True
     query_cache_ttl_hours: int = 24
@@ -122,8 +183,23 @@ class RAGConfig:
     @property
     def db_root(self) -> Path:
         """Expanded, absolute path to the database root directory."""
-        base = Path(os.path.expanduser(str(self.storage.db_path))).resolve()
-        return base / self.storage.workspace
+        if self.storage.db_path and self.storage.db_path != "~/.ragdb":
+            base = Path(os.path.expanduser(str(self.storage.db_path))).resolve()
+            return base / self.storage.workspace
+        return get_app_dir() / "workspaces" / self.storage.workspace
+        
+    def save(self) -> None:
+        """Save current configuration to the global config.toml."""
+        app_dir = get_app_dir()
+        config_path = app_dir / "config.toml"
+        # We only really modify storage.workspace dynamically via CLI.
+        # But for correctness, we update the [storage] workspace key.
+        import re
+        if config_path.exists():
+            content = config_path.read_text(encoding="utf-8")
+            # Minimal sed-like replacement to avoid writing full toml
+            content = re.sub(r'(?<=workspace = ")[^"]*(?=")', self.storage.workspace, content)
+            config_path.write_text(content, encoding="utf-8")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -316,15 +392,8 @@ def _check_cuda_toolkit() -> bool:
 
 
 def _get_models_dir() -> Path:
-    """
-    Resolve the models directory:
-    - If running from source (project root has pyproject.toml): project_root / "models"
-    - If installed as package: Path.home() / ".ragdb" / "models"
-    """
-    pkg_root = Path(__file__).parent.parent
-    if (pkg_root / "pyproject.toml").exists():
-        return pkg_root / "models"
-    return Path(os.path.expanduser("~")) / ".ragdb" / "models"
+    """Resolve the models directory in the global app dir."""
+    return get_app_dir() / "models"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -375,33 +444,33 @@ def load_config(config_path: Path | None = None) -> RAGConfig:
 
     Search order:
       1. config_path (if provided)
-      2. config.toml in the current working directory
-      3. config.toml next to this file (project root)
-      4. config.template.toml next to this file (read-only defaults)
-      5. Built-in dataclass defaults
-
-    Load order (Bug #3 fix — user config.toml wins over tier defaults):
-      1. Detect hardware tier
-      2. Apply tier defaults as a baseline
-      3. Apply user overrides from config.toml ON TOP of tier defaults
-         (so any value explicitly set in config.toml takes precedence)
+      2. .motif/config.toml in the current working directory (project override)
+      3. config.toml in the global APP_DIR
     """
     import logging as _log
     _logger = _log.getLogger("rag.config")
 
     config = RAGConfig()
     raw: dict = {}
+    
+    app_dir = get_app_dir()
+    _migrate_if_needed(app_dir)
+    
+    global_config = app_dir / "config.toml"
+    if not global_config.exists():
+        template_path = Path(__file__).parent / "data" / "config.template.toml"
+        if template_path.exists():
+            app_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(str(template_path), str(global_config))
 
     candidates = []
     if config_path:
         candidates.append(Path(config_path))
 
     cwd = Path.cwd()
-    pkg_root = Path(__file__).parent.parent  # rag/ → project root
     candidates += [
-        cwd / "config.toml",
-        pkg_root / "config.toml",
-        pkg_root / "config.template.toml",
+        cwd / ".motif" / "config.toml",  # Local override
+        global_config,                   # Global config
     ]
 
     for candidate in candidates:

@@ -22,7 +22,7 @@ def handle_workspace(args, session, config, console) -> None:
         return
 
     subcmd = args[0].lower()
-    base_dir = Path(config.storage.db_path).expanduser().resolve()
+    base_dir = config.db_root.parent
 
     if subcmd == "list":
         if not base_dir.exists():

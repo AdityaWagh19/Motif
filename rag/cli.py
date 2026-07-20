@@ -103,7 +103,7 @@ def _render_welcome(config: RAGConfig, session: Session) -> None:
     if getattr(config.storage, "query_cache_enabled", False):
         info_lines.append(
             "  [yellow]Query caching ON[/yellow] — queries stored at "
-            f"[dim]{config.db_root}/query_cache.db[/dim]"
+            f"[dim]{config.db_root}/query_cache.sqlite[/dim]"
         )
         info_lines.append("")
 

@@ -40,7 +40,7 @@ log = logging.getLogger(__name__)
 _DEFAULT_MAX_ENTRIES = 500
 
 # DB filename within db_root.
-_CACHE_DB_NAME = "query_cache.db"
+_CACHE_DB_NAME = "query_cache.sqlite"
 
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS query_cache (

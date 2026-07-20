@@ -55,9 +55,9 @@ def setup(config: "RAGConfig") -> None:
     if _configured:
         return
 
-    import os
-    log_dir = config.db_root
-    os.makedirs(str(log_dir), exist_ok=True)
+    from rag.config import get_app_dir
+    log_dir = get_app_dir() / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / _LOG_FILENAME
 
     root = logging.getLogger()

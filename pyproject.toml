@@ -29,40 +29,32 @@ dependencies = [
     # Interface
     "prompt_toolkit>=3.0",
     "rich>=13.0",
-
     # Vector store (local embedded mode, no server)
     "qdrant-client[local]>=1.10",
-
     # Lexical search
     "rank-bm25>=0.2",
-
     # Embedding + reranker inference (ONNX, no torch at query time)
     # NOTE: install onnxruntime-gpu instead for GPU-accelerated embedding.
     # See: pip install motif-rag[gpu]
     "onnxruntime>=1.18",
-
     # Tokenizer (used only for token counting; not for inference)
     "tokenizers>=0.19",
     "transformers>=4.40",
-
     # Document parsers
     "pymupdf>=1.24",
     "markdown-it-py>=3.0",
-
     # DOCX parser
     "python-docx>=1.1",
-
     # Model download
     "huggingface-hub>=0.23",
-
     # LLM inference — CPU wheel by default.
     # The installer script (install.sh / install.ps1) upgrades this to the
     # appropriate CUDA pre-built wheel when a CUDA-capable GPU is detected.
     # Minimum 0.3.0 required for Qwen2.5 and Phi-3.5 GGUF Q4_K_M support.
     "llama-cpp-python>=0.3.0",
-
     # Progress display during model download
     "tqdm>=4.66",
+    "platformdirs>=4.10.1",
 ]
 
 [project.optional-dependencies]
