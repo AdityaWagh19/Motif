@@ -39,7 +39,7 @@ dependencies = [
     # Embedding + reranker inference (ONNX, no torch at query time)
     # NOTE: install onnxruntime-gpu instead for GPU-accelerated embedding.
     # See: pip install motif-rag[gpu]
-    "onnxruntime>=1.18",
+    "onnxruntime-gpu>=1.17",
 
     # Tokenizer (used only for token counting; not for inference)
     "tokenizers>=0.19",

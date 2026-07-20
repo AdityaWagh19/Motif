@@ -1,7 +1,7 @@
 # Sample Document
 
-This is a test document for the multimodal ingestion smoke test.
+This document covers various topics.
 
 ## Section 2
 
-Second section text.
+The key points in section 2 are A, B, and C.

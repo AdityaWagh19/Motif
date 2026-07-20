@@ -56,6 +56,7 @@ class QueryResult:
     query: str
     modality: str
     latency_ms: float = 0.0
+    ttft_ms: float = 0.0
     passages_used: int = 0
     answer_non_empty: bool = False
     error: Optional[str] = None
@@ -71,6 +72,7 @@ class ModalitySummary:
     avg_embed_ms: float = 0.0
     avg_ingest_ms: float = 0.0
     avg_query_ms: float = 0.0
+    avg_ttft_ms: float = 0.0
     answer_rate: float = 0.0  # fraction of queries with non-empty answer
     retrieval_hit_rate: float = 0.0  # fraction of queries returning ≥1 passage
     errors: list[str] = field(default_factory=list)
@@ -101,6 +103,11 @@ _MODALITY_QUERIES: dict[str, list[str]] = {
     "audio": [
         "What was discussed in this recording?",
         "Summarise the audio content.",
+    ],
+    "cross-modal": [
+        "Relate the audio transcript to the image.",
+        "What is the secret?",
+        "Tell me about the revenue and password.",
     ],
 }
 
@@ -150,6 +157,10 @@ class MultimodalBenchmark:
 
         from rag.pipeline import QueryPipeline
         pipeline = QueryPipeline(self._config)
+
+        import onnxruntime as ort
+        if console:
+            console.print(f"[dim]ONNX Available Providers: {ort.get_available_providers()}[/dim]")
 
         for modality, exts in _FIXTURE_EXTENSIONS.items():
             files = []
@@ -238,14 +249,16 @@ class MultimodalBenchmark:
                 result = QueryResult(query=query_text, modality=modality)
                 t0 = time.monotonic()
                 try:
+                    type_f = modality if modality in _FIXTURE_EXTENSIONS else None
                     answer = pipeline.answer(
                         query=query_text,
                         history=[],
-                        type_filter=modality,
+                        type_filter=type_f,
                         use_hyde=False,
                         show_sources=False,
                     )
                     result.latency_ms = (time.monotonic() - t0) * 1000
+                    result.ttft_ms = answer.ttft_ms
                     result.passages_used = answer.passages_used
                     result.answer_non_empty = bool(answer.text.strip())
                 except Exception as exc:
@@ -259,15 +272,15 @@ class MultimodalBenchmark:
                         "[green]ok[/green]" if result.answer_non_empty else "[yellow]empty[/yellow]"
                     )
                     console.print(
-                        f"  {status}  {modality:<8}  {query_text[:50]:<50}  "
-                        f"{result.latency_ms:.0f} ms"
+                        f"  {status}  {modality:<8}  {query_text[:40]:<40}  "
+                        f"{result.latency_ms:.0f} ms  (TTFT: {result.ttft_ms:.0f} ms)"
                     )
 
     # ── Summary computation ───────────────────────────────────────────────────
 
     def summarise(self) -> list[ModalitySummary]:
         summaries: list[ModalitySummary] = []
-        modalities = list(_FIXTURE_EXTENSIONS.keys())
+        modalities = list(_FIXTURE_EXTENSIONS.keys()) + ["cross-modal"]
 
         for mod in modalities:
             parse_recs = [r for r in self._parse_results if r.modality == mod]
@@ -290,6 +303,7 @@ class MultimodalBenchmark:
 
             if query_recs:
                 s.avg_query_ms = sum(r.latency_ms for r in query_recs) / len(query_recs)
+                s.avg_ttft_ms = sum(r.ttft_ms for r in query_recs) / len(query_recs)
                 answered = [r for r in query_recs if not r.error]
                 if answered:
                     s.answer_rate = sum(1 for r in answered if r.answer_non_empty) / len(answered)
@@ -316,6 +330,7 @@ class MultimodalBenchmark:
         t.add_column("Parse ms",   justify="right")
         t.add_column("Embed ms",   justify="right")
         t.add_column("Query ms",   justify="right")
+        t.add_column("TTFT ms",    justify="right")
         t.add_column("Ans Rate",   justify="right")
         t.add_column("Hit Rate",   justify="right")
         t.add_column("Errors",     justify="left",  style="red")
@@ -328,6 +343,7 @@ class MultimodalBenchmark:
                 f"{s.avg_parse_ms:.0f}",
                 f"{s.avg_embed_ms:.0f}" if s.avg_embed_ms else "—",
                 f"{s.avg_query_ms:.0f}" if s.avg_query_ms else "—",
+                f"{s.avg_ttft_ms:.0f}" if s.avg_ttft_ms else "—",
                 f"{s.answer_rate:.0%}" if s.answer_rate else "—",
                 f"{s.retrieval_hit_rate:.0%}" if s.retrieval_hit_rate else "—",
                 str(len(s.errors)) if s.errors else "0",

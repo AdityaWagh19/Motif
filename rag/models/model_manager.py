@@ -80,7 +80,11 @@ class ModelManager:
                 )
             log.info("Loading embedder from %s", model_path)
             self._embedder = Embedder(model_path)
-            self._embedder._load()
+            try:
+                self._embedder._load()
+            except Exception:
+                self._embedder = None
+                raise
 
         return self._embedder
 
@@ -165,7 +169,11 @@ class ModelManager:
                 )
             log.info("Loading LLM from %s", model_path)
             self._llm = LLMClient(model_path, config)
-            self._llm._load()
+            try:
+                self._llm._load()
+            except Exception:
+                self._llm = None
+                raise
 
         return self._llm
 
@@ -196,7 +204,11 @@ class ModelManager:
                     f"Run `motif setup --tier T3 --captioning` to download."
                 )
             self._captioner = Captioner(model_path)
-            self._captioner._load()
+            try:
+                self._captioner._load()
+            except Exception:
+                self._captioner = None
+                raise
         return self._captioner
 
     # ------------------------------------------------------------------

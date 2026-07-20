@@ -281,12 +281,15 @@ class QueryPipeline:
 
         console.print()
         full_answer = ""
+        ttft_ms = 0.0
         try:
-            for token in llm.stream(
+            for i, token in enumerate(llm.stream(
                 prompt,
                 max_tokens=cfg.llm.max_tokens,
                 temperature=cfg.llm.temperature,
-            ):
+            )):
+                if i == 0:
+                    ttft_ms = (time.monotonic() - t_gen_start) * 1000
                 print(token, end="", flush=True)
                 full_answer += token
         finally:
@@ -319,6 +322,7 @@ class QueryPipeline:
             citations=citations,
             passages_used=len(passages_used),
             latency_ms=t_total_ms,
+            ttft_ms=ttft_ms,
             retrieval_latency_ms=t_retrieval_ms,
             generation_latency_ms=t_gen_ms,
             tier=cfg.resolved_tier,

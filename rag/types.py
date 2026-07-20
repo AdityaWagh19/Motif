@@ -121,6 +121,7 @@ class AnswerResult:
     passages_used: int
     used_hyde: bool = False
     latency_ms: float = 0.0
+    ttft_ms: float = 0.0
     retrieval_latency_ms: float = 0.0
     generation_latency_ms: float = 0.0
     tier: str = "T1"
