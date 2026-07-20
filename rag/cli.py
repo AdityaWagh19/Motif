@@ -59,7 +59,7 @@ from rag.config import load_config, RAGConfig
 from rag.session import Session
 from rag.commands import get_command, SLASH_COMMANDS, COMMAND_DESCRIPTIONS
 
-console = Console()
+from rag.theme import console
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Welcome Screen
@@ -79,33 +79,33 @@ def _render_welcome(config: RAGConfig, session: Session) -> None:
 
     # Build info lines
     info_lines: list[str] = [
-        f"[bold white]Motif[/bold white] [dim]v{__version__}[/dim]",
+        f"[accent_bold]Motif[/accent_bold] [structure]v{__version__}[/structure]",
         "",
         f"  Tier    [bold]{tier_label}[/bold]  "
-        f"[dim]|[/dim]  {llm_name}  "
-        f"[dim]({backend_label})[/dim]",
+        f"[structure]|[/structure]  {llm_name}  "
+        f"[structure]({backend_label})[/structure]",
     ]
 
     if chunk_count is not None:
         info_lines.append(
             f"  Index   [bold]{chunk_count:,}[/bold] chunks  "
-            f"[dim]|[/dim]  {doc_count:,} documents"
+            f"[structure]|[/structure]  {doc_count:,} documents"
         )
     else:
         info_lines.append(
-            "  Index   [dim]none — run [bold]/ingest PATH[/bold] to add documents[/dim]"
+            "  Index   [structure]none — run [/structure][accent_bold]/ingest PATH[/accent_bold][structure] to add documents[/structure]"
         )
 
     info_lines += [
-        f"  Dir     [dim]{cwd}[/dim]",
+        f"  Dir     [structure]{cwd}[/structure]",
         "",
     ]
 
     # Cache warning — shown when query caching is enabled
     if getattr(config.storage, "query_cache_enabled", False):
         info_lines.append(
-            "  [yellow]Query caching ON[/yellow] — queries stored at "
-            f"[dim]{config.db_root}/query_cache.sqlite[/dim]"
+            "  [warning]Query caching ON[/warning] — queries stored at "
+            f"[structure]{config.db_root}/query_cache.sqlite[/structure]"
         )
         info_lines.append("")
 
@@ -114,19 +114,19 @@ def _render_welcome(config: RAGConfig, session: Session) -> None:
         truncated = (session.last_query[:60] + "…") if len(session.last_query) > 60 else session.last_query
         info_lines += [
             f"  Resuming previous session — "
-            f"[bold]{session.turn_count}[/bold] exchange"
+            f"[accent_bold]{session.turn_count}[/accent_bold] exchange"
             f"{'s' if session.turn_count != 1 else ''}",
-            f"  Last: [italic dim]\"{truncated}\"[/italic dim]",
-            "  Type [bold]/new[/bold] to start fresh.",
+            f"  Last: [italic structure]\"{truncated}\"[/italic structure]",
+            "  Type [accent_bold]/new[/accent_bold] to start fresh.",
         ]
     else:
         info_lines += [
-            "  [dim]No previous session.[/dim]",
-            "  Type [bold]/help[/bold] to see available commands.",
+            "  [structure]No previous session.[/structure]",
+            "  Type [accent_bold]/help[/accent_bold] to see available commands.",
         ]
 
     body = "\n".join(info_lines)
-    console.print(Panel(body, border_style="dim white", padding=(1, 2)))
+    console.print(Panel(body, border_style="structure", padding=(1, 2)))
     console.print()
 
 
@@ -159,17 +159,17 @@ def _handle_slash_command(raw: str, session: Session, config: RAGConfig) -> None
     handler = get_command(command_name)
     if handler is None:
         console.print(
-            f"[red]Unknown command:[/red] {command_name}. "
-            f"Type [bold]/help[/bold] for available commands."
+            f"[error]Unknown command:[/error] {command_name}. "
+            f"Type [accent_bold]/help[/accent_bold] for available commands."
         )
         return
 
     try:
         handler(args=args, session=session, config=config, console=console)
     except KeyboardInterrupt:
-        console.print("\n[dim]Command interrupted.[/dim]")
+        console.print("\n[structure]Command interrupted.[/structure]")
     except Exception as exc:
-        console.print(f"[red]Command error:[/red] {exc}")
+        console.print(f"[error]Command error:[/error] {exc}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -202,9 +202,9 @@ def _handle_query(raw: str, session: Session, config: RAGConfig) -> None:
         from rag.pipeline import QueryPipeline
     except ImportError:
         console.print(
-            "[yellow]Pipeline not yet implemented.[/yellow] "
+            "[warning]Pipeline not yet implemented.[/warning] "
             "Complete Phase 1 to enable query functionality.\n"
-            "Run [bold]/ingest PATH[/bold] once the pipeline is ready."
+            "Run [accent_bold]/ingest PATH[/accent_bold] once the pipeline is ready."
         )
         return
 
@@ -228,9 +228,9 @@ def _handle_query(raw: str, session: Session, config: RAGConfig) -> None:
 
     except KeyboardInterrupt:
         console.print()
-        console.print("[dim]Generation interrupted.[/dim]")
+        console.print("[structure]Generation interrupted.[/structure]")
     except Exception as exc:
-        console.print(f"[red]Error:[/red] {exc}")
+        console.print(f"[error]Error:[/error] {exc}")
 
 
 def _parse_query_modifiers(raw: str) -> tuple[str, dict]:
@@ -291,7 +291,7 @@ def _interactive_mode(no_prewarm: bool = False) -> None:
             from rag.warmup import prewarm_models
             prewarm_models(config, console=console)
         except Exception as exc:
-            console.print(f"[yellow]Pre-warm skipped:[/yellow] {exc}")
+            console.print(f"[warning]Pre-warm skipped:[/warning] {exc}")
 
     # Auto-calibrate threshold (will fast-path return if already done or index empty)
     from rag.retrieval.calibrate import calibrate_threshold
@@ -340,7 +340,12 @@ def _interactive_mode(no_prewarm: bool = False) -> None:
         tier = config.resolved_tier
         backend = getattr(config.hardware, "backend", "cpu").upper()
         model = Path(config.models.llm_path).stem
-        return HTML(f' <b>Workspace:</b> {workspace}  |  <b>Model:</b> {model}  |  <b>HW:</b> {tier} ({backend}) ')
+        
+        return HTML(
+            f' <style fg="#6b7280">Workspace:</style> <style fg="#818cf8">{workspace}</style>  <style fg="#6b7280">|</style>  '
+            f'<style fg="#6b7280">Model:</style> <style fg="#818cf8">{model}</style>  <style fg="#6b7280">|</style>  '
+            f'<style fg="#6b7280">HW:</style> <style fg="#818cf8">{tier}</style> <style fg="#6b7280">({backend})</style> '
+        )
 
     prompt_session: PromptSession = PromptSession(
         history=InMemoryHistory(),
@@ -353,12 +358,12 @@ def _interactive_mode(no_prewarm: bool = False) -> None:
     # ── REPL loop ─────────────────────────────────────────────────────────────
     while True:
         try:
-            raw = prompt_session.prompt(HTML("<ansiblue>motif</ansiblue> <bold>&gt;</bold> "))
+            raw = prompt_session.prompt(HTML('<style fg="#818cf8">❯</style> '))
         except KeyboardInterrupt:
             # Ctrl+C at the prompt — save history and exit
-            console.print("\n[dim]Saving session…[/dim]")
+            console.print("\n[structure]Saving session…[/structure]")
             session.save()
-            console.print("[dim]Goodbye.[/dim]")
+            console.print("[structure]Goodbye.[/structure]")
             break
         except EOFError:
             # Ctrl+D
@@ -372,7 +377,7 @@ def _interactive_mode(no_prewarm: bool = False) -> None:
 
         if raw.lower() in ("exit", "quit"):
             session.save()
-            console.print("[dim]Session saved. Goodbye.[/dim]")
+            console.print("[structure]Session saved. Goodbye.[/structure]")
             break
 
         if raw.startswith("/"):
@@ -401,7 +406,7 @@ def _one_shot_mode(argv: list[str]) -> None:
 
     if subcommand == "ask":
         if not args:
-            console.print("[red]Usage:[/red] motif ask \"your question\"")
+            console.print("[error]Usage:[/error] motif ask \"your question\"")
             sys.exit(1)
         query = " ".join(args)
         _handle_query(query, session, config)
@@ -412,9 +417,9 @@ def _one_shot_mode(argv: list[str]) -> None:
         _handle_slash_command(f"{slash} {' '.join(args)}", session, config)
 
     else:
-        console.print(f"[red]Unknown subcommand:[/red] {subcommand}")
-        console.print("Run [bold]motif[/bold] (no arguments) to start the interactive session.")
-        console.print("Run [bold]motif /help[/bold] to see all commands.")
+        console.print(f"[error]Unknown subcommand:[/error] {subcommand}")
+        console.print("Run [accent_bold]motif[/accent_bold] (no arguments) to start the interactive session.")
+        console.print("Run [accent_bold]motif /help[/accent_bold] to see all commands.")
         sys.exit(1)
 
 

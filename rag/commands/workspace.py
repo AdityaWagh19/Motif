@@ -18,7 +18,7 @@ def handle_workspace(args, session, config, console) -> None:
         /workspace delete <name>
     """
     if not args:
-        console.print("[red]Usage:[/red] /workspace list | new <name> | switch <name> | delete <name>")
+        console.print("[error]Usage:[/error] /workspace list | new <name> | switch <name> | delete <name>")
         return
 
     subcmd = args[0].lower()
@@ -43,13 +43,13 @@ def handle_workspace(args, session, config, console) -> None:
         
     elif subcmd == "new":
         if len(args) < 2:
-            console.print("[red]Usage:[/red] /workspace new <name>")
+            console.print("[error]Usage:[/error] /workspace new <name>")
             return
         name = args[1]
         
         new_path = base_dir / name
         if new_path.exists():
-            console.print(f"[red]Workspace '{name}' already exists.[/red]")
+            console.print(f"[error]Workspace '{name}' already exists.[/error]")
             return
             
         new_path.mkdir(parents=True)
@@ -58,17 +58,17 @@ def handle_workspace(args, session, config, console) -> None:
         
         # Flush session state for safety
         session.flush_cache()
-        console.print(f"[green]Created and switched to workspace '{name}'.[/green]")
+        console.print(f"[success]Created and switched to workspace '{name}'.[/success]")
         
     elif subcmd == "switch":
         if len(args) < 2:
-            console.print("[red]Usage:[/red] /workspace switch <name>")
+            console.print("[error]Usage:[/error] /workspace switch <name>")
             return
         name = args[1]
         
         new_path = base_dir / name
         if not new_path.exists():
-            console.print(f"[red]Workspace '{name}' does not exist.[/red]")
+            console.print(f"[error]Workspace '{name}' does not exist.[/error]")
             return
             
         config.storage.workspace = name
@@ -76,30 +76,30 @@ def handle_workspace(args, session, config, console) -> None:
         
         # Flush session state
         session.flush_cache()
-        console.print(f"[green]Switched to workspace '{name}'.[/green]")
+        console.print(f"[success]Switched to workspace '{name}'.[/success]")
         
     elif subcmd == "delete":
         if len(args) < 2:
-            console.print("[red]Usage:[/red] /workspace delete <name>")
+            console.print("[error]Usage:[/error] /workspace delete <name>")
             return
         name = args[1]
         
         if name == config.storage.workspace:
-            console.print("[red]Cannot delete active workspace.[/red] Switch first.")
+            console.print("[error]Cannot delete active workspace.[/error] Switch first.")
             return
             
         if name == "default":
-            console.print("[red]Cannot delete the 'default' workspace.[/red]")
+            console.print("[error]Cannot delete the 'default' workspace.[/error]")
             return
             
         target = base_dir / name
         if not target.exists():
-            console.print(f"[red]Workspace '{name}' does not exist.[/red]")
+            console.print(f"[error]Workspace '{name}' does not exist.[/error]")
             return
             
         shutil.rmtree(target, ignore_errors=True)
-        console.print(f"[green]Deleted workspace '{name}'.[/green]")
+        console.print(f"[success]Deleted workspace '{name}'.[/success]")
         
     else:
-        console.print(f"[red]Unknown subcommand: {subcmd}[/red]")
-        console.print("[red]Usage:[/red] /workspace list | new <name> | switch <name> | delete <name>")
+        console.print(f"[error]Unknown subcommand: {subcmd}[/error]")
+        console.print("[error]Usage:[/error] /workspace list | new <name> | switch <name> | delete <name>")

@@ -109,8 +109,7 @@ class QueryPipeline:
         Returns:
             AnswerResult with text, citations, timing, and passage count.
         """
-        from rich.console import Console
-        console = Console()
+        from rag.theme import console
         t_start = time.monotonic()
         cfg = self._config
 
@@ -118,7 +117,7 @@ class QueryPipeline:
         try:
             embedder = get_model_manager().get_embedder(cfg)
         except FileNotFoundError as exc:
-            console.print(f"[red]Embedder not available:[/red] {exc}")
+            console.print(f"[error]Embedder not available:[/error] {exc}")
             return AnswerResult(
                 text=str(exc),
                 citations=[],
@@ -159,17 +158,17 @@ class QueryPipeline:
                 log.info("Cache HIT for query: %.60s", query)
                 if show_sources and cached.citations:
                     console.print()
-                    console.print("[dim](cached)[/dim]")
+                    console.print("[structure](cached)[/structure]")
                     console.print(cached.text)
-                    console.print("\n[dim]Sources:[/dim]")
+                    console.print("\n[structure]Sources:[/structure]")
                     for c in cached.citations:
-                        console.print(f"  [dim]{c.format()}[/dim]")
+                        console.print(f"  [structure]{c.format()}[/structure]")
                 return cached
 
         # ── 0b. Guard: index must be populated ────────────────────────────────
         if self._chunk_store.count() == 0:
             console.print(
-                "[yellow]No documents indexed.[/yellow] "
+                "[warning]No documents indexed.[/warning] "
                 "Run [bold]/ingest PATH[/bold] first."
             )
             return AnswerResult(
@@ -207,7 +206,7 @@ class QueryPipeline:
 
         if not candidates:
             console.print(
-                "[yellow]No relevant passages found for your query.[/yellow]"
+                "[warning]No relevant passages found for your query.[/warning]"
             )
             return AnswerResult(
                 text="I cannot find an answer to this in the available documents.",
@@ -242,7 +241,7 @@ class QueryPipeline:
             # Reranker model not downloaded — fall back to RRF scores
             log.warning("Reranker not available (%s) — using RRF scores.", exc)
             console.print(
-                f"[yellow]Reranker model not found.[/yellow] "
+                f"[warning]Reranker model not found.[/warning] "
                 f"Falling back to retrieval scores.\n"
                 f"Run [bold]motif setup[/bold] to download the reranker."
             )
@@ -253,8 +252,8 @@ class QueryPipeline:
         if not reranked:
             log.warning("No passages met the relevance threshold. Falling back to top RRF candidates.")
             console.print(
-                "[dim]No passages met the relevance threshold "
-                f"({threshold:.2f}). Falling back to retrieval scores.[/dim]"
+                "[structure]No passages met the relevance threshold "
+                f"({threshold:.2f}). Falling back to retrieval scores.[/structure]"
             )
             # Give the LLM a chance to extract information even if cross-encoder is pessimistic
             reranked = candidates[:top_k_rerank]
@@ -271,7 +270,7 @@ class QueryPipeline:
         try:
             llm = get_model_manager().get_llm(cfg)
         except FileNotFoundError as exc:
-            console.print(f"[red]LLM not available:[/red] {exc}")
+            console.print(f"[error]LLM not available:[/error] {exc}")
             return AnswerResult(
                 text=str(exc),
                 citations=[],
@@ -299,7 +298,7 @@ class QueryPipeline:
                     full_answer += token
                     live.update(Markdown(full_answer))
         except Exception as e:
-            console.print(f"[red]Error during generation: {e}[/red]")
+            console.print(f"[error]Error during generation: {e}[/error]")
 
         t_gen_ms = (time.monotonic() - t_gen_start) * 1000
 
@@ -308,9 +307,9 @@ class QueryPipeline:
 
         if show_sources and citations:
             console.print()
-            console.print("[dim]Sources:[/dim]")
+            console.print("[structure]Sources:[/structure]")
             for c in citations:
-                console.print(f"  [dim]{c.format()}[/dim]")
+                console.print(f"  [structure]{c.format()}[/structure]")
 
         t_total_ms = (time.monotonic() - t_start) * 1000
 
@@ -352,7 +351,7 @@ class QueryPipeline:
         try:
             llm = get_model_manager().get_llm(cfg)
         except FileNotFoundError as exc:
-            console.print(f"[red]LLM not available:[/red] {exc}")
+            console.print(f"[error]LLM not available:[/error] {exc}")
             return AnswerResult(text=str(exc), citations=[], passages_used=0)
             
         console.print()
@@ -367,7 +366,7 @@ class QueryPipeline:
                     full_answer += token
                     live.update(Markdown(full_answer))
         except Exception as e:
-            console.print(f"[red]Error during generation: {e}[/red]")
+            console.print(f"[error]Error during generation: {e}[/error]")
             
         t_gen_ms = (time.monotonic() - t_gen_start) * 1000
         t_total_ms = (time.monotonic() - start_time) * 1000

@@ -45,7 +45,7 @@ def handle_status(args, session, config, console) -> None:
         table.add_row("Chunks", f"{chunk_count:,}")
         table.add_row("BM25 indexed", str(bm25_count) if bm25_count is not None else "—")
     else:
-        table.add_row("Index", "[yellow]No index found — run /ingest to add documents[/yellow]")
+        table.add_row("Index", "[warning]No index found — run /ingest to add documents[/warning]")
 
     if index_size_mb is not None:
         table.add_row("Index size", f"{index_size_mb:.1f} MB")

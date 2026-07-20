@@ -22,7 +22,7 @@ def handle_remove(args, session, config, console) -> None:
         tracker.close()
         
         if not docs:
-            console.print("[dim]No documents are currently indexed.[/dim]")
+            console.print("[structure]No documents are currently indexed.[/structure]")
             return
             
         table = Table(box=box.SIMPLE, show_header=True)
@@ -31,7 +31,7 @@ def handle_remove(args, session, config, console) -> None:
             table.add_row(doc["filepath"])
         
         console.print(table)
-        console.print("\n[dim]Usage: /remove <substring of path>[/dim]")
+        console.print("\n[structure]Usage: /remove <substring of path>[/structure]")
         return
 
     query = args[0]
@@ -49,20 +49,20 @@ def handle_remove(args, session, config, console) -> None:
         if len(matches) == 1:
             target_path = Path(matches[0])
         elif len(matches) > 1:
-            console.print(f"[yellow]Ambiguous query '{query}'. Matches multiple documents:[/yellow]")
+            console.print(f"[warning]Ambiguous query '{query}'. Matches multiple documents:[/warning]")
             for m in matches:
                 console.print(f"  - {m}")
             return
         else:
-            console.print(f"[red]No indexed document matches '{query}'.[/red]")
+            console.print(f"[error]No indexed document matches '{query}'.[/error]")
             return
 
     try:
         from rag.ingestion import remove_document
         removed = remove_document(target_path, config=config)
-        console.print(f"[green]Removed[/green] {removed} chunks for [dim]{target_path.name}[/dim].")
+        console.print(f"[success]Removed[/success] {removed} chunks for [structure]{target_path.name}[/structure].")
     except ImportError:
         console.print(
-            f"[yellow]Remove not yet implemented[/yellow] (Phase 2).\n"
-            f"Target: [dim]{target_path}[/dim]"
+            f"[warning]Remove not yet implemented[/warning] (Phase 2).\n"
+            f"Target: [structure]{target_path}[/structure]"
         )

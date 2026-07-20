@@ -22,7 +22,7 @@ def handle_help(args, session, config, console) -> None:
     console.print(table)
 
     console.print(
-        "[dim]Query modifiers (append to any question):[/dim]\n"
+        "[structure]Query modifiers (append to any question):[/structure]\n"
         "  [cyan]/file FILENAME[/cyan]    Restrict to a specific document\n"
         "  [cyan]/type TYPE[/cyan]        Restrict to document type (pdf, md, audio, image)\n"
         "  [cyan]/pages MIN-MAX[/cyan]    Restrict to a page range\n"

@@ -23,7 +23,7 @@ def handle_sync(args, session, config, console) -> None:
     try:
         parsed = parser.parse_args(args)
     except SystemExit:
-        console.print("[red]Usage:[/red] /sync DIR [-r]")
+        console.print("[error]Usage:[/error] /sync DIR [-r]")
         return
 
     if not parsed.directory:
@@ -45,19 +45,19 @@ def handle_sync(args, session, config, console) -> None:
 
     target = Path(str(parsed.directory)).expanduser().resolve()  # type: ignore[attr-defined]
     if not target.is_dir():
-        console.print(f"[red]Not a directory:[/red] {target}")
+        console.print(f"[error]Not a directory:[/error] {target}")
         return
 
     try:
         from rag.ingestion import sync_directory
         result = sync_directory(target, config=config, recursive=parsed.recursive, console=console)
         console.print(
-            f"[green]Sync complete.[/green] "
+            f"[success]Sync complete.[/success] "
             f"Added: {result.added}  Removed: {result.removed}  Re-indexed: {result.reindexed}"
         )
     except ImportError:
         console.print(
-            f"[yellow]Sync not yet implemented[/yellow] (Phase 2).\n"
-            f"Target: [dim]{target}[/dim]  "
+            f"[warning]Sync not yet implemented[/warning] (Phase 2).\n"
+            f"Target: [structure]{target}[/structure]  "
             f"Recursive: {'yes' if parsed.recursive else 'no'}"
         )

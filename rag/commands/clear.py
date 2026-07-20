@@ -11,7 +11,7 @@ def handle_clear(args, session, config, console) -> None:
     count = session.turn_count
     session.clear()
     console.print(
-        f"[green]Cleared[/green] {count} exchange{'s' if count != 1 else ''} "
+        f"[success]Cleared[/success] {count} exchange{'s' if count != 1 else ''} "
         f"from conversation history."
     )
 
@@ -27,8 +27,8 @@ def handle_new(args, session, config, console) -> None:
     session.flush_cache()
     if archive_path:
         console.print(
-            f"[green]History archived[/green] to [dim]{archive_path.resolve()}[/dim].\n"
+            f"[success]History archived[/success] to [structure]{archive_path.resolve()}[/structure].\n"
             "Query cache flushed. Starting fresh session."
         )
     else:
-        console.print("[dim]No history to archive. Query cache flushed. Starting fresh session.[/dim]")
+        console.print("[structure]No history to archive. Query cache flushed. Starting fresh session.[/structure]")

@@ -25,7 +25,7 @@ def handle_setup(args, session, config, console) -> None:
     try:
         parsed = parser.parse_args(args)
     except SystemExit:
-        console.print("[red]Usage:[/red] /setup [--tier T1|T2|T3] [--captioning]")
+        console.print("[error]Usage:[/error] /setup [--tier T1|T2|T3] [--captioning]")
         return
 
     tier = parsed.tier or config.resolved_tier
@@ -40,7 +40,7 @@ def handle_setup(args, session, config, console) -> None:
             import setup_models
         except ImportError:
             console.print(
-                "[red]setup_models.py not found[/red].\n"
+                "[error]setup_models.py not found[/error].\n"
                 "Ensure you are running from the Motif root."
             )
             sys.path.pop(0)
@@ -52,12 +52,12 @@ def handle_setup(args, session, config, console) -> None:
     if parsed.captioning:
         sys.argv.append("--captioning")
 
-    console.print(f"[dim]Running model download for Tier {tier}…[/dim]\n")
+    console.print(f"[structure]Running model download for Tier {tier}…[/structure]\n")
     try:
         setup_models.main()
     except Exception as exc:
-        console.print(f"[red]Setup failed:[/red] {exc}")
+        console.print(f"[error]Setup failed:[/error] {exc}")
     except KeyboardInterrupt:
-        console.print("\n[dim]Setup interrupted.[/dim]")
+        console.print("\n[structure]Setup interrupted.[/structure]")
     finally:
         sys.argv = old_argv

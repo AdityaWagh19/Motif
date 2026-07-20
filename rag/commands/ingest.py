@@ -25,7 +25,7 @@ def handle_ingest(args, session, config, console) -> None:
     try:
         parsed = parser.parse_args(args)
     except SystemExit:
-        console.print("[red]Usage:[/red] /ingest PATH [-r]")
+        console.print("[error]Usage:[/error] /ingest PATH [-r]")
         return
 
     if not parsed.path:
@@ -47,12 +47,12 @@ def handle_ingest(args, session, config, console) -> None:
 
     target = Path(parsed.path).expanduser().resolve()  # type: ignore[union-attr]
     if not target.exists():
-        console.print(f"[red]Path not found:[/red] {target}")
+        console.print(f"[error]Path not found:[/error] {target}")
         return
 
     from rag.ingestion import ingest_path
 
-    console.print(f"\n[bold]Ingesting[/bold] {target}  recursive={parsed.recursive}\n")
+    console.print(f"\n[accent_bold]Ingesting[/accent_bold] {target}  recursive={parsed.recursive}\n")
 
     result = ingest_path(
         target,
@@ -62,12 +62,12 @@ def handle_ingest(args, session, config, console) -> None:
     )
 
     console.print(
-        f"\n[green]Done.[/green] "
-        f"Files: [bold]{result.files_processed}[/bold]  "
-        f"Chunks added: [bold]{result.chunks_added:,}[/bold]  "
-        f"Skipped (unchanged): [bold]{result.files_skipped}[/bold]"
+        f"\n[success]Done.[/success] "
+        f"Files: [accent_bold]{result.files_processed}[/accent_bold]  "
+        f"Chunks added: [accent_bold]{result.chunks_added:,}[/accent_bold]  "
+        f"Skipped (unchanged): [accent_bold]{result.files_skipped}[/accent_bold]"
     )
     if result.errors:
-        console.print(f"[yellow]Errors ({len(result.errors)}):[/yellow]")
+        console.print(f"[warning]Errors ({len(result.errors)}):[/warning]")
         for err in result.errors:
-            console.print(f"  [red]•[/red] {err}")
+            console.print(f"  [error]•[/error] {err}")
