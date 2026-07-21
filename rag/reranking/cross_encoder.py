@@ -59,7 +59,7 @@ def rerank(
     scores = reranker.score(query, texts)
     
     # Adaptive thresholding
-    ABSOLUTE_FLOOR = 0.0001
+    ABSOLUTE_FLOOR = 0.00001
     ADAPTIVE_RATIO = 0.5
     
     max_score = float(scores.max())
