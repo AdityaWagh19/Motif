@@ -99,20 +99,20 @@ def _render_welcome(config: RAGConfig, session: Session) -> None:
 
     cat_sleep = (
         "\n"
+        "  [accent]██[/accent]        [accent]██[/accent]\n"
         "  [accent]████████████[/accent]\n"
-        "[accent]██[/accent][accent]████████████[/accent][accent]██[/accent]\n"
-        "[accent]██[/accent][accent]████████████[/accent][accent]██[/accent]\n"
-        "  [accent]████████████[/accent]\n"
-        "  [accent]██[/accent]  [accent]██[/accent]  [accent]██[/accent]  [dim]zzz...[/dim]"
+        "[accent]████████████████[/accent]  [accent]██[/accent]\n"
+        "  [accent]████████████[/accent]    [accent]██[/accent]\n"
+        "  [accent]██[/accent]        [accent]████████[/accent]  [dim]zzz...[/dim]"
     )
 
     cat_awake = (
         "\n"
+        "  [accent]██[/accent]        [accent]██[/accent]\n"
         "  [accent]████████████[/accent]\n"
-        "[accent]██[/accent][accent]███[/accent][dim]██[/dim][accent]██[/accent][dim]██[/dim][accent]███[/accent][accent]██[/accent]\n"
-        "[accent]██[/accent][accent]████████████[/accent][accent]██[/accent]\n"
-        "  [accent]████████████[/accent]\n"
-        "  [accent]██[/accent]  [accent]██[/accent]  [accent]██[/accent]  [dim]\"Ready to search your local documents. Type /help for options.\"[/dim]"
+        "[accent]████[/accent][dim]██[/dim][accent]████[/accent][dim]██[/dim][accent]████[/accent]  [accent]██[/accent]\n"
+        "  [accent]████████████[/accent]    [accent]██[/accent]\n"
+        "  [accent]██[/accent]        [accent]████████[/accent]  [dim]\"Ready to search your local documents. Type /help for options.\"[/dim]"
     )
     
     info_lines.append(cat_sleep)
