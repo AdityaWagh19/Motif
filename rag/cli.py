@@ -97,18 +97,33 @@ def _render_welcome(config: RAGConfig, session: Session) -> None:
         truncated = (session.last_query[:50] + "…") if len(session.last_query) > 50 else session.last_query
         info_lines.append(f"  Session [accent_bold]{session.turn_count}[/accent_bold] turns [structure](Last: \"{truncated}\")[/structure]")
 
-    mochi_art = (
+    cat_sleep = (
         "\n"
-        "   [accent]▄▄████▄▄[/accent]\n"
-        "  [accent]██████████[/accent]\n"
-        "  [accent]██  ██  ██[/accent]  [dim]\"Ready to search your local documents. Type /help for options.\"[/dim]\n"
-        "  [accent]██████████[/accent]\n"
-        "   [accent]██    ██[/accent]"
+        "   [accent]██▄      ▄██[/accent]\n"
+        "   [accent]████████████[/accent]\n"
+        "   [accent]██ ▀▀  ▀▀ ██[/accent]  [dim]\"...\"[/dim]\n"
+        "   [accent]██   ▄▄   ██[/accent]\n"
+        "    [accent]▀████████▀[/accent]"
     )
-    info_lines.append(mochi_art)
 
-    body = "\n".join(info_lines)
-    console.print(Panel(body, border_style="structure", padding=(1, 2)))
+    cat_awake = (
+        "\n"
+        "   [accent]██▄      ▄██[/accent]\n"
+        "   [accent]████████████[/accent]\n"
+        "   [accent]██ ▄▄  ▄▄ ██[/accent]  [dim]\"Ready to search your local documents. Type /help for options.\"[/dim]\n"
+        "   [accent]██   ▀▀   ██[/accent]\n"
+        "    [accent]▀████████▀[/accent]"
+    )
+    
+    info_lines.append(cat_sleep)
+    
+    import time
+    from rich.live import Live
+    with Live(Panel("\n".join(info_lines), border_style="structure", padding=(1, 2)), console=console, refresh_per_second=10, transient=False) as live:
+        time.sleep(0.6)
+        info_lines[-1] = cat_awake
+        live.update(Panel("\n".join(info_lines), border_style="structure", padding=(1, 2)))
+        
     console.print()
 
 
