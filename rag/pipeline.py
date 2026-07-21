@@ -338,7 +338,14 @@ class QueryPipeline:
                         temperature=cfg.llm.temperature,
                     )
             import random
-            thinking_phrases = ["Thinking...", "Analyzing...", "Reading context...", "Understanding...", "Decoding..."]
+            thinking_phrases = [
+                "Thinking...", "Analyzing...", "Understanding...", "Decoding...", 
+                "Processing...", "Synthesizing...", "Evaluating...", "Investigating...",
+                "Computing...", "Reasoning...", "Pondering...", "Scanning...",
+                "Formulating...", "Correlating...", "Inferring...", "Exploring...",
+                "Reviewing...", "Interpreting...", "Comprehending...", "Extrapolating...",
+                "Parsing...", "Structuring...", "Resolving...", "Assembling...", "Distilling..."
+            ]
             phrase = random.choice(thinking_phrases)
 
             use_flare = getattr(cfg.retrieval, "use_flare", False)
@@ -473,7 +480,14 @@ class QueryPipeline:
         
         try:
             import random
-            thinking_phrases = ["Thinking...", "Analyzing...", "Reading context...", "Understanding...", "Decoding..."]
+            thinking_phrases = [
+                "Thinking...", "Analyzing...", "Understanding...", "Decoding...", 
+                "Processing...", "Synthesizing...", "Evaluating...", "Investigating...",
+                "Computing...", "Reasoning...", "Pondering...", "Scanning...",
+                "Formulating...", "Correlating...", "Inferring...", "Exploring...",
+                "Reviewing...", "Interpreting...", "Comprehending...", "Extrapolating...",
+                "Parsing...", "Structuring...", "Resolving...", "Assembling...", "Distilling..."
+            ]
             phrase = random.choice(thinking_phrases)
             
             stream_gen = llm.stream(prompt, max_tokens=cfg.llm.max_tokens, temperature=cfg.llm.temperature)
