@@ -361,7 +361,7 @@ def _interactive_mode(no_prewarm: bool = False) -> None:
     # ── REPL loop ─────────────────────────────────────────────────────────────
     while True:
         try:
-            raw = prompt_session.prompt(HTML('<style fg="#FF2E93" bold>motif ❯</style> '))
+            raw = prompt_session.prompt(HTML('<b><style fg="#FF2E93">motif ❯</style></b> '))
         except KeyboardInterrupt:
             # Ctrl+C at the prompt — save history and exit
             console.print("\n[structure]Saving session…[/structure]")
