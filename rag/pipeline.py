@@ -249,14 +249,15 @@ class QueryPipeline:
             reranked = candidates[:top_k_rerank]
 
         if not reranked:
-            log.warning("No passages met the relevance threshold. Falling back to top RRF candidates.")
-            console.print(
-                "[structure]No passages met the relevance threshold "
-                f"({threshold:.2f}). Falling back to retrieval scores.[/structure]"
+            from rag.generation.prompts import FALLBACK_PROMPT_NO_DOCS
+            return self._handle_llm_direct(
+                query, 
+                FALLBACK_PROMPT_NO_DOCS, 
+                cfg, 
+                console, 
+                t_start, 
+                retrieval_latency_ms=t_retrieval_ms
             )
-            # Give the LLM a chance to extract information even if cross-encoder is pessimistic
-            reranked = candidates[:top_k_rerank]
-
         # ── 5. Build context and prompt ────────────────────────────────────────
         history_context = self._get_history_context(history)
         prompt, passages_used = self._context_builder.build(
@@ -302,7 +303,17 @@ class QueryPipeline:
         t_gen_ms = (time.monotonic() - t_gen_start) * 1000
 
         # ── 7. Citations ───────────────────────────────────────────────────────
-        citations = build_citations(passages_used)
+        import re
+        all_citations = build_citations(passages_used)
+        
+        # Extract all numbers inside square brackets, e.g., "[1]", "[2]"
+        used_numbers = set(int(m) for m in re.findall(r'\[(\d+)\]', full_answer))
+        
+        # If the LLM declared it couldn't find an answer, explicitly wipe citations
+        if "I cannot find an answer to this" in full_answer:
+            used_numbers = set()
+            
+        citations = [c for c in all_citations if c.number in used_numbers]
 
         if show_sources and citations:
             console.print()
