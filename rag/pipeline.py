@@ -126,7 +126,7 @@ class QueryPipeline:
 
         if self._intent_classifier is None:
             from rag.intent import IntentClassifier
-            self._intent_classifier = IntentClassifier(embedder, threshold=cfg.retrieval.chitchat_threshold)
+            self._intent_classifier = IntentClassifier()
             
         from rag.intent import Intent
         intent = self._intent_classifier.classify(query)
@@ -213,10 +213,10 @@ class QueryPipeline:
         t_retrieval_ms = (time.monotonic() - t_retrieval_start) * 1000
 
         if not candidates:
-            from rag.generation.prompts import FALLBACK_PROMPT_NO_DOCS
+            from rag.generation.prompts import CHITCHAT_PROMPT
             return self._handle_llm_direct(
                 query, 
-                FALLBACK_PROMPT_NO_DOCS, 
+                CHITCHAT_PROMPT, 
                 cfg, 
                 console, 
                 t_start, 
@@ -258,10 +258,10 @@ class QueryPipeline:
 
         if not reranked:
             log.debug("No passages met the absolute relevance floor. Routing to fallback prompt.")
-            from rag.generation.prompts import FALLBACK_PROMPT_NO_DOCS
+            from rag.generation.prompts import CHITCHAT_PROMPT
             return self._handle_llm_direct(
                 query, 
-                FALLBACK_PROMPT_NO_DOCS, 
+                CHITCHAT_PROMPT, 
                 cfg, 
                 console, 
                 t_start, 
@@ -313,7 +313,11 @@ class QueryPipeline:
                     
                     def _flare_retrieve(flare_query: str) -> str:
                         try:
-                            c = retrieve(flare_query, cfg, top_k=top_k_retrieval, backend=bm25)
+                            q_vec, e_query = self._expander.expand(flare_query, cfg, embedder)
+                            d_res = self._vector_store.search_dense(q_vec, top_k=top_k_retrieval, filter_=filter_dict if filter_dict else None)
+                            b_res = self._bm25.search(e_query, top_k=top_k_retrieval)
+                            fused = rrf_fuse([d_res, b_res], top_k=top_k_retrieval)
+                            c = rrf_to_scored_passages(fused, self._chunk_store)
                             r = rerank(flare_query, c, cfg, top_k=top_k_rerank, threshold=threshold)
                             if getattr(cfg.retrieval, "use_parent_docs", False):
                                 for p in r:
@@ -341,10 +345,12 @@ class QueryPipeline:
                         temperature=cfg.llm.temperature,
                     )
                 
-                for i, token in enumerate(stream_gen):
+                for i, token_data in enumerate(stream_gen):
                     if i == 0:
                         ttft_ms = (time.monotonic() - t_gen_start) * 1000
-                    full_answer += token
+                    
+                    token_text = token_data[0] if isinstance(token_data, tuple) else token_data
+                    full_answer += token_text
                     live.update(Markdown(full_answer))
         except Exception as e:
             console.print(f"[error]Error during generation: {e}[/error]")
@@ -422,8 +428,9 @@ class QueryPipeline:
         
         try:
             with Live(Markdown(""), console=console, refresh_per_second=15, transient=False) as live:
-                for token in llm.stream(prompt, max_tokens=cfg.llm.max_tokens, temperature=cfg.llm.temperature):
-                    full_answer += token
+                for token_data in llm.stream(prompt, max_tokens=cfg.llm.max_tokens, temperature=cfg.llm.temperature):
+                    token_text = token_data[0] if isinstance(token_data, tuple) else token_data
+                    full_answer += token_text
                     live.update(Markdown(full_answer))
         except Exception as e:
             console.print(f"[error]Error during generation: {e}[/error]")

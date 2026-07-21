@@ -63,64 +63,48 @@ from rag.theme import console
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _render_welcome(config: RAGConfig, session: Session) -> None:
-    """Render the startup welcome panel with system info and session state."""
+    """Render the startup welcome panel with system info, Mochi mascot, and session state."""
 
     tier_label = config.resolved_tier
     backend_label = getattr(config.hardware, "backend", "cpu").upper()
     llm_name = Path(config.models.llm_path).stem
-    db_root = config.db_root
     cwd = Path.cwd()
 
     # Try to get index stats (returns None if no index yet)
     chunk_count, doc_count = _get_index_stats(config)
+    index_str = f"{chunk_count:,} chunks | {doc_count:,} docs" if chunk_count is not None else "0 docs (run /ingest)"
 
-    # Build info lines
+    logo_art = (
+        "[bold #FFB800]  ███╗   ███╗ ██████╗ ████████╗██╗███████╗[/bold #FFB800]\n"
+        "[bold #F59E0B]  ████╗ ████║██╔═══██╗╚══██╔══╝██║██╔════╝[/bold #F59E0B]\n"
+        "[bold #8A2BE2]  ██╔████╔██║██║   ██║   ██║   ██║███████╗[/bold #8A2BE2]\n"
+        "[bold #8A2BE2]  ██║╚██╔╝██║██║   ██║   ██║   ██║██╔════╝[/bold #8A2BE2]\n"
+        "[bold #00F0FF]  ██║ ╚═╝ ██║╚██████╔╝   ██║   ██║██║     [/bold #00F0FF]\n"
+        "[bold #00F0FF]  ╚═╝     ╚═╝ ╚═════╝    ╚═╝   ╚═╝╚═╝     [/bold #00F0FF]"
+    )
+
     info_lines: list[str] = [
-        f"[accent_bold]Motif[/accent_bold] [structure]v{__version__}[/structure]",
+        logo_art,
         "",
-        f"  Tier    [bold]{tier_label}[/bold]  "
-        f"[structure]|[/structure]  {llm_name}  "
-        f"[structure]({backend_label})[/structure]",
-    ]
-
-    if chunk_count is not None:
-        info_lines.append(
-            f"  Index   [bold]{chunk_count:,}[/bold] chunks  "
-            f"[structure]|[/structure]  {doc_count:,} documents"
-        )
-    else:
-        info_lines.append(
-            "  Index   [structure]none — run [/structure][accent_bold]/ingest PATH[/accent_bold][structure] to add documents[/structure]"
-        )
-
-    info_lines += [
+        f"  [brand_gold]Mochi[/brand_gold] [structure]v{__version__}[/structure]  [structure]|[/structure]  Local RAG AI Assistant",
+        f"  Tier    [bold]{tier_label}[/bold]  [structure]|[/structure]  {llm_name}  [structure]({backend_label})[/structure]",
+        f"  Index   [bold]{index_str}[/bold]",
         f"  Dir     [structure]{cwd}[/structure]",
-        "",
     ]
-
-    # Cache warning — shown when query caching is enabled
-    if getattr(config.storage, "query_cache_enabled", False):
-        info_lines.append(
-            "  [warning]Query caching ON[/warning] — queries stored at "
-            f"[structure]{config.db_root}/query_cache.sqlite[/structure]"
-        )
-        info_lines.append("")
 
     # Session history state
     if session.turn_count > 0 and session.last_query:
-        truncated = (session.last_query[:60] + "…") if len(session.last_query) > 60 else session.last_query
-        info_lines += [
-            f"  Resuming previous session — "
-            f"[accent_bold]{session.turn_count}[/accent_bold] exchange"
-            f"{'s' if session.turn_count != 1 else ''}",
-            f"  Last: [italic structure]\"{truncated}\"[/italic structure]",
-            "  Type [accent_bold]/new[/accent_bold] to start fresh.",
-        ]
-    else:
-        info_lines += [
-            "  [structure]No previous session.[/structure]",
-            "  Type [accent_bold]/help[/accent_bold] to see available commands.",
-        ]
+        truncated = (session.last_query[:50] + "…") if len(session.last_query) > 50 else session.last_query
+        info_lines.append(f"  Session [accent_bold]{session.turn_count}[/accent_bold] turns [structure](Last: \"{truncated}\")[/structure]")
+
+    mochi_art = (
+        "\n"
+        "   [brand_gold]/ \\ [/brand_gold]\n"
+        "  [brand_cyan]/ o \\ [/brand_cyan]  [dim]\"Ready to search your local documents. Type /help for options.\"[/dim]\n"
+        "  [accent_bold]\\ _ /[/accent_bold]\n"
+        "   [accent]\\ /[/accent]"
+    )
+    info_lines.append(mochi_art)
 
     body = "\n".join(info_lines)
     console.print(Panel(body, border_style="structure", padding=(1, 2)))
