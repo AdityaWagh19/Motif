@@ -337,18 +337,63 @@ class QueryPipeline:
                         max_tokens=cfg.llm.max_tokens,
                         temperature=cfg.llm.temperature,
                     )
-                    stream_gen = controller.stream()
-                else:
-                    stream_gen = llm.stream(
-                        prompt,
-                        max_tokens=cfg.llm.max_tokens,
-                        temperature=cfg.llm.temperature,
-                    )
+            import random
+            thinking_phrases = ["Thinking...", "Analyzing...", "Reading context...", "Understanding...", "Decoding..."]
+            phrase = random.choice(thinking_phrases)
+
+            use_flare = getattr(cfg.retrieval, "use_flare", False)
+            if use_flare:
+                from rag.generation.flare import FlareController
                 
-                for i, token_data in enumerate(stream_gen):
-                    if i == 0:
-                        ttft_ms = (time.monotonic() - t_gen_start) * 1000
+                def _flare_retrieve(flare_query: str) -> str:
+                    try:
+                        q_vec, e_query = self._expander.expand(flare_query, cfg, embedder)
+                        d_res = self._vector_store.search_dense(q_vec, top_k=top_k_retrieval, filter_=filter_dict if filter_dict else None)
+                        b_res = self._bm25.search(e_query, top_k=top_k_retrieval)
+                        fused = rrf_fuse([d_res, b_res], top_k=top_k_retrieval)
+                        c = rrf_to_scored_passages(fused, self._chunk_store)
+                        r = rerank(flare_query, c, cfg, top_k=top_k_rerank, threshold=threshold)
+                        if getattr(cfg.retrieval, "use_parent_docs", False):
+                            for p in r:
+                                if p.chunk.parent_id:
+                                    parent_chunk = self._chunk_store.fetch_parent(p.chunk)
+                                    if parent_chunk:
+                                        p.chunk = parent_chunk
+                        return "\n\n".join(f"---\n{p.chunk.text}" for p in r)
+                    except Exception as e:
+                        log.warning("FLARE retrieval failed: %s", e)
+                        return ""
+                        
+                controller = FlareController(
+                    llm=llm,
+                    base_prompt=prompt,
+                    retrieve_fn=_flare_retrieve,
+                    max_tokens=cfg.llm.max_tokens,
+                    temperature=cfg.llm.temperature,
+                )
+                stream_gen = controller.stream()
+            else:
+                stream_gen = llm.stream(
+                    prompt,
+                    max_tokens=cfg.llm.max_tokens,
+                    temperature=cfg.llm.temperature,
+                )
+
+            first_token_data = None
+            try:
+                with console.status(f"[accent]{phrase}[/accent]", spinner="dots"):
+                    first_token_data = next(stream_gen)
+            except StopIteration:
+                pass
+                
+            with Live(Markdown(""), console=console, refresh_per_second=15, transient=False) as live:
+                if first_token_data is not None:
+                    ttft_ms = (time.monotonic() - t_gen_start) * 1000
+                    token_text = first_token_data[0] if isinstance(first_token_data, tuple) else first_token_data
+                    full_answer += token_text
+                    live.update(Markdown(full_answer))
                     
+                for token_data in stream_gen:
                     token_text = token_data[0] if isinstance(token_data, tuple) else token_data
                     full_answer += token_text
                     live.update(Markdown(full_answer))
@@ -427,8 +472,26 @@ class QueryPipeline:
         from rich.markdown import Markdown
         
         try:
+            import random
+            thinking_phrases = ["Thinking...", "Analyzing...", "Reading context...", "Understanding...", "Decoding..."]
+            phrase = random.choice(thinking_phrases)
+            
+            stream_gen = llm.stream(prompt, max_tokens=cfg.llm.max_tokens, temperature=cfg.llm.temperature)
+            
+            first_token_data = None
+            try:
+                with console.status(f"[accent]{phrase}[/accent]", spinner="dots"):
+                    first_token_data = next(stream_gen)
+            except StopIteration:
+                pass
+                
             with Live(Markdown(""), console=console, refresh_per_second=15, transient=False) as live:
-                for token_data in llm.stream(prompt, max_tokens=cfg.llm.max_tokens, temperature=cfg.llm.temperature):
+                if first_token_data is not None:
+                    token_text = first_token_data[0] if isinstance(first_token_data, tuple) else first_token_data
+                    full_answer += token_text
+                    live.update(Markdown(full_answer))
+                    
+                for token_data in stream_gen:
                     token_text = token_data[0] if isinstance(token_data, tuple) else token_data
                     full_answer += token_text
                     live.update(Markdown(full_answer))

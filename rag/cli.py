@@ -99,10 +99,11 @@ def _render_welcome(config: RAGConfig, session: Session) -> None:
 
     mochi_art = (
         "\n"
-        "   [accent]/ \\ [/accent]\n"
-        "  [accent_bold]/ o \\ [/accent_bold]  [dim]\"Ready to search your local documents. Type /help for options.\"[/dim]\n"
-        "  [accent_bold]\\ _ /[/accent_bold]\n"
-        "   [accent]\\ /[/accent]"
+        "   [accent]▄▄████▄▄[/accent]\n"
+        "  [accent]██████████[/accent]\n"
+        "  [accent]██  ██  ██[/accent]  [dim]\"Ready to search your local documents. Type /help for options.\"[/dim]\n"
+        "  [accent]██████████[/accent]\n"
+        "   [accent]██    ██[/accent]"
     )
     info_lines.append(mochi_art)
 
@@ -322,9 +323,9 @@ def _interactive_mode(no_prewarm: bool = False) -> None:
         model = Path(config.models.llm_path).stem
         
         return HTML(
-            f' <style fg="#6b7280">Workspace:</style> <style fg="#818cf8">{workspace}</style>  <style fg="#6b7280">|</style>  '
-            f'<style fg="#6b7280">Model:</style> <style fg="#818cf8">{model}</style>  <style fg="#6b7280">|</style>  '
-            f'<style fg="#6b7280">HW:</style> <style fg="#818cf8">{tier}</style> <style fg="#6b7280">({backend})</style> '
+            f' <style fg="#6b7280">Workspace:</style> <style fg="#00E5FF">{workspace}</style>  <style fg="#6b7280">|</style>  '
+            f'<style fg="#6b7280">Model:</style> <style fg="#00E5FF">{model}</style>  <style fg="#6b7280">|</style>  '
+            f'<style fg="#6b7280">HW:</style> <style fg="#00E5FF">{tier}</style> <style fg="#6b7280">({backend})</style> '
         )
 
     custom_style = Style.from_dict({
@@ -343,7 +344,7 @@ def _interactive_mode(no_prewarm: bool = False) -> None:
     # ── REPL loop ─────────────────────────────────────────────────────────────
     while True:
         try:
-            raw = prompt_session.prompt(HTML('<style fg="#818cf8">motif ❯</style> '))
+            raw = prompt_session.prompt(HTML('<style fg="#00E5FF">motif ❯</style> '))
         except KeyboardInterrupt:
             # Ctrl+C at the prompt — save history and exit
             console.print("\n[structure]Saving session…[/structure]")
