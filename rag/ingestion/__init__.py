@@ -314,7 +314,14 @@ def ingest_path(
     if getattr(config.retrieval, "use_raptor", False) and files_processed > 0:
         from rag.ingestion.raptor import build_raptor_summaries
         try:
-            build_raptor_summaries(config, console)
+            build_raptor_summaries(
+                config, 
+                console,
+                chunk_store=chunk_store,
+                bm25=bm25,
+                vector_store=vector_store,
+                embedder=embedder
+            )
         except Exception as exc:
             log.exception("RAPTOR indexing failed")
             if console:
