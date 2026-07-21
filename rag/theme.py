@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.theme import Theme
 
 # Hex color definitions (Motif Monochrome/Cyan Palette)
-MOTIF_PRIMARY = "#00E5FF"   # Electric Cyan
+MOTIF_PRIMARY = "#FF2E93"   # Neon Pink
 STRUCTURAL_GRAY = "#6b7280"
 WARNING_YELLOW = "#f59e0b"
 ERROR_RED = "#ef4444"
