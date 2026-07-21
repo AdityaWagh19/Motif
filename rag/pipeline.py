@@ -176,8 +176,17 @@ class QueryPipeline:
                 t_start
             )
 
-        # ── 1. Expand query → embedding ──────────────────────────────────────────────
-        query_vector, effective_query = self._expander.expand(query, cfg, embedder)
+        # ── 1. Rewrite query ─────────────────────────────────────────────────────────
+        try:
+            llm = get_model_manager().get_llm(cfg)
+            from rag.generation.query_rewriter import rewrite_query
+            search_query = rewrite_query(query, llm)
+        except Exception as exc:
+            log.warning("LLM not available for query rewrite (%s).", exc)
+            search_query = query
+
+        # ── 1b. Expand query → embedding ──────────────────────────────────────────────
+        query_vector, effective_query = self._expander.expand(search_query, cfg, embedder)
 
         # ── 2. Retrieve ────────────────────────────────────────────────────────
         t_retrieval_start = time.monotonic()
@@ -230,7 +239,7 @@ class QueryPipeline:
 
         try:
             reranked = rerank(
-                query,
+                search_query,
                 candidates,
                 cfg,
                 top_k=top_k_rerank,
