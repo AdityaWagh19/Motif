@@ -75,18 +75,18 @@ def _render_welcome(config: RAGConfig, session: Session) -> None:
     index_str = f"{chunk_count:,} chunks | {doc_count:,} docs" if chunk_count is not None else "0 docs (run /ingest)"
 
     logo_art = (
-        "[bold #FFB800]  ███╗   ███╗ ██████╗ ████████╗██╗███████╗[/bold #FFB800]\n"
-        "[bold #F59E0B]  ████╗ ████║██╔═══██╗╚══██╔══╝██║██╔════╝[/bold #F59E0B]\n"
-        "[bold #8A2BE2]  ██╔████╔██║██║   ██║   ██║   ██║███████╗[/bold #8A2BE2]\n"
-        "[bold #8A2BE2]  ██║╚██╔╝██║██║   ██║   ██║   ██║██╔════╝[/bold #8A2BE2]\n"
-        "[bold #00F0FF]  ██║ ╚═╝ ██║╚██████╔╝   ██║   ██║██║     [/bold #00F0FF]\n"
-        "[bold #00F0FF]  ╚═╝     ╚═╝ ╚═════╝    ╚═╝   ╚═╝╚═╝     [/bold #00F0FF]"
+        "[accent_bold]  ███╗   ███╗ ██████╗ ████████╗██╗███████╗[/accent_bold]\n"
+        "[accent_bold]  ████╗ ████║██╔═══██╗╚══██╔══╝██║██╔════╝[/accent_bold]\n"
+        "[accent_bold]  ██╔████╔██║██║   ██║   ██║   ██║███████╗[/accent_bold]\n"
+        "[accent_bold]  ██║╚██╔╝██║██║   ██║   ██║   ██║██╔════╝[/accent_bold]\n"
+        "[accent_bold]  ██║ ╚═╝ ██║╚██████╔╝   ██║   ██║██║     [/accent_bold]\n"
+        "[accent_bold]  ╚═╝     ╚═╝ ╚═════╝    ╚═╝   ╚═╝╚═╝     [/accent_bold]"
     )
 
     info_lines: list[str] = [
         logo_art,
         "",
-        f"  [brand_gold]Mochi[/brand_gold] [structure]v{__version__}[/structure]  [structure]|[/structure]  Local RAG AI Assistant",
+        f"  [accent_bold]Mochi[/accent_bold] [structure]v{__version__}[/structure]  [structure]|[/structure]  Local RAG AI Assistant",
         f"  Tier    [bold]{tier_label}[/bold]  [structure]|[/structure]  {llm_name}  [structure]({backend_label})[/structure]",
         f"  Index   [bold]{index_str}[/bold]",
         f"  Dir     [structure]{cwd}[/structure]",
@@ -99,8 +99,8 @@ def _render_welcome(config: RAGConfig, session: Session) -> None:
 
     mochi_art = (
         "\n"
-        "   [brand_gold]/ \\ [/brand_gold]\n"
-        "  [brand_cyan]/ o \\ [/brand_cyan]  [dim]\"Ready to search your local documents. Type /help for options.\"[/dim]\n"
+        "   [accent]/ \\ [/accent]\n"
+        "  [accent_bold]/ o \\ [/accent_bold]  [dim]\"Ready to search your local documents. Type /help for options.\"[/dim]\n"
         "  [accent_bold]\\ _ /[/accent_bold]\n"
         "   [accent]\\ /[/accent]"
     )

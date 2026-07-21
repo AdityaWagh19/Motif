@@ -7,24 +7,21 @@ Colors map to a modern, minimalist premium aesthetic using Motif Indigo.
 from rich.console import Console
 from rich.theme import Theme
 
-# Hex color definitions (Cyber Sunset Palette)
-MOTIF_PURPLE = "#8A2BE2"  # Radiant Violet
-MOTIF_GOLD = "#FFB800"    # Solar Gold
-MOTIF_CYAN = "#00F0FF"    # Electric Cyan
-MOTIF_GREEN = "#00FF87"   # Neon Emerald
+# Hex color definitions (Motif Monochrome/Cyan Palette)
+MOTIF_PRIMARY = "#00E5FF"   # Electric Cyan
 STRUCTURAL_GRAY = "#6b7280"
 WARNING_YELLOW = "#f59e0b"
 ERROR_RED = "#ef4444"
 
 # Define semantic theme mapping
 motif_theme = Theme({
-    "accent": MOTIF_PURPLE,
-    "accent_bold": f"bold {MOTIF_PURPLE}",
-    "brand_gold": f"bold {MOTIF_GOLD}",
-    "brand_cyan": f"bold {MOTIF_CYAN}",
-    "brand_green": f"bold {MOTIF_GREEN}",
+    "accent": MOTIF_PRIMARY,
+    "accent_bold": f"bold {MOTIF_PRIMARY}",
+    "brand_gold": f"bold {MOTIF_PRIMARY}",
+    "brand_cyan": f"bold {MOTIF_PRIMARY}",
+    "brand_green": f"bold {MOTIF_PRIMARY}",
     "structure": STRUCTURAL_GRAY,
-    "success": MOTIF_GREEN,
+    "success": MOTIF_PRIMARY,
     "warning": WARNING_YELLOW,
     "error": ERROR_RED,
     "dim": "dim", # Fallback for pure dimming without explicit gray
@@ -40,7 +37,7 @@ motif_theme = Theme({
     "markdown.h3": "bold default",
     "markdown.h4": "bold default",
     "markdown.h5": "bold default",
-    "markdown.link": f"underline {MOTIF_CYAN}",
+    "markdown.link": f"underline {MOTIF_PRIMARY}",
     "markdown.link_url": f"dim underline {STRUCTURAL_GRAY}",
     "markdown.table.border": STRUCTURAL_GRAY,
     "markdown.table.header": "bold default",
