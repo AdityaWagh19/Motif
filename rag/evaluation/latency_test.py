@@ -13,12 +13,12 @@ Usage (CLI):
 """
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import time
-import argparse
 from pathlib import Path
-from typing import List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rag.config import RAGConfig
@@ -27,8 +27,8 @@ log = logging.getLogger(__name__)
 
 
 def run_latency_test(
-    questions: List[str],
-    config: "RAGConfig",
+    questions: list[str],
+    config: RAGConfig,
     warmup: int = 2,
 ) -> dict:
     """
@@ -60,7 +60,7 @@ def run_latency_test(
         raise ValueError("questions list must not be empty")
 
     pipeline = QueryPipeline(config)
-    latencies: List[float] = []
+    latencies: list[float] = []
 
     all_questions = list(questions[:warmup]) + list(questions)
     log.info(
@@ -107,7 +107,7 @@ def measure_latency(dataset_path: Path, num_queries: int = 50) -> None:
         log.error("Dataset not found at %s. Run test_generator.py first.", dataset_path)
         return
 
-    with open(str(dataset_path), "r", encoding="utf-8") as f:
+    with open(str(dataset_path), encoding="utf-8") as f:
         dataset = json.load(f)
 
     if not dataset:

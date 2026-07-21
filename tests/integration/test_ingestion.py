@@ -24,7 +24,6 @@ from rag.retrieval.vector_store import VectorStore
 from rag.storage.chunk_store import ChunkStore
 from rag.storage.ingestion_tracker import IngestionTracker
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rag.config import RAGConfig
@@ -150,7 +150,7 @@ class ChunkStore:
         store.close()
     """
 
-    def __init__(self, config: "RAGConfig") -> None:  # noqa: F821
+    def __init__(self, config: RAGConfig) -> None:  # noqa: F821
         db_path: Path = config.db_root / "chunks.db"
         db_path.parent.mkdir(parents=True, exist_ok=True)
         log.debug("Opening ChunkStore at %s", db_path)
@@ -165,7 +165,7 @@ class ChunkStore:
         self._conn.execute(_CREATE_INDEX_CONTENT_HASH)
         self._conn.commit()
 
-    def __enter__(self) -> "ChunkStore":
+    def __enter__(self) -> ChunkStore:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -181,7 +181,7 @@ class ChunkStore:
         self._conn.execute(_INSERT, _chunk_to_row(chunk))
         self._conn.commit()
 
-    def insert_batch(self, chunks: List[Chunk]) -> None:
+    def insert_batch(self, chunks: list[Chunk]) -> None:
         """
         Insert a list of Chunks in a single transaction.
         Rolls back the entire transaction on any error.
@@ -202,7 +202,7 @@ class ChunkStore:
     # Reads
     # ------------------------------------------------------------------
 
-    def fetch(self, chunk_id: str) -> Optional[Chunk]:
+    def fetch(self, chunk_id: str) -> Chunk | None:
         """Return the Chunk with the given id, or None if not found."""
         log.debug("ChunkStore.fetch id=%s", chunk_id)
         row = self._conn.execute(
@@ -210,7 +210,7 @@ class ChunkStore:
         ).fetchone()
         return _row_to_chunk(row) if row else None
 
-    def fetch_batch(self, chunk_ids: List[str]) -> List[Chunk]:
+    def fetch_batch(self, chunk_ids: list[str]) -> list[Chunk]:
         """
         Return all Chunks whose id is in chunk_ids.
         Order is not guaranteed. Missing ids are silently skipped.
@@ -224,7 +224,7 @@ class ChunkStore:
         ).fetchall()
         return [_row_to_chunk(r) for r in rows]
 
-    def fetch_by_source(self, source: str) -> List[Chunk]:
+    def fetch_by_source(self, source: str) -> list[Chunk]:
         """Return all Chunks whose source equals the given path string."""
         log.debug("ChunkStore.fetch_by_source source=%s", source)
         rows = self._conn.execute(
@@ -262,12 +262,12 @@ class ChunkStore:
             "SELECT COUNT(DISTINCT source) FROM chunks"
         ).fetchone()[0]
 
-    def list_ids(self) -> List[str]:
+    def list_ids(self) -> list[str]:
         """Return a list of all chunk IDs in the store."""
         rows = self._conn.execute("SELECT id FROM chunks").fetchall()
         return [r[0] for r in rows]
 
-    def list_sources(self) -> List[str]:
+    def list_sources(self) -> list[str]:
         """Return sorted list of distinct source paths. Used by /status and /sync."""
         rows = self._conn.execute(
             "SELECT DISTINCT source FROM chunks ORDER BY source"

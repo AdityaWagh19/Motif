@@ -24,7 +24,7 @@ import os
 import pickle
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 from rank_bm25 import BM25Okapi
@@ -58,12 +58,12 @@ class BM25Index:
         results = index.search("query", top_k=20)  # at query time
     """
 
-    def __init__(self, config: "RAGConfig") -> None:  # noqa: F821
+    def __init__(self, config: RAGConfig) -> None:  # noqa: F821
         self._index_path: Path = config.db_root / "bm25" / "index.pkl"
         self._tantivy_path: Path = config.db_root / "tantivy_index"
-        self._corpus_tokens: List[List[str]] = []
-        self._chunk_ids: List[str] = []
-        self._bm25: Optional[BM25Okapi] = None
+        self._corpus_tokens: list[list[str]] = []
+        self._chunk_ids: list[str] = []
+        self._bm25: BM25Okapi | None = None
         self._dirty: bool = False
         self._backend: Literal["rank_bm25", "tantivy"] = "rank_bm25"
         self._tantivy_index: object = None  # tantivy.Index when active
@@ -117,7 +117,7 @@ class BM25Index:
                 )
 
     @staticmethod
-    def _tokenize(text: str) -> List[str]:
+    def _tokenize(text: str) -> list[str]:
         """Tokenise text: lowercase, whitespace split. Consistent with query tokenization."""
         return text.lower().split()
 
@@ -181,7 +181,7 @@ class BM25Index:
         self._dirty = True
         self._rebuild_bm25()
 
-    def add_batch(self, chunks: List[Chunk]) -> None:
+    def add_batch(self, chunks: list[Chunk]) -> None:
         """
         Add a list of chunks to the index in one operation.
 
@@ -231,7 +231,7 @@ class BM25Index:
         self._rebuild_bm25()
         return True
 
-    def delete_by_source(self, source: str, chunk_ids: List[str]) -> int:
+    def delete_by_source(self, source: str, chunk_ids: list[str]) -> int:
         """
         Remove all chunks with the given ids from the index.
 
@@ -320,7 +320,7 @@ class BM25Index:
         self._backend = "tantivy"
         log.info("BM25 migration to tantivy complete.")
 
-    def _search_tantivy(self, query: str, top_k: int) -> List[Tuple[str, float]]:
+    def _search_tantivy(self, query: str, top_k: int) -> list[tuple[str, float]]:
         """Search using the tantivy in-memory index."""
         try:
             searcher = self._tantivy_index.searcher()  # type: ignore[union-attr]
@@ -338,7 +338,7 @@ class BM25Index:
     # Search
     # ------------------------------------------------------------------
 
-    def search(self, query: str, top_k: int = 20) -> List[Tuple[str, float]]:
+    def search(self, query: str, top_k: int = 20) -> list[tuple[str, float]]:
         """
         Search the index for the top-k most relevant chunks.
 
@@ -357,7 +357,7 @@ class BM25Index:
             return self._search_tantivy(query, top_k)
         return self._search_rank_bm25(query, top_k)
 
-    def _search_rank_bm25(self, query: str, top_k: int = 20) -> List[Tuple[str, float]]:
+    def _search_rank_bm25(self, query: str, top_k: int = 20) -> list[tuple[str, float]]:
         """rank_bm25 backend search implementation."""
         if self._bm25 is None or not self._chunk_ids:
             return []
@@ -369,7 +369,6 @@ class BM25Index:
         scores = self._bm25.get_scores(query_tokens)  # numpy array, length = corpus size
 
         # Get top_k indices by score (unsorted first, then sort)
-        import numpy as np
         n = len(scores)
         k = min(top_k, n)
 
@@ -403,7 +402,7 @@ class BM25Index:
         return len(self._chunk_ids)
 
     @classmethod
-    def count_from_disk(cls, config: "RAGConfig") -> int:
+    def count_from_disk(cls, config: RAGConfig) -> int:
         """
         Return the number of chunks by reading the index from disk.
         Does not load the BM25Okapi object into memory.

@@ -33,9 +33,8 @@ import json
 import math
 import sys
 import time
-from dataclasses import dataclass, asdict, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Optional
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent.resolve()
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -97,7 +96,7 @@ class QueryRetrievalResult:
     reciprocal_rank: float = 0.0
     ndcg: float = 0.0
     latency_ms: float = 0.0
-    error: Optional[str] = None
+    error: str | None = None
 
 
 @dataclass
@@ -152,8 +151,8 @@ def _retrieve(query: str, k: int, pipeline, embedder, config) -> tuple[list[Retr
     Run the retrieval-only path (no generation) and return (chunks, latency_ms).
     Uses the same retriever as the full pipeline but skips LLM.
     """
-    from rag.retrieval.fusion import rrf_fuse, rrf_to_scored_passages
     from rag.reranking.cross_encoder import rerank
+    from rag.retrieval.fusion import rrf_fuse, rrf_to_scored_passages
 
     t0 = time.monotonic()
 
@@ -280,8 +279,8 @@ def run_retrieval_benchmark(
     Returns:
         (per_query_results, summaries_per_k)
     """
-    from rag.pipeline import QueryPipeline
     from rag.models.model_manager import get_model_manager
+    from rag.pipeline import QueryPipeline
 
     pipeline = QueryPipeline(config)
     embedder = get_model_manager().get_embedder(config)
@@ -334,9 +333,9 @@ def run_retrieval_benchmark(
 
 
 def _print_summary_table(summaries: list[BenchmarkSummary], console=None) -> None:
-    from rich.table import Table
-    from rich.console import Console
     from rich import box as rbox
+    from rich.console import Console
+    from rich.table import Table
 
     if console is None:
         console = Console()
@@ -400,6 +399,7 @@ def main() -> None:
     args = parser.parse_args()
 
     from rich.console import Console
+
     from rag.config import load_config
     console = Console()
 

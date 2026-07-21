@@ -12,7 +12,7 @@ import json
 import logging
 import sqlite3
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rag.config import RAGConfig
@@ -25,12 +25,12 @@ QUESTION_PROMPT = (
 )
 
 def create_eval_dataset(
-    config: "RAGConfig",
+    config: RAGConfig,
     n: int = 50,
-    output_path: Optional[Path] = None,
-) -> List[dict]:
-    from rag.storage.chunk_store import ChunkStore
+    output_path: Path | None = None,
+) -> list[dict]:
     from rag.models.model_manager import get_model_manager
+    from rag.storage.chunk_store import ChunkStore
 
     store = ChunkStore(config)
     
@@ -83,8 +83,9 @@ def create_eval_dataset(
     return dataset
 
 if __name__ == "__main__":
-    from rag.config import load_config
     import argparse
+
+    from rag.config import load_config
     logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser()
     parser.add_argument("-n", type=int, default=20)

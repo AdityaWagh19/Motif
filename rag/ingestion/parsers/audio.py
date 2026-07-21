@@ -6,9 +6,9 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from pathlib import Path
-from typing import List, TYPE_CHECKING
 from contextlib import contextmanager
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from rag.ingestion.parsers.base import BaseParser, ParsedPage
 
@@ -43,10 +43,10 @@ class AudioParser(BaseParser):
     
     SUPPORTED_EXTENSIONS = [".mp3", ".wav", ".m4a", ".flac", ".ogg"]
 
-    def __init__(self, config: "RAGConfig") -> None:
+    def __init__(self, config: RAGConfig) -> None:
         self._config = config
 
-    def parse(self, path: Path) -> List[ParsedPage]:
+    def parse(self, path: Path) -> list[ParsedPage]:
         """
         Transcribe audio file using whisper.cpp.
 
@@ -88,7 +88,7 @@ class AudioParser(BaseParser):
             )
         return path
 
-    def _transcribe(self, audio_path: Path, model_path: Path) -> List[dict]:
+    def _transcribe(self, audio_path: Path, model_path: Path) -> list[dict]:
         """
         Run whisper.cpp transcription. Returns list of segment dicts:
         {"text": str, "start": float, "end": float}
@@ -110,7 +110,7 @@ class AudioParser(BaseParser):
             if seg.text.strip()
         ]
 
-    def _group_segments(self, segments: List[dict]) -> List[ParsedPage]:
+    def _group_segments(self, segments: list[dict]) -> list[ParsedPage]:
         """
         Group whisper segments into chunks of approximately TARGET_WORDS words.
         Each group becomes one ParsedPage with start_time/end_time set.

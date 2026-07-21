@@ -13,13 +13,12 @@ Model path: config.models.embed_model (default: models/nomic-embed-text-v1.5/)
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 import pytest
 
-from rag.models.embedder import Embedder, EMBEDDING_DIM
-
+from rag.models.embedder import EMBEDDING_DIM, Embedder
 
 # ---------------------------------------------------------------------------
 # Fixture: load embedder from model directory
@@ -125,7 +124,6 @@ class TestInference:
             assert abs(norm - 1.0) < 1e-5, f"Row {i} not normalised: norm={norm}"
 
     def test_encode_batch_empty_returns_empty(self, embedder: Embedder) -> None:
-        import numpy as np
         result = embedder.encode_batch([])
         assert result.shape == (0, EMBEDDING_DIM)
 

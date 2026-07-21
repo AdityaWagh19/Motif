@@ -6,13 +6,11 @@ No model downloads or external services required.
 from __future__ import annotations
 
 import uuid
-from typing import Iterator
 
 import pytest
 
 from rag.ingestion.chunker import ChunkerConfig, SentenceChunker
 from rag.ingestion.parsers.base import ParsedPage
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

@@ -1,11 +1,12 @@
 """
 tests/integration/test_multimodal_ingestion.py
 """
+
 import pytest
-from pathlib import Path
 
 from rag.ingestion import ingest_path
 from rag.storage.chunk_store import ChunkStore
+
 
 @pytest.mark.slow
 def test_audio_ingest_has_timestamps(minimal_config, tmp_path):

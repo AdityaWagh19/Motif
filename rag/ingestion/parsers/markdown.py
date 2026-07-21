@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import List, Optional
 
 from rag.ingestion.parsers.base import BaseParser, ParsedPage
 
@@ -53,7 +52,7 @@ class MarkdownParser(BaseParser):
 
     SUPPORTED_EXTENSIONS = [".md", ".txt", ".markdown"]
 
-    def parse(self, path: Path) -> List[ParsedPage]:
+    def parse(self, path: Path) -> list[ParsedPage]:
         """
         Parse a Markdown or plain-text file.
 
@@ -92,9 +91,9 @@ class MarkdownParser(BaseParser):
         md = MarkdownIt()
         tokens = md.parse(content)
 
-        sections: List[ParsedPage] = []
-        current_heading: Optional[str] = None
-        current_text_parts: List[str] = []
+        sections: list[ParsedPage] = []
+        current_heading: str | None = None
+        current_text_parts: list[str] = []
 
         def _flush() -> None:
             """Flush accumulated text as a new ParsedPage, if non-empty."""

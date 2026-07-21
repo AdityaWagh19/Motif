@@ -8,20 +8,16 @@ Markdown tests use the sample_md fixture from conftest.py.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from rag.ingestion.parsers.base import (
-    BaseParser,
     ParsedPage,
     get_parser,
-    SUPPORTED_EXTENSIONS,
 )
 from rag.ingestion.parsers.markdown import MarkdownParser
 from rag.ingestion.parsers.pdf import PDFParser, _detect_section
-
 
 # ---------------------------------------------------------------------------
 # ParsedPage

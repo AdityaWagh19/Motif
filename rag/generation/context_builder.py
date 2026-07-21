@@ -16,9 +16,9 @@ Public API:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, List, Tuple
+from typing import TYPE_CHECKING
 
-from rag.types import ScoredPassage, Chunk
+from rag.types import Chunk, ScoredPassage
 
 if TYPE_CHECKING:
     from rag.config import RAGConfig
@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 _WORDS_PER_TOKEN = 0.75
 
 
-def _anti_middle_order(passages: List[ScoredPassage]) -> List[ScoredPassage]:
+def _anti_middle_order(passages: list[ScoredPassage]) -> list[ScoredPassage]:
     """
     Reorder passages so the most relevant content is at the extremes.
 
@@ -55,7 +55,7 @@ def _anti_middle_order(passages: List[ScoredPassage]) -> List[ScoredPassage]:
         return passages[:]
 
     sorted_desc = sorted(passages, key=lambda p: p.score, reverse=True)
-    result: List[ScoredPassage] = [None] * len(sorted_desc)  # type: ignore[list-item]
+    result: list[ScoredPassage] = [None] * len(sorted_desc)  # type: ignore[list-item]
 
     # Best passage goes first, second-best goes last
     result[0] = sorted_desc[0]
@@ -70,7 +70,7 @@ def _anti_middle_order(passages: List[ScoredPassage]) -> List[ScoredPassage]:
     return result
 
 
-def _merge_adjacent_chunks(passages: List[ScoredPassage]) -> List[ScoredPassage]:
+def _merge_adjacent_chunks(passages: list[ScoredPassage]) -> list[ScoredPassage]:
     """
     Merge consecutive passages from the same source where page numbers are
     adjacent (N and N+1) or if they share the same file and sequence if pages are missing.
@@ -134,11 +134,11 @@ class ContextBuilder:
 
     def build(
         self,
-        passages: List[ScoredPassage],
+        passages: list[ScoredPassage],
         query: str,
-        history: List[dict],
-        config: "RAGConfig",
-    ) -> Tuple[str, List[ScoredPassage]]:
+        history: list[dict],
+        config: RAGConfig,
+    ) -> tuple[str, list[ScoredPassage]]:
         """
         Build the final LLM prompt from retrieved passages.
 
@@ -181,7 +181,7 @@ class ContextBuilder:
         overhead_words = 200  # RAG_PROMPT boilerplate + query
         available_words = max(100, budget_words - history_words - overhead_words)
 
-        selected: List[ScoredPassage] = []
+        selected: list[ScoredPassage] = []
         used_words = 0
 
         # passages is already sorted score-descending by the reranker

@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from rag.ingestion.parsers.base import BaseParser, ParsedPage
 
@@ -36,7 +36,7 @@ _TRAILING_PUNCT = (".", ",", ":", ";", "!", "?")
 _NUMBERED_HEADING_RE = re.compile(r"^\d+(\.\d+)*\s+[A-Z]")
 
 
-def _detect_section(text: str) -> Optional[str]:
+def _detect_section(text: str) -> str | None:
     """
     Heuristic section title detection for PDF pages.
 
@@ -71,11 +71,11 @@ class PDFParser(BaseParser):
 
     SUPPORTED_EXTENSIONS = [".pdf"]
 
-    def __init__(self, config: "RAGConfig | None" = None) -> None:
+    def __init__(self, config: RAGConfig | None = None) -> None:
         self._config = config
         self._ocr = None
 
-    def parse(self, path: Path) -> List[ParsedPage]:
+    def parse(self, path: Path) -> list[ParsedPage]:
         """
         Parse a PDF and return one ParsedPage per non-empty page.
 
@@ -100,7 +100,7 @@ class PDFParser(BaseParser):
                 "pymupdf is not installed. Run: pip install pymupdf"
             ) from exc
 
-        pages: List[ParsedPage] = []
+        pages: list[ParsedPage] = []
 
         try:
             doc = fitz.open(str(path))  # type: ignore[import]
@@ -166,7 +166,9 @@ class PDFParser(BaseParser):
 
     def _ocr_page(self, fitz_page, doc_path: Path) -> str:
         """Export page as PNG and run PaddleOCR."""
-        import tempfile, os
+        import os
+        import tempfile
+
         import fitz  # type: ignore[import]
         
         mat = fitz.Matrix(2.0, 2.0)  # 2x resolution for better OCR

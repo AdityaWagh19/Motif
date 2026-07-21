@@ -1,11 +1,10 @@
 """
 tests/unit/test_audio_parser.py
 """
-import pytest
 from pathlib import Path
 
 from rag.ingestion.parsers.audio import AudioParser
-from rag.ingestion.parsers.base import ParsedPage
+
 
 def test_audio_parser_extension_check():
     assert AudioParser.can_parse(Path("talk.mp3")) is True

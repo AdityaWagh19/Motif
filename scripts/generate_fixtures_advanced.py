@@ -1,9 +1,11 @@
-import os
-import wave
 import math
+import os
 import struct
-import fitz  # PyMuPDF
+import wave
+
 import docx
+import fitz  # PyMuPDF
+
 
 def create_fixtures():
     out_dir = "tests/fixtures"

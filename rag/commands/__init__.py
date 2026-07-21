@@ -9,22 +9,24 @@ Each handler has the signature:
 """
 from __future__ import annotations
 
-from typing import Callable, TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rich.console import Console
-    from rag.session import Session
+
     from rag.config import RAGConfig
+    from rag.session import Session
 
 # Import all command handlers
-from rag.commands.help import handle_help
 from rag.commands.clear import handle_clear, handle_new
-from rag.commands.status import handle_status
+from rag.commands.exit import handle_exit
+from rag.commands.help import handle_help
 from rag.commands.ingest import handle_ingest
 from rag.commands.remove import handle_remove
-from rag.commands.sync import handle_sync
 from rag.commands.setup import handle_setup
-from rag.commands.exit import handle_exit
+from rag.commands.status import handle_status
+from rag.commands.sync import handle_sync
 from rag.commands.workspace import handle_workspace
 
 # ── Command registry ──────────────────────────────────────────────────────────

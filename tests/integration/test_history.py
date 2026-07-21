@@ -3,9 +3,8 @@ tests/integration/test_history.py — Session history persistence tests.
 """
 from __future__ import annotations
 
-import pytest
-
 from rag.session import Session
+
 
 def test_session_history_persists_across_restart(minimal_config, tmp_db_root) -> None:
     session1 = Session(minimal_config)

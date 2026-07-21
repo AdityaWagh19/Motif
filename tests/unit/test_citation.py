@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from rag.types import Citation
 
+
 def test_citation_format_pdf() -> None:
     c = Citation(
         number=1,

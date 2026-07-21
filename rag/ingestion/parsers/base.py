@@ -12,9 +12,9 @@ Dependency graph position:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rag.config import RAGConfig
@@ -36,13 +36,13 @@ class ParsedPage:
     text must always be non-empty (parsers must not return empty-text pages).
     """
     text: str
-    page: Optional[int] = None          # 1-indexed; None for MD sections
-    section: Optional[str] = None       # Nearest heading above this content
+    page: int | None = None          # 1-indexed; None for MD sections
+    section: str | None = None       # Nearest heading above this content
     has_table: bool = False
     has_image: bool = False
     is_ocr: bool = False
-    start_time: Optional[float] = None  # Audio only (seconds)
-    end_time: Optional[float] = None    # Audio only (seconds)
+    start_time: float | None = None  # Audio only (seconds)
+    end_time: float | None = None    # Audio only (seconds)
 
     def __post_init__(self) -> None:
         # Normalise whitespace at construction time so every caller gets clean text
@@ -62,10 +62,10 @@ class BaseParser(ABC):
     """
 
     #: File extensions this parser handles, e.g. [".pdf"]
-    SUPPORTED_EXTENSIONS: List[str] = []
+    SUPPORTED_EXTENSIONS: list[str] = []
 
     @abstractmethod
-    def parse(self, path: Path) -> List[ParsedPage]:
+    def parse(self, path: Path) -> list[ParsedPage]:
         """
         Parse a file and return one ParsedPage per logical document unit.
 
@@ -94,14 +94,14 @@ class BaseParser(ABC):
 # ---------------------------------------------------------------------------
 
 #: File extensions supported across all parsers.
-SUPPORTED_EXTENSIONS: List[str] = [
+SUPPORTED_EXTENSIONS: list[str] = [
     ".pdf", ".md", ".txt", ".markdown", ".docx",
     ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff",
     ".mp3", ".wav", ".m4a", ".flac", ".ogg"
 ]
 
 
-def get_parser(path: Path, config: "RAGConfig | None" = None) -> BaseParser:
+def get_parser(path: Path, config: RAGConfig | None = None) -> BaseParser:
     """
     Return the appropriate parser for the given file path.
 
@@ -111,11 +111,11 @@ def get_parser(path: Path, config: "RAGConfig | None" = None) -> BaseParser:
         ValueError: If no parser supports this file type.
     """
     # Import lazily so that missing third-party deps fail only at use time.
-    from rag.ingestion.parsers.pdf import PDFParser
-    from rag.ingestion.parsers.markdown import MarkdownParser
+    from rag.ingestion.parsers.audio import AudioParser
     from rag.ingestion.parsers.docx import DOCXParser
     from rag.ingestion.parsers.image import ImageParser
-    from rag.ingestion.parsers.audio import AudioParser
+    from rag.ingestion.parsers.markdown import MarkdownParser
+    from rag.ingestion.parsers.pdf import PDFParser
 
     ext = path.suffix.lower()
 

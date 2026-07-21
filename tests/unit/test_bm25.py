@@ -8,13 +8,10 @@ No model downloads or external services required.
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from rag.retrieval.bm25_index import BM25Index
 from rag.types import Chunk
-
 
 # ---------------------------------------------------------------------------
 # Helpers

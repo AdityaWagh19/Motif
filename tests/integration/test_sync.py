@@ -1,8 +1,11 @@
-import pytest
 from pathlib import Path
+
+import pytest
+
+from rag.config import RAGConfig
 from rag.ingestion import ingest_path, sync_directory
 from rag.storage.chunk_store import ChunkStore
-from rag.config import RAGConfig
+
 
 @pytest.fixture
 def minimal_config(tmp_path):

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 log = logging.getLogger(__name__)
 
@@ -19,8 +18,8 @@ class Captioner:
 
     def _load(self) -> None:
         try:
-            from transformers import AutoModelForCausalLM, AutoTokenizer
             import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer
         except ImportError as exc:
             raise ImportError(
                 "transformers and torch are required for moondream2. "

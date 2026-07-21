@@ -17,8 +17,8 @@ from __future__ import annotations
 import re
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, List
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from rag.types import Chunk
 
@@ -75,11 +75,11 @@ class SentenceChunker:
 
     def chunk(
         self,
-        page: "ParsedPage",
+        page: ParsedPage,
         source: str,
         filename: str,
         source_type: str,
-    ) -> List[Chunk]:
+    ) -> list[Chunk]:
         """
         Chunk a single ParsedPage into Chunk objects.
 
@@ -108,11 +108,11 @@ class SentenceChunker:
         if not sentences:
             return []
 
-        chunks: List[Chunk] = []
-        current_sentences: List[str] = []
+        chunks: list[Chunk] = []
+        current_sentences: list[str] = []
         current_word_count: int = 0
 
-        def _emit_chunk(sents: List[str]) -> Chunk:
+        def _emit_chunk(sents: list[str]) -> Chunk:
             chunk_text = " ".join(sents)
             return Chunk(
                 id=str(uuid.uuid4()),
@@ -128,7 +128,7 @@ class SentenceChunker:
                 start_time=page.start_time,
                 end_time=page.end_time,
                 token_count=len(chunk_text.split()),  # word-count approximation
-                indexed_at=datetime.now(timezone.utc).isoformat(),
+                indexed_at=datetime.now(UTC).isoformat(),
             )
 
         for sentence in sentences:
@@ -164,17 +164,17 @@ class SentenceChunker:
 
     def chunk_pages(
         self,
-        pages: "List[ParsedPage]",
+        pages: list[ParsedPage],
         source: str,
         filename: str,
         source_type: str,
-    ) -> List[Chunk]:
+    ) -> list[Chunk]:
         """
         Chunk all pages from a parsed document.
 
         Returns a flat list of Chunk objects in page order.
         """
-        all_chunks: List[Chunk] = []
+        all_chunks: list[Chunk] = []
         for page in pages:
             all_chunks.extend(self.chunk(page, source, filename, source_type))
         return all_chunks

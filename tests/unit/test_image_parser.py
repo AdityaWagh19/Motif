@@ -1,12 +1,11 @@
 """
 tests/unit/test_image_parser.py
 """
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock
 
 from rag.ingestion.parsers.image import ImageParser
-from rag.ingestion.parsers.base import ParsedPage
+
 
 def test_image_parser_t1_returns_empty(minimal_config):
     minimal_config.resolved_tier = "T1"

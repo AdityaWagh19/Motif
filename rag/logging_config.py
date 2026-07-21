@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import logging
 import logging.handlers
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -41,7 +40,7 @@ _CONSOLE_FMT = "%(levelname)s %(name)s — %(message)s"
 _configured = False
 
 
-def setup(config: "RAGConfig") -> None:
+def setup(config: RAGConfig) -> None:
     """
     Configure the root logger with a rotating file handler.
 

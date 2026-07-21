@@ -13,14 +13,20 @@ Fixture scopes:
 """
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 
 import pytest
 
-from rag.config import RAGConfig, HardwareConfig, ModelsConfig, LLMConfig
-from rag.config import RetrievalConfig, ChunkingConfig, GenerationConfig, StorageConfig
-
+from rag.config import (
+    ChunkingConfig,
+    GenerationConfig,
+    HardwareConfig,
+    LLMConfig,
+    ModelsConfig,
+    RAGConfig,
+    RetrievalConfig,
+    StorageConfig,
+)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Database / Storage fixtures

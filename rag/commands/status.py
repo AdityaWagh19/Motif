@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from rich.table import Table
 from rich import box
+from rich.table import Table
 
 
 def handle_status(args, session, config, console) -> None:
@@ -18,8 +18,8 @@ def handle_status(args, session, config, console) -> None:
     index_size_mb: float | None = None
 
     try:
-        from rag.storage.chunk_store import ChunkStore
         from rag.retrieval.bm25_index import BM25Index
+        from rag.storage.chunk_store import ChunkStore
         with ChunkStore(config) as store:
             chunk_count = store.count()
             doc_count = store.count_documents()

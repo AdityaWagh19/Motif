@@ -29,12 +29,10 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import List, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import numpy as np
-    import onnxruntime as ort
-    from tokenizers import Tokenizer  # type: ignore[import]
 
 log = logging.getLogger(__name__)
 
@@ -59,8 +57,8 @@ class Embedder:
 
     def __init__(self, model_dir: Path) -> None:
         self._model_dir = model_dir
-        self._session: Optional[object] = None    # ort.InferenceSession
-        self._tokenizer: Optional[object] = None  # tokenizers.Tokenizer
+        self._session: object | None = None    # ort.InferenceSession
+        self._tokenizer: object | None = None  # tokenizers.Tokenizer
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -140,7 +138,7 @@ class Embedder:
     # Inference helpers
     # ------------------------------------------------------------------
 
-    def _tokenize(self, texts: List[str]) -> "Tuple[np.ndarray, np.ndarray, np.ndarray]":
+    def _tokenize(self, texts: list[str]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Tokenize a batch of texts.
 
@@ -161,9 +159,9 @@ class Embedder:
 
     def _mean_pool_and_normalize(
         self,
-        token_embeddings: "np.ndarray",
-        attention_mask: "np.ndarray",
-    ) -> "np.ndarray":
+        token_embeddings: np.ndarray,
+        attention_mask: np.ndarray,
+    ) -> np.ndarray:
         """
         Mean-pool token embeddings (masked) then L2-normalise.
 
@@ -187,7 +185,7 @@ class Embedder:
     # Public inference API
     # ------------------------------------------------------------------
 
-    def encode(self, text: str, prefix: str = "search_query: ") -> "np.ndarray":
+    def encode(self, text: str, prefix: str = "search_query: ") -> np.ndarray:
         """
         Encode a single text string.
 
@@ -205,10 +203,10 @@ class Embedder:
 
     def encode_batch(
         self,
-        texts: List[str],
+        texts: list[str],
         prefix: str = "search_document: ",
         batch_size: int = _DEFAULT_BATCH_SIZE,
-    ) -> "np.ndarray":
+    ) -> np.ndarray:
         """
         Encode a list of texts in mini-batches.
 
@@ -228,7 +226,7 @@ class Embedder:
             return np.zeros((0, EMBEDDING_DIM), dtype=np.float32)
 
         prefixed = [f"{prefix}{t}" for t in texts]
-        all_embeddings: List[np.ndarray] = []
+        all_embeddings: list[np.ndarray] = []
 
         for i in range(0, len(prefixed), batch_size):
             batch = prefixed[i:i + batch_size]

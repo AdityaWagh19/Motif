@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from rag.pipeline import QueryPipeline
 from rag.ingestion import ingest_path
+from rag.pipeline import QueryPipeline
 from rag.storage.chunk_store import ChunkStore
 
 

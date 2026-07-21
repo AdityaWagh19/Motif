@@ -18,9 +18,9 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rag.config import RAGConfig
@@ -29,10 +29,10 @@ log = logging.getLogger(__name__)
 
 
 def run_evaluation(
-    dataset: List[dict],
-    config: "RAGConfig",
-    output_path: Optional[Path] = None,
-    metrics: Optional[List[str]] = None,
+    dataset: list[dict],
+    config: RAGConfig,
+    output_path: Path | None = None,
+    metrics: list[str] | None = None,
 ) -> dict:
     """
     Run RAGAS evaluation on a dataset of question-answer pairs.
@@ -65,21 +65,25 @@ def run_evaluation(
     """
     try:
         import sys
+
         import langchain_community.chat_models
         class DummyVertexAI: pass
         langchain_community.chat_models.ChatVertexAI = DummyVertexAI  # type: ignore
         sys.modules['langchain_community.chat_models.vertexai'] = type('DummyMod', (), {'ChatVertexAI': DummyVertexAI})  # type: ignore
 
-        from ragas import evaluate  # type: ignore[import]
-        from ragas.metrics import faithfulness, answer_relevancy, context_precision  # type: ignore[import]
         from datasets import Dataset as HFDataset  # type: ignore[import]
+        from ragas import evaluate  # type: ignore[import]
+        from ragas.metrics import (  # type: ignore[import]
+            answer_relevancy,
+            context_precision,
+            faithfulness,
+        )
     except ImportError as exc:
         raise ImportError(
             "ragas and datasets are required. Run: pip install ragas datasets"
         ) from exc
 
     from rag.pipeline import QueryPipeline
-    from rag.models.model_manager import get_model_manager
 
     metrics_map = {
         "faithfulness": faithfulness,
@@ -97,7 +101,7 @@ def run_evaluation(
     cached_answers = {}
     if cache_file.exists():
         try:
-            with open(str(cache_file), "r", encoding="utf-8") as f:
+            with open(str(cache_file), encoding="utf-8") as f:
                 cached_data = json.load(f)
                 cached_answers = {item["question"]: item for item in cached_data if "answer" in item}
             log.info("Loaded %d cached pipeline responses", len(cached_answers))
@@ -129,7 +133,7 @@ def run_evaluation(
         try:
             with open(str(cache_file), "w", encoding="utf-8") as f:
                 json.dump(enriched, f, indent=2)
-        except Exception as e:
+        except Exception:
             pass
 
     # Filter out items with empty answers
@@ -145,7 +149,7 @@ def run_evaluation(
             "answer_relevancy": 0.0,
             "context_precision": 0.0,
             "n_evaluated": 0,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     # Step 2: Build Hugging Face Dataset
@@ -201,7 +205,7 @@ def run_evaluation(
         "answer_relevancy": _score("answer_relevancy"),
         "context_precision": _score("context_precision"),
         "n_evaluated": len(valid),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
     if output_path:
@@ -213,10 +217,11 @@ def run_evaluation(
     return results
 
 
-from langchain_core.language_models.llms import LLM
-from typing import Any, List, Optional
+from typing import Any
+
 from langchain_core.callbacks.manager import CallbackManagerForLLMRun
-from pydantic import PrivateAttr
+from langchain_core.language_models.llms import LLM
+
 
 class _LocalLLMWrapper(LLM):
     """
@@ -227,7 +232,7 @@ class _LocalLLMWrapper(LLM):
     """
     config: Any = None
 
-    def __init__(self, config: "RAGConfig", **kwargs: Any) -> None:
+    def __init__(self, config: RAGConfig, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.config = config
 
@@ -238,8 +243,8 @@ class _LocalLLMWrapper(LLM):
     def _call(
         self,
         prompt: str,
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[CallbackManagerForLLMRun] = None,
+        stop: list[str] | None = None,
+        run_manager: CallbackManagerForLLMRun | None = None,
         **kwargs: Any,
     ) -> str:
         """Synchronous inference call."""
@@ -254,12 +259,13 @@ class _LocalLLMWrapper(LLM):
 
 from langchain_core.embeddings import Embeddings
 
+
 class _LocalEmbeddingsWrapper(Embeddings):
     """
     Thin adapter that wraps Embedder for use in RAGAS.
     """
 
-    def __init__(self, config: "RAGConfig") -> None:
+    def __init__(self, config: RAGConfig) -> None:
         self._config = config
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
@@ -300,7 +306,7 @@ if __name__ == "__main__":
     
     if args.input:
         import json
-        with open(args.input, 'r', encoding='utf-8') as f:
+        with open(args.input, encoding='utf-8') as f:
             ds = json.load(f)
         print(f"Loaded {len(ds)} questions from {args.input}")
     else:

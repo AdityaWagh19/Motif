@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from rag.ingestion.parsers.base import BaseParser, ParsedPage
 from rag.models.model_manager import get_model_manager
@@ -27,11 +27,11 @@ class ImageParser(BaseParser):
     
     SUPPORTED_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff"]
 
-    def __init__(self, config: "RAGConfig") -> None:
+    def __init__(self, config: RAGConfig) -> None:
         self._config = config
         self._ocr = None
 
-    def parse(self, path: Path) -> List[ParsedPage]:
+    def parse(self, path: Path) -> list[ParsedPage]:
         if self._config.resolved_tier == "T1":
             log.warning(
                 "Image parsing requires T2 or T3 (PaddleOCR needs GPU or sufficient RAM). "

@@ -5,13 +5,10 @@ No model downloads or external services required.
 """
 from __future__ import annotations
 
-from typing import Iterator
-
 import pytest
 
-from rag.ingestion.deduplicator import Deduplicator, DUPLICATE_HAMMING_THRESHOLD
+from rag.ingestion.deduplicator import DUPLICATE_HAMMING_THRESHOLD, Deduplicator
 from rag.types import Chunk
-
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -8,16 +8,15 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import List, Optional
 
 try:
     import docx
-    from docx.text.paragraph import Paragraph
     from docx.table import Table
+    from docx.text.paragraph import Paragraph
 except ImportError:
     docx = None
 
-from rag.ingestion.parsers.base import ParsedPage, BaseParser
+from rag.ingestion.parsers.base import BaseParser, ParsedPage
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +32,7 @@ class DOCXParser(BaseParser):
     def can_parse(cls, path: Path) -> bool:
         return path.suffix.lower() in cls.SUPPORTED_EXTENSIONS
 
-    def parse(self, path: Path) -> List[ParsedPage]:
+    def parse(self, path: Path) -> list[ParsedPage]:
         if docx is None:
             raise ImportError(
                 "python-docx is required to parse .docx files. "
@@ -46,9 +45,9 @@ class DOCXParser(BaseParser):
             log.error("Failed to parse DOCX %s: %s", path, e)
             return []
 
-        sections: List[ParsedPage] = []
-        current_heading: Optional[str] = None
-        current_parts: List[str] = []
+        sections: list[ParsedPage] = []
+        current_heading: str | None = None
+        current_parts: list[str] = []
         current_has_table = False
 
         def flush():

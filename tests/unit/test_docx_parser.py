@@ -1,7 +1,8 @@
-import pytest
 from pathlib import Path
+
+import pytest
+
 from rag.ingestion.parsers.docx import DOCXParser
-from rag.ingestion.parsers.base import ParsedPage
 
 # If python-docx is not installed, we should skip tests or fail gracefully
 try:

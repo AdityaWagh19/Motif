@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import List, Optional
 
 import numpy as np
 
@@ -60,8 +59,8 @@ class Reranker:
             FileNotFoundError: Deferred to _load() if files are missing.
         """
         self._model_dir = model_dir
-        self._session: Optional[object] = None   # ort.InferenceSession
-        self._tokenizer: Optional[object] = None  # tokenizers.Tokenizer
+        self._session: object | None = None   # ort.InferenceSession
+        self._tokenizer: object | None = None  # tokenizers.Tokenizer
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -94,7 +93,7 @@ class Reranker:
             ) from exc
 
         # Find ONNX file — quantized preferred
-        onnx_path: Optional[Path] = None
+        onnx_path: Path | None = None
         for name in (
             "onnx/model_O3.onnx", 
             "onnx/model_quantized.onnx", 
@@ -152,7 +151,7 @@ class Reranker:
 
     # ── Inference ─────────────────────────────────────────────────────────────
 
-    def score(self, query: str, passages: List[str]) -> np.ndarray:
+    def score(self, query: str, passages: list[str]) -> np.ndarray:
         """
         Score a list of passages against a query.
 
@@ -176,7 +175,7 @@ class Reranker:
         if not passages:
             return np.array([], dtype=np.float32)
 
-        all_scores: List[np.ndarray] = []
+        all_scores: list[np.ndarray] = []
 
         for i in range(0, len(passages), _INFERENCE_BATCH):
             batch = passages[i : i + _INFERENCE_BATCH]

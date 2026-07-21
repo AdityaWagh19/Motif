@@ -32,8 +32,7 @@ from __future__ import annotations
 import json
 import logging
 import random
-from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rag.config import RAGConfig
@@ -46,7 +45,7 @@ _MAX_THRESHOLD = 0.55
 _PERCENTILE = 25   # Use 25th percentile of scores as the threshold
 
 
-def load_calibrated_threshold(config: "RAGConfig") -> Optional[float]:
+def load_calibrated_threshold(config: RAGConfig) -> float | None:
     """
     Load a previously calibrated threshold from disk.
 
@@ -82,7 +81,7 @@ def load_calibrated_threshold(config: "RAGConfig") -> Optional[float]:
         return None
 
 
-def _save_threshold(config: "RAGConfig", threshold: float, chunk_count: int) -> None:
+def _save_threshold(config: RAGConfig, threshold: float, chunk_count: int) -> None:
     """Persist the calibrated threshold to disk."""
     cal_path = config.db_root / _CALIBRATION_FILE
     with open(cal_path, "w", encoding="utf-8") as f:
@@ -91,7 +90,7 @@ def _save_threshold(config: "RAGConfig", threshold: float, chunk_count: int) -> 
 
 
 def calibrate_threshold(
-    config: "RAGConfig",
+    config: RAGConfig,
     n_probes: int = 20,
     force: bool = False,
 ) -> float:
@@ -120,11 +119,11 @@ def calibrate_threshold(
     log.info("Calibrating relevance threshold (n_probes=%d)…", n_probes)
 
     try:
-        from rag.storage.chunk_store import ChunkStore
         from rag.models.model_manager import get_model_manager
-        from rag.retrieval.vector_store import VectorStore
         from rag.retrieval.bm25_index import BM25Index
         from rag.retrieval.fusion import rrf_fuse, rrf_to_scored_passages
+        from rag.retrieval.vector_store import VectorStore
+        from rag.storage.chunk_store import ChunkStore
 
         with ChunkStore(config) as chunk_store:
             count = chunk_store.count()
@@ -147,7 +146,7 @@ def calibrate_threshold(
             vector_store = VectorStore(config)
             bm25 = BM25Index(config)
 
-            all_scores: List[float] = []
+            all_scores: list[float] = []
 
             for chunk in probe_chunks:
                 # Use first 20 words as a probe query.

@@ -15,7 +15,7 @@ Public API:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from rag.types import ScoredPassage
 
@@ -27,11 +27,11 @@ log = logging.getLogger(__name__)
 
 def rerank(
     query: str,
-    passages: List[ScoredPassage],
-    config: "RAGConfig",
+    passages: list[ScoredPassage],
+    config: RAGConfig,
     top_k: int = 5,
     threshold: float = 0.3,
-) -> List[ScoredPassage]:
+) -> list[ScoredPassage]:
     """
     Rerank a list of ScoredPassage objects using the cross-encoder.
 
@@ -62,10 +62,10 @@ def rerank(
     ABSOLUTE_FLOOR = 0.01
     ADAPTIVE_RATIO = 0.5
     
-    max_score = float(max(scores)) if scores else 0.0
+    max_score = float(scores.max())
     adaptive_threshold = max(ABSOLUTE_FLOOR, min(threshold, max_score * ADAPTIVE_RATIO))
 
-    reranked: List[ScoredPassage] = []
+    reranked: list[ScoredPassage] = []
     for passage, score in zip(passages, scores):
         float_score = float(score)
         if float_score >= adaptive_threshold:

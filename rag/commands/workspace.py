@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import shutil
-from pathlib import Path
 
-from rich.table import Table
 from rich import box
+from rich.table import Table
+
 
 def handle_workspace(args, session, config, console) -> None:
     """

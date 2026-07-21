@@ -24,7 +24,6 @@ Dependency graph position:
 from __future__ import annotations
 
 import logging
-from typing import List, Tuple
 
 from rag.types import Chunk
 
@@ -53,7 +52,7 @@ class Deduplicator:
 
     def __init__(self, threshold: int = DUPLICATE_HAMMING_THRESHOLD) -> None:
         self._threshold = threshold
-        self._seen: List[Tuple[object, str]] = []   # (Simhash, chunk_id)
+        self._seen: list[tuple[object, str]] = []   # (Simhash, chunk_id)
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -107,7 +106,7 @@ class Deduplicator:
         self._seen.append((h, chunk.id))
         return False
 
-    def filter(self, chunks: List[Chunk]) -> List[Chunk]:
+    def filter(self, chunks: list[Chunk]) -> list[Chunk]:
         """
         Return a new list with near-duplicate chunks removed.
 
@@ -120,7 +119,7 @@ class Deduplicator:
         Returns:
             Filtered list (may be shorter than input).
         """
-        result: List[Chunk] = []
+        result: list[Chunk] = []
         for chunk in chunks:
             if not self.is_duplicate(chunk):
                 result.append(chunk)

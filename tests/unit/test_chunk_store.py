@@ -6,13 +6,12 @@ No model downloads or external services required.
 """
 from __future__ import annotations
 
-from typing import Iterator
+from collections.abc import Iterator
 
 import pytest
 
 from rag.storage.chunk_store import ChunkStore
 from rag.types import Chunk
-
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -24,16 +24,16 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from rag.config import RAGConfig
 
 if TYPE_CHECKING:
     # These imports are only for type checkers — never executed at runtime here.
+    from rag.generation.llm_client import LLMClient  # type: ignore[import]  # Phase 3
+    from rag.models.captioner import Captioner
     from rag.models.embedder import Embedder
     from rag.models.reranker import Reranker
-    from rag.models.captioner import Captioner
-    from rag.generation.llm_client import LLMClient  # type: ignore[import]  # Phase 3
 
 log = logging.getLogger(__name__)
 
@@ -48,17 +48,17 @@ class ModelManager:
     """
 
     def __init__(self) -> None:
-        self._embedder: Optional["Embedder"] = None
-        self._reranker: Optional["Reranker"] = None
-        self._llm: Optional["LLMClient"] = None
-        self._captioner: Optional["Captioner"] = None
+        self._embedder: Embedder | None = None
+        self._reranker: Reranker | None = None
+        self._llm: LLMClient | None = None
+        self._captioner: Captioner | None = None
         self._whisper = None
 
     # ------------------------------------------------------------------
     # Embedder
     # ------------------------------------------------------------------
 
-    def get_embedder(self, config: RAGConfig) -> "Embedder":
+    def get_embedder(self, config: RAGConfig) -> Embedder:
         """
         Return the loaded Embedder, loading it on first call.
 
@@ -100,7 +100,7 @@ class ModelManager:
     # Reranker
     # ------------------------------------------------------------------
 
-    def get_reranker(self, config: RAGConfig) -> "Reranker":
+    def get_reranker(self, config: RAGConfig) -> Reranker:
         """
         Return the loaded Reranker, loading it on first call.
 
@@ -148,7 +148,7 @@ class ModelManager:
     # LLM
     # ------------------------------------------------------------------
 
-    def get_llm(self, config: RAGConfig) -> "LLMClient":
+    def get_llm(self, config: RAGConfig) -> LLMClient:
         """
         Return the loaded LLMClient, loading it on first call.
 
@@ -202,7 +202,7 @@ class ModelManager:
     # Captioner
     # ------------------------------------------------------------------
 
-    def get_captioner(self, config: RAGConfig) -> "Captioner":
+    def get_captioner(self, config: RAGConfig) -> Captioner:
         """Lazy-load moondream2 captioning model."""
         from rag.models.captioner import Captioner
         if self._captioner is None:

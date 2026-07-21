@@ -24,8 +24,9 @@ from __future__ import annotations
 
 import gc
 import logging
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rag.config import RAGConfig
@@ -38,7 +39,7 @@ log = logging.getLogger(__name__)
 #   Qwen2.5:  <|im_end|>
 #   LLaMA 2:  </s>, [/INST]
 #   General:  User: / \n\nUser (prevents multi-turn hallucination)
-STOP_TOKENS: List[str] = [
+STOP_TOKENS: list[str] = [
     "</s>",
     "<|end|>",
     "<|im_end|>",
@@ -59,7 +60,7 @@ class LLMClient:
             print(token, end="", flush=True)
     """
 
-    def __init__(self, model_path: Path, config: "RAGConfig") -> None:
+    def __init__(self, model_path: Path, config: RAGConfig) -> None:
         """
         Store model path and config. Does NOT load the model.
         Call _load() (via ModelManager) before stream()/generate().
@@ -70,7 +71,7 @@ class LLMClient:
         """
         self._model_path = model_path
         self._config = config
-        self._llm: Optional[object] = None  # llama_cpp.Llama
+        self._llm: object | None = None  # llama_cpp.Llama
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -148,7 +149,7 @@ class LLMClient:
         prompt: str,
         max_tokens: int,
         temperature: float = 0.1,
-        stop: Optional[List[str]] = None,
+        stop: list[str] | None = None,
     ) -> Generator[str, None, None]:
         """
         Stream the LLM response token by token.
@@ -199,7 +200,7 @@ class LLMClient:
         prompt: str,
         max_tokens: int,
         temperature: float = 0.1,
-        stop: Optional[List[str]] = None,
+        stop: list[str] | None = None,
     ) -> str:
         """
         Non-streaming generation. Returns the complete response as a string.

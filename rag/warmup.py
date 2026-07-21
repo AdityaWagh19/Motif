@@ -18,13 +18,14 @@ import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from rag.config import RAGConfig
     from rich.console import Console
+
+    from rag.config import RAGConfig
 
 log = logging.getLogger(__name__)
 
 
-def prewarm_models(config: "RAGConfig", console: "Console | None" = None) -> dict:
+def prewarm_models(config: RAGConfig, console: Console | None = None) -> dict:
     """
     Eagerly load embedder, reranker, and LLM before the REPL starts.
 
@@ -44,8 +45,9 @@ def prewarm_models(config: "RAGConfig", console: "Console | None" = None) -> dic
     Returns:
         Dict of {model_name: load_time_ms}.
     """
-    from rag.models.model_manager import get_model_manager
     from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+
+    from rag.models.model_manager import get_model_manager
 
     manager = get_model_manager()
     timings: dict = {}

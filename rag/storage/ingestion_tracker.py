@@ -17,9 +17,9 @@ from __future__ import annotations
 import hashlib
 import logging
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rag.config import RAGConfig
@@ -94,7 +94,7 @@ class IngestionTracker:
             tracker.update(path, new_hash, chunk_count)
     """
 
-    def __init__(self, config: "RAGConfig") -> None:  # noqa: F821
+    def __init__(self, config: RAGConfig) -> None:  # noqa: F821
         db_path: Path = config.db_root / "ingestion_tracker.db"
         db_path.parent.mkdir(parents=True, exist_ok=True)
         log.debug("Opening IngestionTracker at %s", db_path)
@@ -105,7 +105,7 @@ class IngestionTracker:
         self._conn.execute(_CREATE_TABLE)
         self._conn.commit()
 
-    def __enter__(self) -> "IngestionTracker":
+    def __enter__(self) -> IngestionTracker:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -123,7 +123,7 @@ class IngestionTracker:
         ).fetchone()
         return row is not None
 
-    def get_hash(self, path: Path) -> Optional[str]:
+    def get_hash(self, path: Path) -> str | None:
         """
         Return the content hash recorded for this path, or None if not tracked.
         """
@@ -133,7 +133,7 @@ class IngestionTracker:
         ).fetchone()
         return row[0] if row else None
 
-    def list_all(self) -> List[Dict]:
+    def list_all(self) -> list[dict]:
         """
         Return all tracked file records as a list of dicts.
 
@@ -165,7 +165,7 @@ class IngestionTracker:
         Sets indexed_at to the current UTC time.
         """
         key = str(path.resolve())
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         log.debug("IngestionTracker.update filepath=%s hash=%s", key, content_hash)
         self._conn.execute(_UPSERT, (key, content_hash, now, chunk_count))
         self._conn.commit()

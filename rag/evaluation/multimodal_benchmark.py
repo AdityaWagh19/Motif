@@ -26,9 +26,8 @@ import argparse
 import json
 import sys
 import time
-from dataclasses import dataclass, asdict, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Optional
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent.resolve()
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -48,7 +47,7 @@ class ParseResult:
     parse_time_ms: float = 0.0
     embed_time_ms: float = 0.0
     ingest_time_ms: float = 0.0
-    error: Optional[str] = None
+    error: str | None = None
 
 
 @dataclass
@@ -59,7 +58,7 @@ class QueryResult:
     ttft_ms: float = 0.0
     passages_used: int = 0
     answer_non_empty: bool = False
-    error: Optional[str] = None
+    error: str | None = None
 
 
 @dataclass
@@ -149,8 +148,8 @@ class MultimodalBenchmark:
 
     def run_ingestion(self, console=None) -> None:
         """Parse all fixture files and record timings."""
+        from rag.ingestion.chunker import ChunkerConfig, SentenceChunker
         from rag.ingestion.parsers.base import get_parser
-        from rag.ingestion.chunker import SentenceChunker, ChunkerConfig
         from rag.models.model_manager import get_model_manager
 
         chunker = SentenceChunker(ChunkerConfig(target_tokens=512, overlap_tokens=64))
@@ -316,9 +315,9 @@ class MultimodalBenchmark:
     # ── Rich table display ────────────────────────────────────────────────────
 
     def print_table(self, summaries: list[ModalitySummary], console=None) -> None:
-        from rich.table import Table
-        from rich.console import Console
         from rich import box as rbox
+        from rich.console import Console
+        from rich.table import Table
 
         if console is None:
             console = Console()

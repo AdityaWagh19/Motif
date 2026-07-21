@@ -43,19 +43,19 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from rag.config import RAGConfig
-from rag.types import AnswerResult
-from rag.retrieval.fusion import rrf_fuse, rrf_to_scored_passages
-from rag.retrieval.expander import QueryExpander
-from rag.reranking.cross_encoder import rerank
 from rag.generation.context_builder import ContextBuilder
 from rag.generation.prompts import build_citations
 from rag.models.model_manager import get_model_manager
-from rag.storage.chunk_store import ChunkStore
+from rag.reranking.cross_encoder import rerank
 from rag.retrieval.bm25_index import BM25Index
+from rag.retrieval.expander import QueryExpander
+from rag.retrieval.fusion import rrf_fuse, rrf_to_scored_passages
 from rag.retrieval.vector_store import VectorStore
+from rag.storage.chunk_store import ChunkStore
+from rag.types import AnswerResult
 
 if TYPE_CHECKING:
     pass
@@ -87,10 +87,10 @@ class QueryPipeline:
     def answer(
         self,
         query: str,
-        history: List[dict],
-        file_filter: Optional[str] = None,
-        type_filter: Optional[str] = None,
-        page_range: Optional[str] = None,
+        history: list[dict],
+        file_filter: str | None = None,
+        type_filter: str | None = None,
+        page_range: str | None = None,
         use_hyde: bool = False,   # Phase 3: opt-in only. Pass True or use /hyde modifier.
         show_sources: bool = True,
     ) -> AnswerResult:
@@ -240,12 +240,11 @@ class QueryPipeline:
             # Reranker model not downloaded — fall back to RRF scores
             log.warning("Reranker not available (%s) — using RRF scores.", exc)
             console.print(
-                f"[warning]Reranker model not found.[/warning] "
-                f"Falling back to retrieval scores.\n"
-                f"Run [bold]motif setup[/bold] to download the reranker."
+                "[warning]Reranker model not found.[/warning] "
+                "Falling back to retrieval scores.\n"
+                "Run [bold]motif setup[/bold] to download the reranker."
             )
             # Use top candidates from RRF directly
-            from rag.types import ScoredPassage
             reranked = candidates[:top_k_rerank]
 
         if not reranked:
@@ -395,7 +394,7 @@ class QueryPipeline:
             tier=cfg.resolved_tier,
         )
 
-    def _get_history_context(self, full_history: List[dict]) -> List[dict]:
+    def _get_history_context(self, full_history: list[dict]) -> list[dict]:
         """Return a rolling window of history that fits within the token budget."""
         from rag.session import Session
         tmp = Session(self._config)
@@ -407,9 +406,9 @@ class QueryPipeline:
 
     def _build_filter(
         self,
-        file_filter: Optional[str],
-        type_filter: Optional[str],
-        page_range: Optional[str],
+        file_filter: str | None,
+        type_filter: str | None,
+        page_range: str | None,
     ) -> dict:
         """
         Build a Qdrant metadata filter dict from inline modifiers.

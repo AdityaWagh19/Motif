@@ -19,7 +19,7 @@ Public API:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -43,7 +43,7 @@ Passage:"""
 _HYDE_MIN_WORDS = 8
 
 
-def should_use_hyde(query: str, config: "RAGConfig") -> bool:
+def should_use_hyde(query: str, config: RAGConfig) -> bool:
     """
     Decide whether to use HyDE for this query.
 
@@ -90,9 +90,9 @@ class QueryExpander:
     def expand(
         self,
         query: str,
-        config: "RAGConfig",
-        embedder: "Embedder",
-    ) -> Tuple[np.ndarray, str]:
+        config: RAGConfig,
+        embedder: Embedder,
+    ) -> tuple[np.ndarray, str]:
         """
         Expand a query for retrieval.
 
@@ -131,7 +131,7 @@ class QueryExpander:
         vector = embedder.encode(effective_query, prefix="search_query: ")
         return vector, effective_query
 
-    def _generate_hypothetical(self, query: str, config: "RAGConfig") -> str:
+    def _generate_hypothetical(self, query: str, config: RAGConfig) -> str:
         """
         Generate a hypothetical document passage using the loaded LLM.
 

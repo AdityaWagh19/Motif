@@ -10,7 +10,6 @@ Validates:
 from __future__ import annotations
 
 import sqlite3
-import pytest
 
 from rag.storage.query_cache import QueryCache
 from rag.types import AnswerResult

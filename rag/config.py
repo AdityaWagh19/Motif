@@ -29,12 +29,13 @@ from __future__ import annotations
 
 import os
 import platform
+import shutil
 import subprocess
 import tomllib
-import shutil
-import platformdirs
 from dataclasses import dataclass, field
 from pathlib import Path
+
+import platformdirs
 
 # Hardware detection cache
 _hw_cache: dict[str, str | None] = {}

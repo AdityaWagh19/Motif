@@ -20,6 +20,7 @@ from __future__ import annotations
 
 # ── Thread pool limits — MUST be set before numpy/onnxruntime/numexpr import ─
 import os
+
 from rag.config import load_config, migrate_if_needed
 
 migrate_if_needed()
@@ -32,34 +33,29 @@ os.environ.setdefault("MKL_NUM_THREADS", _threads)
 os.environ.setdefault("OPENBLAS_NUM_THREADS", _threads)
 # ─────────────────────────────────────────────────────────────────────────────
 import warnings
+
 warnings.filterwarnings("ignore")
 import logging
+
 logging.getLogger("ppocr").setLevel(logging.ERROR)
 
 
+import shlex
 import sys
 from pathlib import Path
 
 from prompt_toolkit import PromptSession
-from prompt_toolkit.styles import Style
-from prompt_toolkit.completion import WordCompleter, NestedCompleter, PathCompleter
+from prompt_toolkit.completion import NestedCompleter, PathCompleter, WordCompleter
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.key_binding import KeyBindings
-from rich.console import Console
-import platform
-import subprocess
-import shlex
-from dataclasses import dataclass, field
+from prompt_toolkit.styles import Style
 from rich.panel import Panel
-from rich.table import Table
-from rich import box
 
 from rag import __version__
-from rag.config import load_config, RAGConfig
+from rag.commands import get_command
+from rag.config import RAGConfig, load_config
 from rag.session import Session
-from rag.commands import get_command, SLASH_COMMANDS, COMMAND_DESCRIPTIONS
-
 from rag.theme import console
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -152,7 +148,6 @@ def _handle_slash_command(raw: str, session: Session, config: RAGConfig) -> None
     Format:  /command [arg1 arg2 ...]
     Unknown commands print a friendly error and suggest /help.
     """
-    import shlex
     parts = shlex.split(raw.strip(), posix=False)
     command_name = parts[0].lower()   # e.g. "/ingest"
     args = [arg.strip('"\'') for arg in parts[1:]]  # e.g. ["./docs", "-r"]

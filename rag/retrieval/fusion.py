@@ -17,7 +17,7 @@ Public API:
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Tuple
+from typing import TYPE_CHECKING
 
 from rag.types import ScoredPassage
 
@@ -29,10 +29,10 @@ _DEFAULT_K = 60
 
 
 def rrf_fuse(
-    ranked_lists: List[List[Tuple[str, float]]],
+    ranked_lists: list[list[tuple[str, float]]],
     top_k: int = 25,
     k: int = _DEFAULT_K,
-) -> List[Tuple[str, float]]:
+) -> list[tuple[str, float]]:
     """
     Merge multiple ranked lists of (chunk_id, score) tuples using RRF.
 
@@ -61,9 +61,9 @@ def rrf_fuse(
 
 
 def rrf_to_scored_passages(
-    fused: List[Tuple[str, float]],
-    chunk_store: "ChunkStore",
-) -> List[ScoredPassage]:
+    fused: list[tuple[str, float]],
+    chunk_store: ChunkStore,
+) -> list[ScoredPassage]:
     """
     Fetch Chunk objects for fused IDs and wrap them in ScoredPassage.
 

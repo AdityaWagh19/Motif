@@ -17,7 +17,7 @@ Functions:
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from rag.types import Citation
 
@@ -120,7 +120,7 @@ Passage:"""
 # Formatting utilities
 # ─────────────────────────────────────────────────────────────────────────────
 
-def format_context(passages: "List[ScoredPassage]") -> str:
+def format_context(passages: list[ScoredPassage]) -> str:
     """
     Format a list of ScoredPassage objects into a numbered context string.
 
@@ -142,10 +142,10 @@ def format_context(passages: "List[ScoredPassage]") -> str:
     if not passages:
         return ""
 
-    lines: List[str] = []
+    lines: list[str] = []
     for i, p in enumerate(passages, start=1):
         chunk = p.chunk
-        loc_parts: List[str] = []
+        loc_parts: list[str] = []
         if chunk.page is not None:
             loc_parts.append(f"p.{chunk.page}")
         if chunk.section:
@@ -158,7 +158,7 @@ def format_context(passages: "List[ScoredPassage]") -> str:
     return "\n".join(lines).strip()
 
 
-def format_history(history: List[dict]) -> str:
+def format_history(history: list[dict]) -> str:
     """
     Format conversation history as alternating User/Assistant blocks.
 
@@ -173,7 +173,7 @@ def format_history(history: List[dict]) -> str:
     if not history:
         return ""
 
-    parts: List[str] = []
+    parts: list[str] = []
     for turn in history:
         prefix = "User" if turn["role"] == "user" else "Assistant"
         parts.append(f"{prefix}: {turn['content']}")
@@ -182,8 +182,8 @@ def format_history(history: List[dict]) -> str:
 
 def build_prompt(
     query: str,
-    passages: "List[ScoredPassage]",
-    history: List[dict],
+    passages: list[ScoredPassage],
+    history: list[dict],
 ) -> str:
     """
     Assemble the final LLM prompt from context, query, and history.
@@ -214,7 +214,7 @@ def build_prompt(
         return RAG_PROMPT.format(context=context, query=query)
 
 
-def build_citations(passages: "List[ScoredPassage]") -> List[Citation]:
+def build_citations(passages: list[ScoredPassage]) -> list[Citation]:
     """
     Build Citation objects from the final reranked passages.
 
@@ -226,7 +226,7 @@ def build_citations(passages: "List[ScoredPassage]") -> List[Citation]:
     Returns:
         List of Citation, one per passage, numbered 1-based.
     """
-    citations: List[Citation] = []
+    citations: list[Citation] = []
     for i, p in enumerate(passages, start=1):
         c = p.chunk
         citations.append(

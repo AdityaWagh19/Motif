@@ -8,8 +8,9 @@ The unit-level tests validate the latency API contract without needing real mode
 """
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from rag.evaluation.latency_test import run_latency_test
 

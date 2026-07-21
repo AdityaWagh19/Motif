@@ -6,11 +6,8 @@ All tests use pure Python — no fixtures needed beyond simple lists.
 """
 from __future__ import annotations
 
-import pytest
-
 from rag.retrieval.fusion import rrf_fuse, rrf_to_scored_passages
 from rag.types import Chunk, ScoredPassage
-
 
 # ---------------------------------------------------------------------------
 # Helpers

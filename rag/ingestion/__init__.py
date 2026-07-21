@@ -45,6 +45,7 @@ from rag.types import IngestResult, SyncResult
 
 if TYPE_CHECKING:
     from rich.console import Console
+
     from rag.config import RAGConfig
 
 log = logging.getLogger(__name__)
@@ -89,7 +90,7 @@ _EXT_TO_SOURCE_TYPE: dict = {
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _collect_files(path: Path, recursive: bool) -> List[Path]:
+def _collect_files(path: Path, recursive: bool) -> list[Path]:
     """Return all supported files under *path* (file or directory)."""
     if path.is_file():
         return [path] if path.suffix.lower() in _SUPPORTED_EXTENSIONS else []
@@ -121,9 +122,9 @@ def _chunk_to_payload(chunk) -> dict:  # type: ignore[return]
 
 def ingest_path(
     path: Path,
-    config: "RAGConfig",
+    config: RAGConfig,
     recursive: bool = False,
-    console: "Console | None" = None,
+    console: Console | None = None,
 ) -> IngestResult:
     """
     Ingest all supported documents found at *path* into the knowledge base.
@@ -148,14 +149,14 @@ def ingest_path(
     Returns:
         IngestResult(files_processed, chunks_added, files_skipped, errors)
     """
-    from rag.ingestion.parsers.base import get_parser
-    from rag.ingestion.chunker import SentenceChunker, ChunkerConfig
+    from rag.ingestion.chunker import ChunkerConfig, SentenceChunker
     from rag.ingestion.deduplicator import Deduplicator
-    from rag.storage.chunk_store import ChunkStore
-    from rag.storage.ingestion_tracker import IngestionTracker, compute_file_hash
+    from rag.ingestion.parsers.base import get_parser
+    from rag.models.model_manager import get_model_manager
     from rag.retrieval.bm25_index import BM25Index
     from rag.retrieval.vector_store import VectorStore
-    from rag.models.model_manager import get_model_manager
+    from rag.storage.chunk_store import ChunkStore
+    from rag.storage.ingestion_tracker import IngestionTracker, compute_file_hash
 
     files = _collect_files(path, recursive)
     if not files and console:
@@ -200,7 +201,7 @@ def ingest_path(
     files_processed = 0
     chunks_added = 0
     files_skipped = 0
-    errors: List[str] = []
+    errors: list[str] = []
 
     total = len(files)
     for idx, file in enumerate(files, start=1):
@@ -317,7 +318,7 @@ def ingest_path(
 
 def remove_document(
     file_path: Path, 
-    config: "RAGConfig",
+    config: RAGConfig,
     chunk_store=None,
     bm25=None,
     vector_store=None,
@@ -338,10 +339,10 @@ def remove_document(
     Returns:
         Number of chunks removed (from ChunkStore).
     """
-    from rag.storage.chunk_store import ChunkStore
-    from rag.storage.ingestion_tracker import IngestionTracker
     from rag.retrieval.bm25_index import BM25Index
     from rag.retrieval.vector_store import VectorStore
+    from rag.storage.chunk_store import ChunkStore
+    from rag.storage.ingestion_tracker import IngestionTracker
 
     source = str(file_path.resolve())
 
@@ -373,9 +374,9 @@ def remove_document(
 
 def sync_directory(
     directory: Path,
-    config: "RAGConfig",
+    config: RAGConfig,
     recursive: bool = False,
-    console: "Console | None" = None,
+    console: Console | None = None,
 ) -> SyncResult:
     """
     Synchronise a directory with the knowledge base.
@@ -411,7 +412,7 @@ def sync_directory(
 
     # Files that exist on both sides but have a different hash → reindex
     common = disk_paths & indexed_paths
-    to_reindex: List[Path] = []
+    to_reindex: list[Path] = []
     for p in common:
         try:
             current_hash = compute_file_hash(disk_files[p])
@@ -423,7 +424,7 @@ def sync_directory(
     added = 0
     removed = 0
     reindexed = 0
-    errors: List[str] = []
+    errors: list[str] = []
 
     # Remove stale entries
     for p in to_remove:

@@ -1,6 +1,6 @@
-import pytest
 from rag.config import RAGConfig
 from rag.retrieval.expander import should_use_hyde
+
 
 def test_should_use_hyde_false_for_t1():
     config = RAGConfig()

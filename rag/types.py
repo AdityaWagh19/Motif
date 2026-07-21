@@ -10,8 +10,6 @@ This guarantees it can be imported by every other module without circular deps.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Storage / Ingestion types
@@ -36,18 +34,18 @@ class Chunk:
     # Position within document
     char_start: int = 0
     char_end: int = 0
-    page: Optional[int] = None           # PDF / DOCX page number (1-indexed)
-    section: Optional[str] = None        # Nearest detected section heading
+    page: int | None = None           # PDF / DOCX page number (1-indexed)
+    section: str | None = None        # Nearest detected section heading
 
     # Audio-specific position
-    start_time: Optional[float] = None   # seconds
-    end_time: Optional[float] = None     # seconds
+    start_time: float | None = None   # seconds
+    end_time: float | None = None     # seconds
 
     # Content flags (used for routing and Qdrant payload filters)
     has_table: bool = False
     has_image: bool = False
     is_ocr: bool = False
-    language: Optional[str] = None
+    language: str | None = None
 
     # Ingestion metadata
     content_hash: str = ""               # SHA-256 of text, for deduplication
@@ -86,10 +84,10 @@ class Citation:
     source_type: str                     # "pdf" | "docx" | "md" | "image" | "audio"
     filepath: str
     filename: str
-    page: Optional[int] = None
-    section: Optional[str] = None
-    start_time: Optional[float] = None   # Audio: seconds
-    end_time: Optional[float] = None
+    page: int | None = None
+    section: str | None = None
+    start_time: float | None = None   # Audio: seconds
+    end_time: float | None = None
     relevance_score: float = 0.0
     excerpt: str = ""                    # First ~150 characters of chunk text
 

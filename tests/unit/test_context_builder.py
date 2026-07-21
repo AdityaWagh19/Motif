@@ -5,12 +5,8 @@ No models required.
 """
 from __future__ import annotations
 
-import pytest
-
-
 from rag.generation.context_builder import ContextBuilder, _anti_middle_order
 from rag.types import Chunk, ScoredPassage
-
 
 # ---------------------------------------------------------------------------
 # Helpers

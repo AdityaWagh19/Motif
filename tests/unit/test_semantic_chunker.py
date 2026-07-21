@@ -1,10 +1,10 @@
-import pytest
 import numpy as np
-from rag.config import RAGConfig
-from rag.ingestion.semantic_chunker import SemanticChunker
-from rag.ingestion.parsers.base import ParsedPage
 
+from rag.config import RAGConfig
+from rag.ingestion.parsers.base import ParsedPage
+from rag.ingestion.semantic_chunker import SemanticChunker
 from rag.models.embedder import Embedder
+
 
 class MockEmbedder(Embedder):
     def __init__(self):

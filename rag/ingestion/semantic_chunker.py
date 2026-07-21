@@ -22,20 +22,19 @@ Reference: Greg Kamradt's "5 Levels of Text Splitting" (2023).
 """
 from __future__ import annotations
 
-import re
 import uuid
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, List, Optional
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import numpy as np
 
+from rag.ingestion.chunker import _SENTENCE_SPLIT_RE, ChunkerConfig, SentenceChunker
 from rag.types import Chunk
-from rag.ingestion.chunker import SentenceChunker, ChunkerConfig, _SENTENCE_SPLIT_RE
 
 if TYPE_CHECKING:
+    from rag.config import RAGConfig
     from rag.ingestion.parsers.base import ParsedPage
     from rag.models.embedder import Embedder
-    from rag.config import RAGConfig
 
 
 # Minimum number of sentences per semantic segment before it is emitted as a
@@ -73,7 +72,7 @@ class SemanticChunker:
         chunks = chunker.chunk_pages(pages, source=..., filename=..., source_type=...)
     """
 
-    def __init__(self, config: "RAGConfig", embedder: "Embedder") -> None:
+    def __init__(self, config: RAGConfig, embedder: Embedder) -> None:
         """
         Initialise the semantic chunker.
 
@@ -95,28 +94,28 @@ class SemanticChunker:
 
     def chunk_pages(
         self,
-        pages: "List[ParsedPage]",
+        pages: list[ParsedPage],
         source: str,
         filename: str,
         source_type: str,
-    ) -> List[Chunk]:
+    ) -> list[Chunk]:
         """
         Chunk all pages into semantically coherent chunks.
 
         Returns a flat list of Chunk objects in page order.
         """
-        all_chunks: List[Chunk] = []
+        all_chunks: list[Chunk] = []
         for page in pages:
             all_chunks.extend(self._chunk_page(page, source, filename, source_type))
         return all_chunks
 
     def _chunk_page(
         self,
-        page: "ParsedPage",
+        page: ParsedPage,
         source: str,
         filename: str,
         source_type: str,
-    ) -> List[Chunk]:
+    ) -> list[Chunk]:
         """
         Process a single ParsedPage into semantically coherent chunks.
         """
@@ -140,8 +139,8 @@ class SemanticChunker:
         )
 
         # Segment sentences by cosine distance threshold.
-        segments: List[List[str]] = []
-        current: List[str] = [sentences[0]]
+        segments: list[list[str]] = []
+        current: list[str] = [sentences[0]]
 
         for i in range(1, len(sentences)):
             dist = _cosine_distance(embeddings[i - 1], embeddings[i])
@@ -155,7 +154,7 @@ class SemanticChunker:
             segments.append(current)
 
         # Convert segments to Chunk objects.
-        chunks: List[Chunk] = []
+        chunks: list[Chunk] = []
         for seg_sentences in segments:
             seg_text = " ".join(seg_sentences)
             word_count = len(seg_text.split())
@@ -190,7 +189,7 @@ class SemanticChunker:
                     start_time=page.start_time,
                     end_time=page.end_time,
                     token_count=word_count,
-                    indexed_at=datetime.now(timezone.utc).isoformat(),
+                    indexed_at=datetime.now(UTC).isoformat(),
                 ))
 
         return chunks

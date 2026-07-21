@@ -11,13 +11,10 @@ Also callable as the `motif setup` command (via rag/commands/setup.py).
 from __future__ import annotations
 
 import argparse
-import hashlib
-import sys
 from pathlib import Path
 
 from huggingface_hub import hf_hub_download, snapshot_download
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, BarColumn, DownloadColumn, TextColumn
 
 console = Console()
 
@@ -26,6 +23,7 @@ console = Console()
 # ─────────────────────────────────────────────────────────────────────────────
 
 from rag.config import _get_models_dir
+
 MODELS_DIR: Path = _get_models_dir()
 
 # (repo_id, filename, local_name, tiers, size_label)
@@ -211,8 +209,8 @@ def _download_model(entry: tuple, tier: str) -> bool:
 
 def _verify(tier: str, captioning: bool) -> None:
     """Check which models are present and print a verification table."""
-    from rich.table import Table
     from rich import box
+    from rich.table import Table
 
     all_models = LLM_MODELS + EMBED_MODELS + RERANKER_MODELS + WHISPER_MODELS
     if captioning:

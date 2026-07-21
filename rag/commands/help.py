@@ -1,13 +1,13 @@
 """rag/commands/help.py — /help command."""
 from __future__ import annotations
 
-from rich.table import Table
 from rich import box
+from rich.table import Table
 
 
 def handle_help(args, session, config, console) -> None:
     """Print all available slash commands with descriptions."""
-    from rag.commands import SLASH_COMMANDS, COMMAND_DESCRIPTIONS, COMMAND_EXAMPLES
+    from rag.commands import COMMAND_DESCRIPTIONS, COMMAND_EXAMPLES
 
     table = Table(box=box.SIMPLE, show_header=True, padding=(0, 2))
     table.add_column("Command", style="bold cyan", no_wrap=True)

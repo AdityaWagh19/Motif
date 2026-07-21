@@ -26,8 +26,7 @@ import json
 import logging
 import sqlite3
 import time
-from pathlib import Path
-from typing import List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from rag.types import AnswerResult, Citation
 
@@ -59,9 +58,9 @@ CREATE INDEX IF NOT EXISTS idx_qc_accessed ON query_cache (accessed_at);
 
 def _make_key(
     query: str,
-    file_filter: Optional[str],
-    type_filter: Optional[str],
-    page_range: Optional[str],
+    file_filter: str | None,
+    type_filter: str | None,
+    page_range: str | None,
 ) -> str:
     """Compute a stable SHA-256 cache key from the query + filter parameters."""
     parts = [
@@ -142,7 +141,7 @@ class QueryCache:
     REPL use case.
     """
 
-    def __init__(self, config: "RAGConfig", max_entries: int = _DEFAULT_MAX_ENTRIES) -> None:
+    def __init__(self, config: RAGConfig, max_entries: int = _DEFAULT_MAX_ENTRIES) -> None:
         """
         Open (or create) the cache database.
 
@@ -154,7 +153,7 @@ class QueryCache:
         db_root = config.db_root
         self._db_path = db_root / _CACHE_DB_NAME
         self._max_entries = max_entries
-        self._conn: Optional[sqlite3.Connection] = None
+        self._conn: sqlite3.Connection | None = None
         self._enabled: bool = getattr(config.storage, "query_cache_enabled", False)
         if self._enabled:
             os.makedirs(str(db_root), exist_ok=True)
@@ -175,10 +174,10 @@ class QueryCache:
     def get(
         self,
         query: str,
-        file_filter: Optional[str] = None,
-        type_filter: Optional[str] = None,
-        page_range: Optional[str] = None,
-    ) -> Optional[AnswerResult]:
+        file_filter: str | None = None,
+        type_filter: str | None = None,
+        page_range: str | None = None,
+    ) -> AnswerResult | None:
         """
         Retrieve a cached result, or None on cache miss.
 
@@ -218,9 +217,9 @@ class QueryCache:
         self,
         query: str,
         result: AnswerResult,
-        file_filter: Optional[str] = None,
-        type_filter: Optional[str] = None,
-        page_range: Optional[str] = None,
+        file_filter: str | None = None,
+        type_filter: str | None = None,
+        page_range: str | None = None,
     ) -> None:
         """
         Store a query result in the cache.

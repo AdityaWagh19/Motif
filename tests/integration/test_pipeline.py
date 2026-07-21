@@ -1,12 +1,12 @@
 """
 tests/integration/test_pipeline.py
 """
-import pytest
 from unittest.mock import MagicMock, patch
 
 from rag.config import RAGConfig
 from rag.pipeline import QueryPipeline
 from rag.types import AnswerResult
+
 
 def test_query_pipeline_glue_code(tmp_path):
     config = RAGConfig()

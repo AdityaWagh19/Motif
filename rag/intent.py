@@ -4,10 +4,11 @@ rag/intent.py — Zero-shot Intent Classification using Embeddings.
 Uses the existing Sentence-Transformer embedder to classify queries
 as CHITCHAT vs QUERY based on cosine similarity to anchor phrases.
 """
+import logging
 from enum import Enum
 from typing import TYPE_CHECKING
+
 import numpy as np
-import logging
 
 if TYPE_CHECKING:
     from rag.models.embedder import Embedder

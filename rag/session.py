@@ -38,7 +38,7 @@ class Session:
         db_root:  Path to ~/.ragdb (or override from config).
     """
 
-    def __init__(self, config: "RAGConfig | None" = None) -> None:
+    def __init__(self, config: RAGConfig | None = None) -> None:
         self.config = config
         self.history: list[dict[str, str]] = []
 

@@ -12,9 +12,10 @@ def handle_remove(args, session, config, console) -> None:
     The document file itself is not deleted from disk.
     Supports substring matching if the exact path isn't found.
     """
-    from rag.storage.ingestion_tracker import IngestionTracker
-    from rich.table import Table
     from rich import box
+    from rich.table import Table
+
+    from rag.storage.ingestion_tracker import IngestionTracker
 
     if not args:
         tracker = IngestionTracker(config)

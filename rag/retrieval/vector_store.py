@@ -23,8 +23,7 @@ from __future__ import annotations
 
 import logging
 import uuid as _uuid_module
-from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -55,7 +54,7 @@ class VectorStore:
         results = store.search_dense(query_vector, top_k=20)
     """
 
-    def __init__(self, config: "RAGConfig") -> None:
+    def __init__(self, config: RAGConfig) -> None:
         try:
             from qdrant_client import QdrantClient  # type: ignore[import]
         except ImportError as exc:
@@ -101,7 +100,7 @@ class VectorStore:
         self,
         chunk_id: str,
         vector: np.ndarray,
-        payload: Dict,
+        payload: dict,
     ) -> None:
         """Insert or update a single vector with its metadata payload."""
         from qdrant_client.models import PointStruct  # type: ignore[import]
@@ -119,9 +118,9 @@ class VectorStore:
 
     def upsert_batch(
         self,
-        chunk_ids: List[str],
+        chunk_ids: list[str],
         vectors: np.ndarray,
-        payloads: List[Dict],
+        payloads: list[dict],
     ) -> None:
         """
         Batch insert or update.
@@ -170,10 +169,10 @@ class VectorStore:
             Callers should use ChunkStore.delete_by_source() for the count.
         """
         from qdrant_client.models import (  # type: ignore[import]
-            Filter,
             FieldCondition,
-            MatchValue,
+            Filter,
             FilterSelector,
+            MatchValue,
         )
 
         self._client.delete(
@@ -200,8 +199,8 @@ class VectorStore:
         self,
         query_vector: np.ndarray,
         top_k: int = 20,
-        filter_: Optional[Dict] = None,
-    ) -> List[Tuple[str, float]]:
+        filter_: dict | None = None,
+    ) -> list[tuple[str, float]]:
         """
         Dense HNSW approximate nearest-neighbour search.
 
@@ -263,15 +262,15 @@ def _str_to_uuid_int(s: str) -> int:
     return _uuid_module.UUID(s).int
 
 
-def _build_filter(filter_dict: Dict) -> Optional[object]:
+def _build_filter(filter_dict: dict) -> object | None:
     """
     Build a Qdrant Filter from a plain-dict specification.
 
     Returns None if no conditions are specified (avoids creating an empty filter).
     """
     from qdrant_client.models import (  # type: ignore[import]
-        Filter,
         FieldCondition,
+        Filter,
         MatchValue,
         Range,
     )
