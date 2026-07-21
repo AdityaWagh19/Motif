@@ -352,3 +352,5 @@ async def answer_with_fallback(query: str) -> Answer:
 | CrossEncoder | ContextBuilder | `List[ScoredPassage]` | `relevance_score: float` |
 | ContextBuilder | LLMClient | `str` (context), `str` (query) | Formatted prompt context |
 | LLMClient | CLI | `Iterator[str]` | Token stream |
+   
+ 

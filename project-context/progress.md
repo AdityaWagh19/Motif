@@ -310,3 +310,5 @@ Re-running the same command produces zero new chunks (deduplication).
 | bge-reranker-base for T2 | Phase 2 review | Phase 4 (after RAGAS) | Small gain, 150 MB extra |
 | Sparse retrieval (SPLADE) | Phase 2 impl | Phase 3 (hybrid search) | Dense-only in Phase 2 per plan |
 | ffmpeg dependency for mp3 audio | Phase 7 | Post-MVP | pywhispercpp requires ffmpeg for non-WAV formats; WAV at 16000 Hz works natively |
+   
+ 

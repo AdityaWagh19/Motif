@@ -30,6 +30,7 @@ class Chunk:
     source: str                          # Absolute filepath to source document
     filename: str                        # Basename of source file
     source_type: str                     # "pdf" | "docx" | "md" | "image" | "audio"
+    parent_id: str | None = None         # 7-B: Parent chunk UUID if this is a child chunk
 
     # Position within document
     char_start: int = 0

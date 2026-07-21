@@ -311,3 +311,5 @@ bm25_backend = "tantivy"   # default: "rank_bm25"
 ```
 
 The `/sync` command will rebuild the BM25 index in tantivy format on next run.
+   
+ 

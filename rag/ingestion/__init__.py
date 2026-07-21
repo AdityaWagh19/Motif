@@ -181,9 +181,16 @@ def ingest_path(
     model_manager = get_model_manager()
     embedder = model_manager.get_embedder(config)
 
-    # Select chunker: SemanticChunker on T2/T3, SentenceChunker on T1.
+    # Select chunker: ParentChunker on 7-B, SemanticChunker on T2/T3, SentenceChunker on T1.
     use_semantic = getattr(config.chunking, "use_semantic", False)
-    if use_semantic:
+    use_parent_docs = getattr(config.retrieval, "use_parent_docs", False)
+    
+    if use_parent_docs:
+        from rag.ingestion.chunker import ParentChunker, ParentChunkerConfig
+        chunker = ParentChunker(ParentChunkerConfig())  # type: ignore[assignment]
+        if console:
+            console.print("[dim]Using ParentChunker (7-B).[/dim]")
+    elif use_semantic:
         from rag.ingestion.semantic_chunker import SemanticChunker
         chunker = SemanticChunker(config, embedder)  # type: ignore[assignment]
         if console:
@@ -265,22 +272,28 @@ def ingest_path(
                     console.print("[yellow]all chunks were duplicates — skipped[/yellow]")
                 continue
 
+            # ── 7-B: Filter Parent Chunks from Search Indices ────────────────
+            if use_parent_docs:
+                indexable_chunks = [c for c in chunks if c.parent_id is not None]
+            else:
+                indexable_chunks = chunks
+
             # ── Embed ────────────────────────────────────────────────────────
             vectors = embedder.encode_batch(
-                [c.text for c in chunks],
+                [c.text for c in indexable_chunks],
                 prefix="search_document: ",
             )
 
             # ── Store ─────────────────────────────────────────────────────────
-            chunk_store.insert_batch(chunks)
-            bm25.add_batch(chunks)
-            payloads = [_chunk_to_payload(c) for c in chunks]
+            chunk_store.insert_batch(chunks)  # Save BOTH parents and children to DB
+            bm25.add_batch(indexable_chunks)
+            payloads = [_chunk_to_payload(c) for c in indexable_chunks]
             vector_store.upsert_batch(
-                [c.id for c in chunks],
+                [c.id for c in indexable_chunks],
                 vectors,
                 payloads,
             )
-            tracker.update(file, file_hash, len(chunks))
+            tracker.update(file, file_hash, len(indexable_chunks))
 
             files_processed += 1
             chunks_added += len(chunks)
@@ -296,6 +309,16 @@ def ingest_path(
             errors.append(err_msg)
             if console:
                 console.print(f"[red]error:[/red] {exc}")
+
+    # ── 7-A: RAPTOR Hierarchical Indexing ──────────────────────────
+    if getattr(config.retrieval, "use_raptor", False) and files_processed > 0:
+        from rag.ingestion.raptor import build_raptor_summaries
+        try:
+            build_raptor_summaries(config, console)
+        except Exception as exc:
+            log.exception("RAPTOR indexing failed")
+            if console:
+                console.print(f"[red]RAPTOR error:[/red] {exc}")
 
     # Persist BM25 index once after all files (atomic write)
     bm25.save()

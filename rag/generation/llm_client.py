@@ -108,6 +108,8 @@ class LLMClient:
             cfg.threads,
         )
 
+        use_flare = getattr(self._config.retrieval, "use_flare", False)
+        
         self._llm = Llama(  # type: ignore[attr-defined]
             model_path=str(self._model_path),
             n_ctx=cfg.ctx_size,
@@ -116,6 +118,7 @@ class LLMClient:
             verbose=False,       # suppress llama.cpp debug output
             use_mlock=False,     # don't pin memory
             use_mmap=True,       # memory-map model file
+            logits_all=use_flare, # 7-C: Required for logprobs streaming
         )
 
         # ── GPU offload verification ─────────────────────────────────────────
@@ -150,7 +153,8 @@ class LLMClient:
         max_tokens: int,
         temperature: float = 0.1,
         stop: list[str] | None = None,
-    ) -> Generator[str, None, None]:
+        return_logprobs: bool = False,
+    ) -> Generator[str | tuple[str, float], None, None]:
         """
         Stream the LLM response token by token.
 
@@ -188,12 +192,26 @@ class LLMClient:
             temperature=temperature,
             stop=stop_seqs,
             stream=True,
+            logprobs=True if return_logprobs else None,
+            top_logprobs=1 if return_logprobs else None,
         )
 
         for chunk in output:
-            delta = chunk["choices"][0]["delta"]
+            choice = chunk["choices"][0]
+            delta = choice["delta"]
             if "content" in delta:
-                yield delta["content"]
+                token = delta["content"]
+                if return_logprobs:
+                    # Retrieve logprob for this token
+                    # In llama_cpp chat completions with logprobs, it's typically inside choice["logprobs"]["content"][0]["logprob"]
+                    logprob = 0.0
+                    if "logprobs" in choice and choice["logprobs"] and "content" in choice["logprobs"]:
+                        content_logprobs = choice["logprobs"]["content"]
+                        if content_logprobs and len(content_logprobs) > 0:
+                            logprob = content_logprobs[0].get("logprob", 0.0)
+                    yield (token, logprob)
+                else:
+                    yield token
 
     def generate(
         self,

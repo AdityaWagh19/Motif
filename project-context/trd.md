@@ -232,3 +232,5 @@
 | Logging to file | NFR-09 | All log entries written to `~/.ragdb/motif.log` with timestamps |
 | Single-user | NFR-10 | No concurrent access handling required; SQLite WAL is sufficient |
 | `motif` on PATH after install | NFR-11 | After running install script, `which motif` (Linux/macOS) or `Get-Command motif` (Windows) returns a valid path |
+   
+ 

@@ -368,3 +368,5 @@ Primary A/B test targets (Phase 2):
 1. HyDE vs. no HyDE on real corpus
 2. MiniLM-L12 vs. bge-reranker-base (T3)
 3. semantic chunking vs. sentence chunking (T2)
+   
+ 

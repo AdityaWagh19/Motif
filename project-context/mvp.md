@@ -224,3 +224,5 @@ If accuracy is above 70%: **proceed to Phase 2.**
 | **3 — Multimodal** | All modality ingestion | 2 | PaddleOCR, Surya, whisper.cpp, DOCX, image parser, moondream2 opt-in |
 | **4 — Production** | Latency + reliability | 2 | ONNX conversion, dedup, query cache, RAGAS eval, tantivy, logging, `--consistency` |
 | **5 — Optional** | Large corpora + advanced | TBD | RAPTOR, parent-doc retrieval, FLARE, GUI, REST API |
+   
+ 

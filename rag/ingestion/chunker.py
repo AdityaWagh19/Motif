@@ -44,6 +44,13 @@ class ChunkerConfig:
     target_tokens: int = 512   # Target chunk size in tokens
     overlap_tokens: int = 64   # Overlap between consecutive chunks in tokens
 
+@dataclass
+class ParentChunkerConfig:
+    """7-B: Configuration for ParentChunker."""
+    parent_tokens: int = 512
+    child_tokens: int = 128
+    overlap_tokens: int = 32
+
 
 # ---------------------------------------------------------------------------
 # SentenceChunker
@@ -177,4 +184,66 @@ class SentenceChunker:
         all_chunks: list[Chunk] = []
         for page in pages:
             all_chunks.extend(self.chunk(page, source, filename, source_type))
+        return all_chunks
+
+# ---------------------------------------------------------------------------
+# ParentChunker (7-B)
+# ---------------------------------------------------------------------------
+
+class ParentChunker:
+    """
+    7-B: Parent-Document Retrieval.
+    Chunks text into 512-token parent chunks, then sub-chunks them into 
+    128-token child chunks. The child chunks get a `parent_id` linking 
+    them to their parent.
+    
+    Returns a combined list of Parent chunks and Child chunks.
+    (Parent chunks will NOT be embedded by the ingestion pipeline, but 
+    saved in ChunkStore).
+    """
+    def __init__(self, config: ParentChunkerConfig = ParentChunkerConfig()) -> None:
+        self._parent_chunker = SentenceChunker(ChunkerConfig(
+            target_tokens=config.parent_tokens,
+            overlap_tokens=0  # Parents don't overlap to avoid duplication
+        ))
+        self._child_chunker = SentenceChunker(ChunkerConfig(
+            target_tokens=config.child_tokens,
+            overlap_tokens=config.overlap_tokens
+        ))
+
+    def chunk_pages(
+        self,
+        pages: list[ParsedPage],
+        source: str,
+        filename: str,
+        source_type: str,
+    ) -> list[Chunk]:
+        
+        # 1. Chunk into parents
+        parent_chunks = self._parent_chunker.chunk_pages(pages, source, filename, source_type)
+        all_chunks = list(parent_chunks)
+        
+        from rag.ingestion.parsers.base import ParsedPage
+        
+        # 2. For each parent, chunk it into children
+        for parent in parent_chunks:
+            # Wrap parent text into a mock ParsedPage to feed child chunker
+            parent_page = ParsedPage(
+                page=parent.page,
+                section=parent.section,
+                text=parent.text,
+                has_table=parent.has_table,
+                has_image=parent.has_image,
+                is_ocr=parent.is_ocr,
+                start_time=parent.start_time,
+                end_time=parent.end_time
+            )
+            
+            child_chunks = self._child_chunker.chunk(parent_page, source, filename, source_type)
+            
+            # Link children to parent
+            for child in child_chunks:
+                child.parent_id = parent.id
+                all_chunks.append(child)
+                
         return all_chunks

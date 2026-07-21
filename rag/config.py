@@ -139,6 +139,9 @@ class RetrievalConfig:
     chitchat_threshold: float = 0.85
     query_expansion: str = "none"   # "none" | "hyde"
     bm25_backend: str = "rank_bm25"
+    use_raptor: bool = False
+    use_parent_docs: bool = False
+    use_flare: bool = False
 
 
 @dataclass

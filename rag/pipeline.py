@@ -267,6 +267,15 @@ class QueryPipeline:
                 t_start, 
                 retrieval_latency_ms=t_retrieval_ms
             )
+        # ── 4b. 7-B: Parent-Document Retrieval ─────────────────────────────────
+        if getattr(cfg.retrieval, "use_parent_docs", False):
+            for p in reranked:
+                if p.chunk.parent_id:
+                    parent_chunk = self._chunk_store.fetch_parent(p.chunk)
+                    if parent_chunk:
+                        log.debug("Swapping child chunk %s for parent chunk %s", p.chunk.id, parent_chunk.id)
+                        p.chunk = parent_chunk
+
         # ── 5. Build context and prompt ────────────────────────────────────────
         history_context = self._get_history_context(history)
         prompt, passages_used = self._context_builder.build(
@@ -297,11 +306,42 @@ class QueryPipeline:
         try:
             # refresh_per_second throttles terminal updates to prevent flickering
             with Live(Markdown(""), console=console, refresh_per_second=15, transient=False) as live:
-                for i, token in enumerate(llm.stream(
-                    prompt,
-                    max_tokens=cfg.llm.max_tokens,
-                    temperature=cfg.llm.temperature,
-                )):
+                
+                use_flare = getattr(cfg.retrieval, "use_flare", False)
+                if use_flare:
+                    from rag.generation.flare import FlareController
+                    
+                    def _flare_retrieve(flare_query: str) -> str:
+                        try:
+                            c = retrieve(flare_query, cfg, top_k=top_k_retrieval, backend=bm25)
+                            r = rerank(flare_query, c, cfg, top_k=top_k_rerank, threshold=threshold)
+                            if getattr(cfg.retrieval, "use_parent_docs", False):
+                                for p in r:
+                                    if p.chunk.parent_id:
+                                        parent_chunk = self._chunk_store.fetch_parent(p.chunk)
+                                        if parent_chunk:
+                                            p.chunk = parent_chunk
+                            return "\n\n".join(f"---\n{p.chunk.text}" for p in r)
+                        except Exception as e:
+                            log.warning("FLARE retrieval failed: %s", e)
+                            return ""
+                            
+                    controller = FlareController(
+                        llm=llm,
+                        base_prompt=prompt,
+                        retrieve_fn=_flare_retrieve,
+                        max_tokens=cfg.llm.max_tokens,
+                        temperature=cfg.llm.temperature,
+                    )
+                    stream_gen = controller.stream()
+                else:
+                    stream_gen = llm.stream(
+                        prompt,
+                        max_tokens=cfg.llm.max_tokens,
+                        temperature=cfg.llm.temperature,
+                    )
+                
+                for i, token in enumerate(stream_gen):
                     if i == 0:
                         ttft_ms = (time.monotonic() - t_gen_start) * 1000
                     full_answer += token

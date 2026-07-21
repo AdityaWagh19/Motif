@@ -46,7 +46,8 @@ CREATE TABLE IF NOT EXISTS chunks (
     language     TEXT,
     content_hash TEXT NOT NULL DEFAULT '',
     token_count  INTEGER NOT NULL DEFAULT 0,
-    indexed_at   TEXT NOT NULL DEFAULT ''
+    indexed_at   TEXT NOT NULL DEFAULT '',
+    parent_id    TEXT
 );
 """
 
@@ -66,13 +67,13 @@ INSERT OR REPLACE INTO chunks (
     char_start, char_end, page, section,
     start_time, end_time,
     has_table, has_image, is_ocr, language,
-    content_hash, token_count, indexed_at
+    content_hash, token_count, indexed_at, parent_id
 ) VALUES (
     ?, ?, ?, ?, ?,
     ?, ?, ?, ?,
     ?, ?,
     ?, ?, ?, ?,
-    ?, ?, ?
+    ?, ?, ?, ?
 );
 """
 
@@ -98,6 +99,7 @@ def _chunk_to_row(chunk: Chunk) -> tuple:
         chunk.content_hash,
         chunk.token_count,
         chunk.indexed_at,
+        chunk.parent_id,
     )
 
 
@@ -108,7 +110,7 @@ def _row_to_chunk(row: tuple) -> Chunk:
         char_start, char_end, page, section,
         start_time, end_time,
         has_table, has_image, is_ocr, language,
-        content_hash, token_count, indexed_at,
+        content_hash, token_count, indexed_at, parent_id
     ) = row
     return Chunk(
         id=id_,
@@ -129,6 +131,7 @@ def _row_to_chunk(row: tuple) -> Chunk:
         content_hash=content_hash or "",
         token_count=token_count or 0,
         indexed_at=indexed_at or "",
+        parent_id=parent_id,
     )
 
 
@@ -160,6 +163,13 @@ class ChunkStore:
         self._conn.execute("PRAGMA synchronous=NORMAL;")
         self._conn.execute("PRAGMA foreign_keys=ON;")
         self._conn.execute(_CREATE_TABLE)
+        
+        # 7-B Migration: add parent_id column if it doesn't exist
+        try:
+            self._conn.execute("ALTER TABLE chunks ADD COLUMN parent_id TEXT;")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+
         self._conn.execute(_CREATE_INDEX_SOURCE)
         self._conn.execute(_CREATE_INDEX_SOURCE_TYPE)
         self._conn.execute(_CREATE_INDEX_CONTENT_HASH)
@@ -209,6 +219,15 @@ class ChunkStore:
             "SELECT * FROM chunks WHERE id = ?", (chunk_id,)
         ).fetchone()
         return _row_to_chunk(row) if row else None
+
+    def fetch_parent(self, chunk: Chunk) -> Chunk | None:
+        """
+        7-B: Fetch the parent chunk of this child chunk.
+        Returns None if chunk has no parent_id or parent doesn't exist.
+        """
+        if not chunk.parent_id:
+            return None
+        return self.fetch(chunk.parent_id)
 
     def fetch_batch(self, chunk_ids: list[str]) -> list[Chunk]:
         """

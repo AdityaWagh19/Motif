@@ -194,3 +194,5 @@ Proxy benchmark before real corpus: **FRAMES** (factual + multi-hop QA). Target:
 | **T1 / T2 / T3** | Hardware tier designations: CPU-only / GTX 1650 / RTX 3050 |
 | **Ingestion** | The process of parsing, chunking, embedding, and indexing source documents |
 | **ModelManager** | The singleton responsible for lazy-loading and unloading models across the lifecycle |
+   
+ 
