@@ -32,7 +32,7 @@ motif_theme = Theme({
     "markdown.block_quote": STRUCTURAL_GRAY,
     "markdown.list": "default",
     "markdown.item.number": "default",
-    "markdown.h1": f"bold {MOTIF_PURPLE}",
+    "markdown.h1": f"bold {MOTIF_PRIMARY}",
     "markdown.h2": "bold default",
     "markdown.h3": "bold default",
     "markdown.h4": "bold default",
