@@ -22,8 +22,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 RAPTOR_PROMPT = """\
-Write a concise, high-level summary (1 paragraph) that combines the key information from the following related text excerpts.
-Focus on extracting the most important themes, names, projects, or concepts.
+Summarize the core themes of these chunks in exactly one short sentence.
 
 Excerpts:
 {excerpts}
@@ -65,7 +64,14 @@ def _kmeans(vectors: np.ndarray, k: int, max_iters: int = 50) -> np.ndarray:
     return assignments
 
 
-def build_raptor_summaries(config: RAGConfig, console: Console | None = None) -> None:
+def build_raptor_summaries(
+    config: RAGConfig, 
+    console: Console | None = None,
+    chunk_store=None,
+    bm25=None,
+    vector_store=None,
+    embedder=None
+) -> None:
     """
     Run the RAPTOR process over all chunks in the store.
     1. Fetches all chunks and their vectors.
@@ -80,26 +86,25 @@ def build_raptor_summaries(config: RAGConfig, console: Console | None = None) ->
     from rag.ingestion import _chunk_to_payload
     from rag.types import Chunk
 
-    chunk_store = ChunkStore(config)
-    
-    # We need to fetch all chunks. The DB doesn't have a fetch_all right now,
-    # so we'll query it directly.
-    cursor = chunk_store._conn.execute("SELECT id, text, source, filename, source_type FROM chunks")
-    rows = cursor.fetchall()
+    if chunk_store is None:
+        chunk_store = ChunkStore(config)
+        
+    rows = chunk_store._conn.execute(
+        "SELECT id, text, source, filename FROM chunks WHERE parent_id IS NULL AND source_type != 'raptor'"
+    ).fetchall()
     
     if not rows:
         if console:
             console.print("[yellow]No chunks found for RAPTOR clustering.[/yellow]")
         return
         
-    n = len(rows)
-    k = max(1, int(math.sqrt(n)))
-    
-    if console:
-        console.print(f"[dim]RAPTOR: Clustering {n} chunks into {k} clusters...[/dim]")
+    k = int(np.sqrt(len(rows)))
+    if k < 2:
+        return
         
     model_manager = get_model_manager()
-    embedder = model_manager.get_embedder(config)
+    if embedder is None:
+        embedder = model_manager.get_embedder(config)
     llm = model_manager.get_llm(config)
     
     # 1. Embed all chunks
@@ -137,7 +142,7 @@ def build_raptor_summaries(config: RAGConfig, console: Console | None = None) ->
         prompt = RAPTOR_PROMPT.format(excerpts=combined_text)
         
         try:
-            summary = llm.generate(prompt, max_tokens=150, temperature=0.1)
+            summary = llm.generate(prompt, max_tokens=50, temperature=0.1)
         except Exception as exc:
             log.warning("RAPTOR LLM generation failed for cluster %d: %s", i, exc)
             continue
@@ -170,8 +175,10 @@ def build_raptor_summaries(config: RAGConfig, console: Console | None = None) ->
         prefix="search_document: "
     )
     
-    bm25 = BM25Index(config)
-    vector_store = VectorStore(config)
+    if bm25 is None:
+        bm25 = BM25Index(config)
+    if vector_store is None:
+        vector_store = VectorStore(config)
     
     chunk_store.insert_batch(summary_chunks)
     bm25.add_batch(summary_chunks)
