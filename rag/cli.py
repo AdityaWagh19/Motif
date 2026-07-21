@@ -104,7 +104,7 @@ def _render_welcome(config: RAGConfig, session: Session) -> None:
         "[accent]  ▀▀▀▀  ████████▀▀▀▀▀▀████████  ▀▀▀▀  [/accent]\n"
         "[accent]  ▀▀▀▀  ██████████▄▄██████████  ▀▀▀▀  [/accent]\n"
         "[accent]        ██████████████████████▄▄████  [/accent]  [dim]zzz...[/dim]\n"
-        "[accent]        ████  ████  ████  ██████████  [/accent]"
+        "[accent]        ████  ████  ████  ████        [/accent]"
     )
 
     cat_awake = (
@@ -114,7 +114,7 @@ def _render_welcome(config: RAGConfig, session: Session) -> None:
         "[accent]  ▀▀▀▀  ████▄▄██▀▀▀▀▀▀██▄▄████  ▀▀▀▀  [/accent]\n"
         "[accent]  ▀▀▀▀  ██████████▄▄██████████  ▀▀▀▀  [/accent]\n"
         "[accent]        ██████████████████████▄▄████  [/accent]  [dim]\"Ready to search your local documents. Type /help for options.\"[/dim]\n"
-        "[accent]        ████  ████  ████  ██████████  [/accent]"
+        "[accent]        ████  ████  ████  ████        [/accent]"
     )
     
     info_lines.append(cat_sleep)
