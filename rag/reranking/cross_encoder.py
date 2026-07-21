@@ -57,11 +57,18 @@ def rerank(
 
     log.debug("Reranking %d candidates for query: %.60s…", len(passages), query)
     scores = reranker.score(query, texts)
+    
+    # Adaptive thresholding
+    ABSOLUTE_FLOOR = 0.01
+    ADAPTIVE_RATIO = 0.5
+    
+    max_score = float(max(scores)) if scores else 0.0
+    adaptive_threshold = max(ABSOLUTE_FLOOR, min(threshold, max_score * ADAPTIVE_RATIO))
 
     reranked: List[ScoredPassage] = []
     for passage, score in zip(passages, scores):
         float_score = float(score)
-        if float_score >= threshold:
+        if float_score >= adaptive_threshold:
             reranked.append(
                 ScoredPassage(
                     chunk=passage.chunk,
@@ -74,9 +81,12 @@ def rerank(
     result = reranked[:top_k]
 
     log.debug(
-        "Reranker: %d/%d passages above threshold %.2f",
+        "Reranker adaptive_threshold: %.3f (max_score: %.3f, static_threshold: %.3f)",
+        adaptive_threshold, max_score, threshold
+    )
+    log.debug(
+        "Reranker: %d/%d passages above adaptive threshold",
         len(result),
-        len(passages),
-        threshold,
+        len(passages)
     )
     return result
