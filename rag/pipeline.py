@@ -249,15 +249,9 @@ class QueryPipeline:
             reranked = candidates[:top_k_rerank]
 
         if not reranked:
-            from rag.generation.prompts import FALLBACK_PROMPT_NO_DOCS
-            return self._handle_llm_direct(
-                query, 
-                FALLBACK_PROMPT_NO_DOCS, 
-                cfg, 
-                console, 
-                t_start, 
-                retrieval_latency_ms=t_retrieval_ms
-            )
+            log.debug("No passages met the relevance threshold. Silently falling back to top RRF candidates.")
+            # Give the LLM a chance to extract information even if cross-encoder is pessimistic
+            reranked = candidates[:top_k_rerank]
         # ── 5. Build context and prompt ────────────────────────────────────────
         history_context = self._get_history_context(history)
         prompt, passages_used = self._context_builder.build(
