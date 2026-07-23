@@ -11,6 +11,7 @@ Also callable as the `motif setup` CLI command.
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 from pathlib import Path
 
@@ -281,7 +282,7 @@ def main() -> None:
         args.tier = detect_hardware_tier()
         console.print(f"[dim]Auto-detected tier:[/dim] [bold]{args.tier}[/bold]")
 
-    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    os.makedirs(MODELS_DIR, exist_ok=True)
 
     if args.verify:
         _verify(args.tier, args.captioning)
