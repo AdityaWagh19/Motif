@@ -96,6 +96,33 @@ if ($CudaVersion) {
                 --only-binary llama-cpp-python `
                 --quiet
             Write-Ok "llama-cpp-python with CUDA $CudaVersion support installed"
+
+            # Auto-provision CUDA 12 runtime DLLs if missing in environment
+            $LlamaLib = Join-Path $MotifEnv "Lib\site-packages\llama_cpp\lib"
+            if (Test-Path $LlamaLib) {
+                $NeedDlls = @("cudart64_12.dll", "cublas64_12.dll", "cublasLt64_12.dll")
+                $Missing = $NeedDlls | Where-Object { -not (Test-Path (Join-Path $LlamaLib $_)) }
+                if ($Missing) {
+                    Write-Info "Provisioning CUDA runtime DLLs for Windows GPU acceleration..."
+                    & $pythonExe -c "
+import urllib.request, zipfile, io, os
+lib = r'$LlamaLib'
+for url, dlls in [
+    ('https://developer.download.nvidia.com/compute/cuda/redist/cuda_cudart/windows-x86_64/cuda_cudart-windows-x86_64-12.4.127-archive.zip', ['cudart64_12.dll']),
+    ('https://developer.download.nvidia.com/compute/cuda/redist/libcublas/windows-x86_64/libcublas-windows-x86_64-12.4.5.8-archive.zip', ['cublas64_12.dll', 'cublasLt64_12.dll'])
+]:
+    try:
+        z = zipfile.ZipFile(io.BytesIO(urllib.request.urlopen(url).read()))
+        for m in z.namelist():
+            if any(m.endswith(d) for d in dlls):
+                with z.open(m) as src, open(os.path.join(lib, os.path.basename(m)), 'wb') as dst:
+                    dst.write(src.read())
+    except Exception as e:
+        print('CUDA DLL provision notice:', e)
+"
+                    Write-Ok "CUDA runtime DLLs provisioned"
+                }
+            }
         } catch {
             Write-Warn "Pre-built CUDA wheel not found for $CudaTag. Falling back to CPU inference."
             Write-Warn "To retry manually:"

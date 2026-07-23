@@ -40,6 +40,18 @@ import platformdirs
 # Hardware detection cache
 _hw_cache: dict[str, str | None] = {}
 
+# ── Windows DLL Directory Registration (Python 3.8+ ctypes fix for CUDA) ────
+if platform.system() == "Windows" and hasattr(os, "add_dll_directory"):
+    cuda_path = os.environ.get("CUDA_PATH", "")
+    if cuda_path:
+        for sub in ["bin", os.path.join("bin", "x64")]:
+            p = os.path.join(cuda_path, sub)
+            if os.path.isdir(p):
+                try:
+                    os.add_dll_directory(p)
+                except Exception:
+                    pass
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
