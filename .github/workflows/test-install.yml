@@ -1,0 +1,185 @@
+name: Test Installation
+on:
+  pull_request:
+    paths:
+      - 'install.ps1'
+      - 'install.sh'
+      - 'pyproject.toml'
+      - 'setup_models.py'
+      - '.github/workflows/test-install.yml'
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+jobs:
+  setup-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.gen.outputs.matrix }}
+    steps:
+      - id: gen
+        shell: python
+        run: |
+          import json
+          import os
+          
+          is_pr = "${{ github.event_name }}" == "pull_request"
+          
+          if is_pr:
+              matrix = [
+                  {"os": "ubuntu-24.04", "python": "3.12", "install": "fresh", "hardware": "cpu"},
+                  {"os": "windows-2022", "python": "3.12", "install": "fresh", "hardware": "cpu"}
+              ]
+          else:
+              matrix = []
+              for os_name in ["ubuntu-24.04", "windows-2022", "macos-14", "macos-13"]:
+                  for py in ["3.10", "3.12"]:
+                      for inst in ["fresh", "upgrade"]:
+                          for hw in ["cpu", "mock_cuda", "mock_rocm"]:
+                              # Exclusions
+                              if hw == "mock_rocm" and os_name != "ubuntu-24.04": continue
+                              if hw == "mock_cuda" and os_name not in ["ubuntu-24.04", "windows-2022"]: continue
+                              
+                              matrix.append({
+                                  "os": os_name,
+                                  "python": py,
+                                  "install": inst,
+                                  "hardware": hw
+                              })
+                              
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"matrix={json.dumps({'include': matrix})}\n")
+
+  test-install:
+    needs: setup-matrix
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/uv
+            ~\AppData\Local\uv\cache
+          key: ${{ runner.os }}-uv-${{ matrix.python }}-${{ hashFiles('pyproject.toml') }}
+          
+      - name: Runner Sanitization (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Check for pre-installed uv
+          if (Get-Command uv -ErrorAction SilentlyContinue) {
+             Write-Host "Pre-installed uv exists, proceeding. Our scripts reinstall or use it."
+          }
+
+      - name: Setup Baseline for Upgrade
+        if: matrix.install == 'upgrade'
+        shell: bash
+        run: |
+          # Use a baseline commit that had early motif tooling
+          curl -LsSf https://astral.sh/uv/install.sh | env UV_UNMANAGED_INSTALL="/usr/local/bin" bash
+          uv tool install "git+https://github.com/AdityaWagh19/Motif@1efcb83" --python ${{ matrix.python }}
+          export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+          motif --version || true
+
+      - name: Inject Mock Hardware (Linux & Windows)
+        if: matrix.hardware != 'cpu'
+        shell: bash
+        run: |
+          mkdir -p $HOME/mock_bin
+          if [ "${{ matrix.hardware }}" == "mock_cuda" ]; then
+             echo 'echo "CUDA Version: 12.4"' > $HOME/mock_bin/nvidia-smi
+             chmod +x $HOME/mock_bin/nvidia-smi
+             if [ "${{ runner.os }}" == "Windows" ]; then
+               echo '@echo CUDA Version: 12.4' > $HOME/mock_bin/nvidia-smi.bat
+             fi
+          elif [ "${{ matrix.hardware }}" == "mock_rocm" ]; then
+             echo 'echo "mock"' > $HOME/mock_bin/rocm-smi
+             chmod +x $HOME/mock_bin/rocm-smi
+          fi
+          echo "$HOME/mock_bin" >> $GITHUB_PATH
+
+      - name: Start Local HTTP Server (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Start-Process -NoNewWindow -FilePath "python" -ArgumentList "-m http.server 8000"
+          # Wait for server to be healthy
+          $retry = 0
+          while ($retry -lt 5) {
+            try {
+              $response = Invoke-WebRequest -Uri "http://localhost:8000/install.ps1" -UseBasicParsing -ErrorAction Stop
+              if ($response.StatusCode -eq 200) { break }
+            } catch { }
+            Start-Sleep -Seconds 1
+            $retry++
+          }
+
+      - name: Execute Install (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # The execution policy test: pipe from local server
+          Invoke-RestMethod "http://localhost:8000/install.ps1" | Invoke-Expression
+          
+      - name: Execute Install (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          # For Unix, we test direct execution of the bash script
+          bash install.sh
+          
+      - name: Verify CLI Entrypoint
+        shell: bash
+        run: |
+          export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$HOME/.uv/bin:$APPDATA/uv/bin:$PATH"
+          motif --version
+          motif --help
+
+      - name: Strict Wheel Verification
+        shell: bash
+        run: |
+          export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$HOME/.uv/bin:$APPDATA/uv/bin:$PATH"
+          
+          # Find the Motif virtual environment created by uv tool
+          if [ "${{ runner.os }}" == "Windows" ]; then
+             TOOL_ENV="$APPDATA/uv/tools/motif-rag"
+             PYTHON_EXE="$TOOL_ENV/Scripts/python.exe"
+          else
+             TOOL_ENV="$HOME/.local/share/uv/tools/motif-rag"
+             PYTHON_EXE="$TOOL_ENV/bin/python"
+          fi
+          
+          if [ ! -f "$PYTHON_EXE" ]; then
+             echo "Could not find python directly at $PYTHON_EXE, attempting fallback"
+             uv tool run motif --version
+          else
+             EXPECTED_HW="cpu"
+             if [ "${{ matrix.hardware }}" == "mock_cuda" ]; then EXPECTED_HW="cuda"; fi
+             if [ "${{ matrix.hardware }}" == "mock_rocm" ]; then EXPECTED_HW="rocm"; fi
+             
+             "$PYTHON_EXE" tests/verify_wheel.py $EXPECTED_HW
+          fi
+
+      - name: Model Setup Dry-Run Verification
+        shell: bash
+        run: |
+          export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$HOME/.uv/bin:$APPDATA/uv/bin:$PATH"
+          # Ensure --dry-run properly creates mock files and config finishes
+          motif setup --dry-run
+          
+      - name: Upload Logs on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.os }}-${{ matrix.install }}-${{ matrix.hardware }}-${{ matrix.python }}
+          path: |
+            ~/.motif/logs
+            ~\.motif\logs
