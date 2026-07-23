@@ -79,15 +79,24 @@ jobs:
              Write-Host "Pre-installed uv exists, proceeding. Our scripts reinstall or use it."
           }
 
-      - name: Setup Baseline for Upgrade
-        if: matrix.install == 'upgrade'
+      - name: Setup Baseline for Upgrade (Unix)
+        if: matrix.install == 'upgrade' && runner.os != 'Windows'
         shell: bash
         run: |
           # Use a baseline commit that had early motif tooling
-          curl -LsSf https://astral.sh/uv/install.sh | env UV_UNMANAGED_INSTALL="/usr/local/bin" bash
-          uv tool install "git+https://github.com/AdityaWagh19/Motif@1efcb83" --python ${{ matrix.python }}
+          curl -LsSf https://astral.sh/uv/install.sh | sh
           export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+          uv tool install "git+https://github.com/AdityaWagh19/Motif@1efcb83" --python ${{ matrix.python }}
           motif --version || true
+
+      - name: Setup Baseline for Upgrade (Windows)
+        if: matrix.install == 'upgrade' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://astral.sh/uv/install.ps1 -UseBasicParsing | Invoke-Expression
+          $env:Path = "$HOME\.cargo\bin;$HOME\.local\bin;$env:Path"
+          uv tool install "git+https://github.com/AdityaWagh19/Motif@1efcb83" --python ${{ matrix.python }}
+          motif --version || $true
 
       - name: Inject Mock Hardware (Linux & Windows)
         if: matrix.hardware != 'cpu'
@@ -136,26 +145,29 @@ jobs:
           # For Unix, we test direct execution of the bash script
           bash install.sh
           
-      - name: Verify CLI Entrypoint
+      - name: Verify CLI Entrypoint (Unix)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
-          export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$HOME/.uv/bin:$APPDATA/uv/bin:$PATH"
+          export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$HOME/.uv/bin:$PATH"
+          motif --version
+          motif --help
+          
+      - name: Verify CLI Entrypoint (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:Path = "$HOME\.cargo\bin;$HOME\.local\bin;$env:APPDATA\uv\bin;$env:Path"
           motif --version
           motif --help
 
-      - name: Strict Wheel Verification
+      - name: Strict Wheel Verification (Unix)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
-          export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$HOME/.uv/bin:$APPDATA/uv/bin:$PATH"
-          
-          # Find the Motif virtual environment created by uv tool
-          if [ "${{ runner.os }}" == "Windows" ]; then
-             TOOL_ENV="$APPDATA/uv/tools/motif-rag"
-             PYTHON_EXE="$TOOL_ENV/Scripts/python.exe"
-          else
-             TOOL_ENV="$HOME/.local/share/uv/tools/motif-rag"
-             PYTHON_EXE="$TOOL_ENV/bin/python"
-          fi
+          export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$HOME/.uv/bin:$PATH"
+          TOOL_ENV="$HOME/.local/share/uv/tools/motif-rag"
+          PYTHON_EXE="$TOOL_ENV/bin/python"
           
           if [ ! -f "$PYTHON_EXE" ]; then
              echo "Could not find python directly at $PYTHON_EXE, attempting fallback"
@@ -164,15 +176,39 @@ jobs:
              EXPECTED_HW="cpu"
              if [ "${{ matrix.hardware }}" == "mock_cuda" ]; then EXPECTED_HW="cuda"; fi
              if [ "${{ matrix.hardware }}" == "mock_rocm" ]; then EXPECTED_HW="rocm"; fi
-             
              "$PYTHON_EXE" tests/verify_wheel.py $EXPECTED_HW
           fi
 
-      - name: Model Setup Dry-Run Verification
+      - name: Strict Wheel Verification (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:Path = "$HOME\.cargo\bin;$HOME\.local\bin;$env:APPDATA\uv\bin;$env:Path"
+          $TOOL_ENV = "$env:APPDATA\uv\tools\motif-rag"
+          $PYTHON_EXE = "$TOOL_ENV\Scripts\python.exe"
+          
+          if (-not (Test-Path $PYTHON_EXE)) {
+             Write-Host "Could not find python directly at $PYTHON_EXE, attempting fallback"
+             uv tool run motif --version
+          } else {
+             $EXPECTED_HW = "cpu"
+             if ("${{ matrix.hardware }}" -eq "mock_cuda") { $EXPECTED_HW = "cuda" }
+             if ("${{ matrix.hardware }}" -eq "mock_rocm") { $EXPECTED_HW = "rocm" }
+             & $PYTHON_EXE tests\verify_wheel.py $EXPECTED_HW
+          }
+
+      - name: Model Setup Dry-Run Verification (Unix)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
-          export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$HOME/.uv/bin:$APPDATA/uv/bin:$PATH"
-          # Ensure --dry-run properly creates mock files and config finishes
+          export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$HOME/.uv/bin:$PATH"
+          motif setup --dry-run
+          
+      - name: Model Setup Dry-Run Verification (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:Path = "$HOME\.cargo\bin;$HOME\.local\bin;$env:APPDATA\uv\bin;$env:Path"
           motif setup --dry-run
           
       - name: Upload Logs on Failure
@@ -183,3 +219,4 @@ jobs:
           path: |
             ~/.motif/logs
             ~\.motif\logs
+          if-no-files-found: ignore

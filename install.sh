@@ -42,7 +42,7 @@ success "motif installed"
 uv tool update-shell 2>/dev/null || true
 
 # ── Step 3: GPU / accelerator detection ──────────────────────────────────────
-MOTIF_ENV=$(uv tool dir motif 2>/dev/null || echo "")
+MOTIF_ENV=$(uv tool dir motif-rag 2>/dev/null || echo "")
 
 # ── 3a. NVIDIA CUDA ───────────────────────────────────────────────────────────
 CUDA_VERSION=""
@@ -66,6 +66,7 @@ if [ -n "$CUDA_VERSION" ]; then
             --python "${MOTIF_ENV}/bin/python" \
             --extra-index-url "${LLAMA_CPP_CUDA_INDEX}/${CUDA_TAG}" \
             --force-reinstall \
+            --only-binary llama-cpp-python \
             --quiet 2>/dev/null && \
         success "llama-cpp-python with CUDA ${CUDA_VERSION} support installed" || \
         warn "Pre-built CUDA wheel not found for ${CUDA_TAG}. Falling back to CPU inference."
@@ -102,6 +103,7 @@ elif command -v rocm-smi &>/dev/null; then
             --python "${MOTIF_ENV}/bin/python" \
             --extra-index-url "${LLAMA_CPP_ROCM_INDEX}" \
             --force-reinstall \
+            --only-binary llama-cpp-python \
             --quiet 2>/dev/null && \
         success "llama-cpp-python with ROCm support installed" || \
         warn "Pre-built ROCm wheel not found. Falling back to CPU inference."

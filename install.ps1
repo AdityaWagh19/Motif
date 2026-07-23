@@ -89,6 +89,7 @@ if ($CudaVersion) {
                 --python $pythonExe `
                 --extra-index-url "$LlamaCppIndex/$CudaTag" `
                 --force-reinstall `
+                --only-binary llama-cpp-python `
                 --quiet
             Write-Ok "llama-cpp-python with CUDA $CudaVersion support installed"
         } catch {
@@ -112,6 +113,7 @@ if ($CudaVersion) {
                 --python $pythonExe `
                 --extra-index-url $LlamaCppRocm `
                 --force-reinstall `
+                --only-binary llama-cpp-python `
                 --quiet
             Write-Ok "llama-cpp-python with ROCm support installed"
         } catch {

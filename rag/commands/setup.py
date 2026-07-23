@@ -20,6 +20,7 @@ def handle_setup(args, session, config, console) -> None:
     parser = argparse.ArgumentParser(prog="/setup", add_help=False)
     parser.add_argument("--tier", choices=["T1", "T2", "T3"], default=None)
     parser.add_argument("--captioning", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
 
     try:
         parsed = parser.parse_args(args)
@@ -50,6 +51,8 @@ def handle_setup(args, session, config, console) -> None:
     sys.argv = ["setup_models.py", "--tier", tier]
     if parsed.captioning:
         sys.argv.append("--captioning")
+    if parsed.dry_run:
+        sys.argv.append("--dry-run")
 
     console.print(f"[structure]Running model download for Tier {tier}…[/structure]\n")
     try:
