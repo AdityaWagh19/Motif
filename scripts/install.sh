@@ -35,7 +35,14 @@ fi
 
 # ── Step 2: Install Motif ─────────────────────────────────────────────────────
 info "Installing motif..."
-uv tool install "git+${MOTIF_REPO}" --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/cpu" --force
+if [ "${MOTIF_REPO}" = "." ] || [ -d "${MOTIF_REPO}" ]; then
+    INSTALL_SPEC="${MOTIF_REPO}"
+elif [[ "${MOTIF_REPO}" == git+* ]]; then
+    INSTALL_SPEC="${MOTIF_REPO}"
+else
+    INSTALL_SPEC="git+${MOTIF_REPO}"
+fi
+uv tool install "${INSTALL_SPEC}" --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/cpu" --force
 success "motif installed"
 
 # Ensure uv tool bin dir is on PATH

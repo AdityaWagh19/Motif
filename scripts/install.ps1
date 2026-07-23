@@ -49,7 +49,8 @@ if ($uvCmd) {
 
 # ── Step 2: Install Motif ─────────────────────────────────────────────────────
 Write-Info "Installing motif..."
-& uv tool install "git+$MotifRepo" --extra-index-url "$LlamaCppIndex/cpu" --upgrade
+$InstallSpec = if ($MotifRepo -eq "." -or (Test-Path $MotifRepo)) { $MotifRepo } elseif ($MotifRepo -like "git+*") { $MotifRepo } else { "git+$MotifRepo" }
+& uv tool install "$InstallSpec" --extra-index-url "$LlamaCppIndex/cpu" --upgrade
 if ($LASTEXITCODE -ne 0) { Write-Fail "Motif installation failed." }
 Write-Ok "motif installed"
 
