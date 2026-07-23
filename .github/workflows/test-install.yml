@@ -65,7 +65,9 @@ jobs:
 
       - name: Install System Dependencies (macOS)
         if: runner.os == 'macOS'
-        run: HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install libomp
+        run: |
+          export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
+          HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install libomp || brew link --overwrite libomp || true
         
       - name: Setup Cache
         uses: actions/cache@v4
