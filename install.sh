@@ -17,7 +17,7 @@ die()     { printf "\033[31merror\033[0m %s\n" "$*" >&2; exit 1; }
 
 # ── Header ────────────────────────────────────────────────────────────────────
 echo ""
-bold "Motif — offline multimodal RAG"
+bold "Motif - offline multimodal RAG"
 echo "  https://github.com/AdityaWagh19/Motif"
 echo ""
 
@@ -58,7 +58,7 @@ if [ -n "$CUDA_VERSION" ]; then
     CUDA_MAJOR_MINOR=$(echo "$CUDA_VERSION" | cut -d. -f1,2)
     CUDA_TAG="cu$(echo "$CUDA_MAJOR_MINOR" | tr -d '.')"
 
-    info "NVIDIA GPU detected — CUDA ${CUDA_VERSION} (wheel tag: ${CUDA_TAG})."
+    info "NVIDIA GPU detected - CUDA ${CUDA_VERSION} (wheel tag: ${CUDA_TAG})."
     info "Installing GPU-enabled llama-cpp-python (${CUDA_TAG} pre-built wheel)..."
 
     if [ -n "$MOTIF_ENV" ]; then
@@ -77,7 +77,7 @@ if [ -n "$CUDA_VERSION" ]; then
 
 # ── 3b. Apple Silicon (Metal) ─────────────────────────────────────────────────
 elif [ "$(uname)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
-    info "Apple Silicon detected — llama.cpp will use Metal (GPU) automatically."
+    info "Apple Silicon detected - llama.cpp will use Metal (GPU) automatically."
     info "The standard llama-cpp-python wheel includes Metal support on macOS arm64."
     info "No additional install step needed."
     success "Metal GPU inference enabled (llama.cpp built-in)"

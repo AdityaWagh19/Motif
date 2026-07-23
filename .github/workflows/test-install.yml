@@ -68,7 +68,7 @@ jobs:
           path: |
             ~/.cache/uv
             ~\AppData\Local\uv\cache
-          key: ${{ runner.os }}-uv-${{ matrix.python }}-${{ hashFiles('pyproject.toml') }}
+          key: ${{ runner.os }}-uv-v2-${{ matrix.python }}-${{ hashFiles('pyproject.toml') }}
           
       - name: Runner Sanitization (Windows)
         if: runner.os == 'Windows'

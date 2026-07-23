@@ -17,7 +17,7 @@ function Write-Warn($msg)    { Write-Host " warn $msg" -ForegroundColor Yellow }
 function Write-Fail($msg)    { Write-Host "error $msg" -ForegroundColor Red; exit 1 }
 
 # ── Header ────────────────────────────────────────────────────────────────────
-Write-Header "Motif — offline multimodal RAG"
+Write-Header "Motif - offline multimodal RAG"
 Write-Host "  https://github.com/AdityaWagh19/Motif`n"
 
 # ── Step 1: Ensure uv is present ──────────────────────────────────────────────
@@ -79,7 +79,7 @@ if ($CudaVersion) {
     $CudaShort = ($CudaVersion -split '\.')[0..1] -join '.'
     $CudaTag = "cu" + $CudaShort.Replace(".", "")
 
-    Write-Info "NVIDIA GPU detected — CUDA $CudaVersion (wheel tag: $CudaTag)."
+    Write-Info "NVIDIA GPU detected - CUDA $CudaVersion (wheel tag: $CudaTag)."
     Write-Info "Installing GPU-enabled llama-cpp-python ($CudaTag pre-built wheel)..."
 
     if ($MotifEnv) {
