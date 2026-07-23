@@ -3,7 +3,7 @@
 # Usage: curl -fsSL https://raw.githubusercontent.com/AdityaWagh19/Motif/main/scripts/install.sh | bash
 set -euo pipefail
 
-MOTIF_REPO="https://github.com/AdityaWagh19/Motif"
+MOTIF_REPO="${MOTIF_REPO:-https://github.com/AdityaWagh19/Motif}"
 UV_INSTALL_URL="https://astral.sh/uv/install.sh"
 LLAMA_CPP_CUDA_INDEX="https://abetlen.github.io/llama-cpp-python/whl"
 LLAMA_CPP_ROCM_INDEX="https://abetlen.github.io/llama-cpp-python/whl/rocm"

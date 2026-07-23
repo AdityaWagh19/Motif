@@ -142,6 +142,8 @@ jobs:
       - name: Execute Install (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          MOTIF_REPO: "."
         run: |
           # The execution policy test: pipe from local server
           Invoke-RestMethod "http://127.0.0.1:8000/scripts/install.ps1" | Invoke-Expression
@@ -149,6 +151,8 @@ jobs:
       - name: Execute Install (Unix)
         if: runner.os != 'Windows'
         shell: bash
+        env:
+          MOTIF_REPO: "."
         run: |
           # For Unix, we test direct execution of the bash script
           bash scripts/install.sh
@@ -174,8 +178,9 @@ jobs:
         shell: bash
         run: |
           export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$HOME/.uv/bin:$PATH"
-          TOOL_ENV="$HOME/.local/share/uv/tools/motif-rag"
-          PYTHON_EXE="$TOOL_ENV/bin/python"
+          TOOL_DIR="$(uv tool dir)"
+          TOOL_ENV="${TOOL_DIR}/motif-rag"
+          PYTHON_EXE="${TOOL_ENV}/bin/python"
           
           if [ ! -f "$PYTHON_EXE" ]; then
              echo "Could not find python directly at $PYTHON_EXE, attempting fallback"

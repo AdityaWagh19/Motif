@@ -4,7 +4,7 @@
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$MotifRepo      = "https://github.com/AdityaWagh19/Motif"  # Add @<tag> here for version-pinning
+$MotifRepo      = if ($env:MOTIF_REPO) { $env:MOTIF_REPO } else { "https://github.com/AdityaWagh19/Motif" }
 $UvInstallUrl   = "https://astral.sh/uv/install.ps1"
 $LlamaCppIndex  = "https://abetlen.github.io/llama-cpp-python/whl"
 $LlamaCppRocm   = "https://abetlen.github.io/llama-cpp-python/whl/rocm"
