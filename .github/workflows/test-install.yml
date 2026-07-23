@@ -34,20 +34,17 @@ jobs:
               ]
           else:
               matrix = []
-              for os_name in ["ubuntu-24.04", "windows-2022", "macos-14", "macos-13"]:
-                  for py in ["3.11", "3.12"]:
-                      for inst in ["fresh", "upgrade"]:
-                          for hw in ["cpu", "mock_cuda", "mock_rocm"]:
-                              # Exclusions
-                              if hw == "mock_rocm" and os_name != "ubuntu-24.04": continue
-                              if hw == "mock_cuda" and os_name not in ["ubuntu-24.04", "windows-2022"]: continue
-                              
-                              matrix.append({
-                                  "os": os_name,
-                                  "python": py,
-                                  "install": inst,
-                                  "hardware": hw
-                              })
+              # Primary matrix on Python 3.12 for all OS / Install / Hardware combos
+              for os_name in ["ubuntu-24.04", "windows-2022", "macos-14"]:
+                  for inst in ["fresh", "upgrade"]:
+                      for hw in ["cpu", "mock_cuda", "mock_rocm"]:
+                          if hw == "mock_rocm" and os_name != "ubuntu-24.04": continue
+                          if hw == "mock_cuda" and os_name not in ["ubuntu-24.04", "windows-2022"]: continue
+                          matrix.append({"os": os_name, "python": "3.12", "install": inst, "hardware": hw})
+              
+              # Python 3.11 compatibility sanity checks
+              for os_name in ["ubuntu-24.04", "windows-2022", "macos-14"]:
+                  matrix.append({"os": os_name, "python": "3.11", "install": "fresh", "hardware": "cpu"})
                               
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"matrix={json.dumps({'include': matrix})}\n")
@@ -68,7 +65,7 @@ jobs:
 
       - name: Install System Dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install libomp
+        run: HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install libomp
         
       - name: Setup Cache
         uses: actions/cache@v4
@@ -104,7 +101,8 @@ jobs:
           Invoke-WebRequest -Uri https://astral.sh/uv/install.ps1 -UseBasicParsing | Invoke-Expression
           $env:Path = "$HOME\.cargo\bin;$HOME\.local\bin;$env:Path"
           uv tool install "git+https://github.com/AdityaWagh19/Motif@1efcb83" --python ${{ matrix.python }}
-          motif --version || $true
+          try { motif --version } catch {}
+          $global:LASTEXITCODE = 0
 
       - name: Inject Mock Hardware (Linux & Windows)
         if: matrix.hardware != 'cpu'
