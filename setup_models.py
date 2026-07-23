@@ -106,11 +106,17 @@ TIER_SIZES = {"T1": "2.8 GB", "T2": "4.9 GB", "T3": "5.2 GB"}
 # Download helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _download_file(repo_id: str, filename: str, local_name: str, size_label: str) -> Path:
+def _download_file(repo_id: str, filename: str, local_name: str, size_label: str, dry_run: bool = False) -> Path:
     """Download a single file from HuggingFace Hub to models/."""
     dest = MODELS_DIR / local_name
-    if dest.exists():
+    if dest.exists() and dest.stat().st_size > 0:
         console.print(f"  [dim]skip[/dim]  {local_name} (already downloaded)")
+        return dest
+        
+    if dry_run:
+        console.print(f"  [yellow]mock[/yellow]  {local_name} ({size_label})")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.touch()
         return dest
 
     console.print(f"  [cyan]down[/cyan]  {local_name} ({size_label})")
@@ -168,11 +174,22 @@ def _get_nomic_onnx_patterns() -> list[str]:
         ]
 
 
-def _download_snapshot(repo_id: str, local_name: str, size_label: str) -> Path:
+def _download_snapshot(repo_id: str, local_name: str, size_label: str, dry_run: bool = False) -> Path:
     """Download a full HuggingFace repo snapshot to models/<local_name>/."""
     dest = MODELS_DIR / local_name
-    if dest.exists() and any(dest.iterdir()):
+    
+    # Check if a non-mock download exists
+    def is_real_download(p: Path) -> bool:
+        return p.exists() and p.is_dir() and any(f.name != "mock_file.txt" for f in p.iterdir())
+        
+    if is_real_download(dest):
         console.print(f"  [dim]skip[/dim]  {local_name}/ (already downloaded)")
+        return dest
+        
+    if dry_run:
+        console.print(f"  [yellow]mock[/yellow]  {local_name}/ ({size_label})")
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / "mock_file.txt").touch()
         return dest
 
     console.print(f"  [cyan]down[/cyan]  {local_name}/ ({size_label})")
@@ -190,16 +207,16 @@ def _download_snapshot(repo_id: str, local_name: str, size_label: str) -> Path:
     return dest
 
 
-def _download_model(entry: tuple, tier: str) -> bool:
+def _download_model(entry: tuple, tier: str, dry_run: bool = False) -> bool:
     """Download a model entry if it belongs to the given tier. Returns True if downloaded."""
     repo_id, filename, local_name, tiers, size_label = entry
     if tier not in tiers:
         return False
 
     if filename:
-        _download_file(repo_id, filename, local_name, size_label)
+        _download_file(repo_id, filename, local_name, size_label, dry_run=dry_run)
     else:
-        _download_snapshot(repo_id, local_name, size_label)
+        _download_snapshot(repo_id, local_name, size_label, dry_run=dry_run)
     return True
 
 
@@ -264,6 +281,11 @@ def main() -> None:
         action="store_true",
         help="Check which models are present without downloading",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Create empty mock files instead of downloading real models (for CI testing)",
+    )
     args = parser.parse_args()
 
     # Auto-detect tier if not specified
@@ -285,7 +307,7 @@ def main() -> None:
 
     for entry in LLM_MODELS + EMBED_MODELS + RERANKER_MODELS + WHISPER_MODELS:
         try:
-            _download_model(entry, args.tier)
+            _download_model(entry, args.tier, dry_run=args.dry_run)
         except Exception as exc:
             console.print(f"  [red]fail[/red]  {entry[2]}: {exc}")
 
@@ -293,7 +315,7 @@ def main() -> None:
         console.print("\n[dim]Downloading image captioning model (moondream2)…[/dim]")
         for entry in CAPTIONING_MODELS:
             try:
-                _download_model(entry, args.tier)
+                _download_model(entry, args.tier, dry_run=args.dry_run)
             except Exception as exc:
                 console.print(f"  [red]fail[/red]  {entry[2]}: {exc}")
 
