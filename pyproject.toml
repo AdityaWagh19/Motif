@@ -53,6 +53,7 @@ dependencies = [
     # Minimum 0.3.0 required for Qwen2.5 and Phi-3.5 GGUF Q4_K_M support.
     "llama-cpp-python>=0.3.0",
     # Progress display during model download
+    "simhash>=2.1",
     "tqdm>=4.66",
     "platformdirs>=4.10.1",
 ]

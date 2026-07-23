@@ -61,20 +61,15 @@ class Deduplicator:
     def _compute_hash(self, text: str) -> object:
         """
         Compute a SimHash fingerprint from character trigrams of *text*.
-
-        Character trigrams capture local similarity better than word n-grams
-        for short text chunks and are robust to minor wording changes.
+        Falls back to MD5 digest if simhash library is missing.
         """
         try:
             from simhash import Simhash  # type: ignore[import]
-        except ImportError as exc:
-            raise RuntimeError(
-                "simhash is not installed. Run: pip install simhash"
-            ) from exc
-
-        # Generate character trigrams: "abc" → ["abc", "bc_", ...] (no padding needed)
-        trigrams = [text[i:i + 3] for i in range(len(text) - 2)] if len(text) >= 3 else [text]
-        return Simhash(trigrams)
+            trigrams = [text[i:i + 3] for i in range(len(text) - 2)] if len(text) >= 3 else [text]
+            return Simhash(trigrams)
+        except ImportError:
+            import hashlib
+            return hashlib.md5(text.encode("utf-8")).hexdigest()
 
     # ------------------------------------------------------------------
     # Public API
@@ -95,8 +90,16 @@ class Deduplicator:
             False → chunk is unique; its fingerprint has been recorded.
         """
         h = self._compute_hash(chunk.text)
+        if isinstance(h, str):
+            for seen_hash, seen_id in self._seen:
+                if isinstance(seen_hash, str) and h == seen_hash:
+                    log.debug("Deduplicator: chunk %s is exact duplicate of %s — skipping.", chunk.id, seen_id)
+                    return True
+            self._seen.append((h, chunk.id))
+            return False
+
         for seen_hash, seen_id in self._seen:
-            if h.distance(seen_hash) <= self._threshold:  # type: ignore[union-attr]
+            if hasattr(seen_hash, "distance") and seen_hash.distance(h) <= self._threshold:  # type: ignore[union-attr]
                 log.debug(
                     "Deduplicator: chunk %s is near-duplicate of %s — skipping.",
                     chunk.id,
