@@ -106,49 +106,50 @@ def _result_to_row(key: str, query: str, result: AnswerResult) -> tuple:
 def _row_to_result(row: tuple) -> AnswerResult:
     """Deserialise a SQLite row to an AnswerResult."""
     (key, query_text, answer_text, citations_json,
-     passages_used, latency_ms, accessed_at, created_at) = row
+     passages_used, latency_ms, accessed_at, created_at) = row[:8]
 
-    citations_data = json.loads(citations_json)
-    citations = [
-        Citation(
-            number=c["number"],
-            source_type=c["source_type"],
-            filepath=c["filepath"],
-            filename=c["filename"],
-            page=c.get("page"),
-            section=c.get("section"),
-            start_time=c.get("start_time", 0.0),
-            end_time=c.get("end_time", 0.0),
-            relevance_score=c.get("relevance_score", 0.0),
-            excerpt=c.get("excerpt", ""),
-        )
-        for c in citations_data
-    ]
+    try:
+        c_list = json.loads(citations_json)
+        citations = [Citation(**c) for c in c_list]
+    except Exception:
+        citations = []
+
     return AnswerResult(
         text=answer_text,
         citations=citations,
         passages_used=passages_used or 0,
-        latency_ms=latency_ms,
+        latency_ms=latency_ms or 0.0,
         tier="cached",
     )
 
 
 class QueryCache:
     """
-    SQLite-backed LRU cache for query results.
+    SQLite-backed LRU query result cache.
     """
 
-    def __init__(self, config: RAGConfig, max_entries: int = _DEFAULT_MAX_ENTRIES) -> None:
-        from rag.storage.db_manager import DatabaseManager
+    def __init__(self, config: RAGConfig) -> None:
         self._config = config
-        self._max_entries = max_entries
         self._enabled: bool = getattr(config.storage, "query_cache_enabled", False)
-        self._conn = DatabaseManager.get_connection(config) if self._enabled else None
+        self._max_entries: int = getattr(
+            config.storage, "query_cache_max_entries", _DEFAULT_MAX_ENTRIES
+        )
+        self._conn: sqlite3.Connection | None = None
 
     def _connect(self) -> sqlite3.Connection:
         from rag.storage.db_manager import DatabaseManager
         if self._conn is None:
             self._conn = DatabaseManager.get_connection(self._config)
+            self._conn.executescript(_CREATE_TABLE)
+            # Schema migration guard for older tables without corpus_version/file_filter
+            try:
+                self._conn.execute("ALTER TABLE query_cache ADD COLUMN corpus_version TEXT DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass
+            try:
+                self._conn.execute("ALTER TABLE query_cache ADD COLUMN file_filter TEXT DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass
         return self._conn
 
     def get(
@@ -164,10 +165,16 @@ class QueryCache:
         from rag.storage.db_manager import DatabaseManager
         key = _make_key(query, file_filter, type_filter, page_range)
         conn = self._connect()
-        row = conn.execute(
-            "SELECT cache_key, query_text, answer_text, citations, passages_used, latency_ms, accessed_at, created_at, corpus_version FROM query_cache WHERE cache_key = ?",
-            (key,),
-        ).fetchone()
+        try:
+            row = conn.execute(
+                "SELECT cache_key, query_text, answer_text, citations, passages_used, latency_ms, accessed_at, created_at, corpus_version FROM query_cache WHERE cache_key = ?",
+                (key,),
+            ).fetchone()
+        except sqlite3.OperationalError:
+            row = conn.execute(
+                "SELECT cache_key, query_text, answer_text, citations, passages_used, latency_ms, accessed_at, created_at FROM query_cache WHERE cache_key = ?",
+                (key,),
+            ).fetchone()
 
         if row is None:
             return None

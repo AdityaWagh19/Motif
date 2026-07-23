@@ -9,6 +9,7 @@ from rich.theme import Theme
 
 # Hex color definitions (Motif Monochrome/Cyan Palette)
 MOTIF_PRIMARY = "#FF2E93"   # Neon Pink
+SUCCESS_GREEN = "#22c55e"   # Green
 STRUCTURAL_GRAY = "#6b7280"
 WARNING_YELLOW = "#f59e0b"
 ERROR_RED = "#ef4444"
@@ -19,12 +20,11 @@ motif_theme = Theme({
     "accent_bold": f"bold {MOTIF_PRIMARY}",
     "brand_gold": f"bold {MOTIF_PRIMARY}",
     "brand_cyan": f"bold {MOTIF_PRIMARY}",
-    "brand_green": f"bold {MOTIF_PRIMARY}",
+    "brand_green": f"bold {SUCCESS_GREEN}",
     "structure": STRUCTURAL_GRAY,
-    "success": MOTIF_PRIMARY,
+    "success": SUCCESS_GREEN,
     "warning": WARNING_YELLOW,
     "error": ERROR_RED,
-    "dim": "dim", # Fallback for pure dimming without explicit gray
 
     # Markdown specific overrides to remove rainbow colors
     "markdown.code": "default on #2a2a2a",

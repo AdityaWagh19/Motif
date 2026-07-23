@@ -219,17 +219,20 @@ class ContextBuilder:
         # A1: Re-sort by score descending after merging
         selected.sort(key=lambda p: p.score, reverse=True)
         
-        # ── Dynamic token budget enforcement (Phase 8a) ──────────────────────
-        # Guard against prompt overflow: trim passages if the prompt is larger
-        # than the context window minus the answer budget.
-        # ~4 chars per token (conservative English approximation).
+        # ── Dynamic token budget enforcement (HIGH-02) ──────────────────────
+        # Guard against prompt overflow: trim passages if estimated char length
+        # exceeds context window minus answer budget (~4 chars/token).
         budget_chars = (config.llm.ctx_size - config.llm.max_tokens - 50) * 4
+        base_chars = len(query) + sum(len(t.get("content", "")) for t in history) + 400
+        
         trimmed_selected = []
-        for i in range(len(selected)):
-            test_prompt = build_prompt(query, selected[:i+1], history)
-            if len(test_prompt) > budget_chars and len(trimmed_selected) >= 1:
+        current_chars = base_chars
+        for p in selected:
+            p_len = len(p.chunk.text) + 60
+            if current_chars + p_len > budget_chars and len(trimmed_selected) >= 1:
                 break
-            trimmed_selected.append(selected[i])
+            trimmed_selected.append(p)
+            current_chars += p_len
             
         trim_iterations = len(selected) - len(trimmed_selected)
         selected = trimmed_selected

@@ -189,12 +189,12 @@ def ingest_path(
         from rag.ingestion.chunker import ParentChunker, ParentChunkerConfig
         chunker = ParentChunker(ParentChunkerConfig())  # type: ignore[assignment]
         if console:
-            console.print("[dim]Using ParentChunker (7-B).[/dim]")
+            console.print("[dim]Using parent-document retrieval mode.[/dim]")
     elif use_semantic:
         from rag.ingestion.semantic_chunker import SemanticChunker
         chunker = SemanticChunker(config, embedder)  # type: ignore[assignment]
         if console:
-            console.print("[dim]Using semantic chunker (T2/T3).[/dim]")
+            console.print("[dim]Using semantic document chunking.[/dim]")
     else:
         chunker = SentenceChunker(
             ChunkerConfig(
@@ -204,6 +204,8 @@ def ingest_path(
         )
 
     deduplicator = Deduplicator()
+    from rag.storage.transaction_manager import StorageTransactionManager
+    tx_manager = StorageTransactionManager(config)
 
     files_processed = 0
     chunks_added = 0
@@ -211,133 +213,136 @@ def ingest_path(
     errors: list[str] = []
 
     total = len(files)
-    for idx, file in enumerate(files, start=1):
-        source = str(file.resolve())
-        source_type = _EXT_TO_SOURCE_TYPE.get(file.suffix.lower(), "txt")
-
-        if console:
-            console.print(
-                f"[dim][{idx}/{total}][/dim] {file.name}",
-                end="  ",
-            )
-
-        try:
-            file_hash = compute_file_hash(file)
-
-            # ── Deduplication check ──────────────────────────────────────────
-            if tracker.is_indexed(file):
-                if tracker.get_hash(file) == file_hash:
-                    # Unchanged — skip
-                    if console:
-                        console.print("[dim]skipped (unchanged)[/dim]")
-                    files_skipped += 1
-                    continue
-                else:
-                    # Modified — remove old version first
-                    if console:
-                        console.print("[yellow]changed — re-indexing…[/yellow]", end="  ")
-                    remove_document(
-                        file, 
-                        config, 
-                        chunk_store=chunk_store, 
-                        bm25=bm25, 
-                        vector_store=vector_store, 
-                        tracker=tracker
-                    )
-
-            # ── Parse ────────────────────────────────────────────────────────
-            parser = get_parser(file, config)
-            pages = parser.parse(file)
-            if not pages:
-                log.warning("No pages extracted from %s — skipping.", file.name)
-                if console:
-                    console.print("[yellow]no content — skipped[/yellow]")
-                continue
-
-            # ── Chunk ────────────────────────────────────────────────────────
-            chunks = chunker.chunk_pages(
-                pages,
-                source=source,
-                filename=file.name,
-                source_type=source_type,
-            )
-
-            # ── Deduplicate (within-document) ────────────────────────────────
-            chunks = deduplicator.filter(chunks)
-            deduplicator.reset()  # reset between documents
-
-            if not chunks:
-                log.warning("All chunks deduplicated for %s — skipping.", file.name)
-                if console:
-                    console.print("[yellow]all chunks were duplicates — skipped[/yellow]")
-                continue
-            # ── 7-B: Filter Parent Chunks from Search Indices ────────────────
-            if use_parent_docs:
-                indexable_chunks = [c for c in chunks if c.parent_id is not None]
-            else:
-                indexable_chunks = chunks
-
-            # ── Embed ────────────────────────────────────────────────────────
-            vectors = embedder.encode_batch(
-                [c.text for c in indexable_chunks],
-                prefix="search_document: ",
-            )
-
-            # ── Store ─────────────────────────────────────────────────────────
-            payloads = [_chunk_to_payload(c) for c in indexable_chunks]
-            from rag.storage.transaction_manager import StorageTransactionManager
-            tx_manager = StorageTransactionManager(config)
-            tx_manager.execute_ingest(
-                file_path=file,
-                file_hash=file_hash,
-                chunks=chunks,
-                indexable_chunks=indexable_chunks,
-                vectors=vectors,
-                payloads=payloads,
-                chunk_store=chunk_store,
-                tracker=tracker,
-                bm25=bm25,
-                vector_store=vector_store,
-            )
-
-            files_processed += 1
-            chunks_added += len(chunks)
+    try:
+        for idx, file in enumerate(files, start=1):
+            source = str(file.resolve())
+            source_type = _EXT_TO_SOURCE_TYPE.get(file.suffix.lower(), "txt")
 
             if console:
                 console.print(
-                    f"[green]OK[/green] {len(chunks)} chunk(s)"
+                    f"[dim][{idx}/{total}][/dim] {file.name}",
+                    end="  ",
                 )
 
-        except Exception as exc:
-            err_msg = f"{file.name}: {exc}"
-            log.exception("Ingestion error for %s", file)
-            errors.append(err_msg)
-            if console:
-                console.print(f"[red]error:[/red] {exc}")
+            try:
+                file_hash = compute_file_hash(file)
 
-    # ── 7-A: RAPTOR Hierarchical Indexing ──────────────────────────
-    if getattr(config.retrieval, "use_raptor", False) and files_processed > 0:
-        from rag.ingestion.raptor import build_raptor_summaries
-        try:
-            build_raptor_summaries(
-                config, 
-                console,
-                chunk_store=chunk_store,
-                bm25=bm25,
-                vector_store=vector_store,
-                embedder=embedder
-            )
-        except Exception as exc:
-            log.exception("RAPTOR indexing failed")
-            if console:
-                console.print(f"[red]RAPTOR error:[/red] {exc}")
+                # ── Deduplication check ──────────────────────────────────────────
+                if tracker.is_indexed(file):
+                    if tracker.get_hash(file) == file_hash:
+                        # Unchanged — skip
+                        if console:
+                            console.print("[dim]skipped (unchanged)[/dim]")
+                        files_skipped += 1
+                        continue
+                    else:
+                        # Modified — remove old version first
+                        if console:
+                            console.print("[yellow]changed — re-indexing…[/yellow]", end="  ")
+                        remove_document(
+                            file, 
+                            config, 
+                            chunk_store=chunk_store, 
+                            bm25=bm25, 
+                            vector_store=vector_store, 
+                            tracker=tracker
+                        )
 
-    # Release QdrantLocal file locks (important for Windows)
-    if hasattr(vector_store, "close"):
-        vector_store.close()
+                # ── Parse ────────────────────────────────────────────────────────
+                parser = get_parser(file, config)
+                pages = parser.parse(file)
+                if not pages:
+                    log.warning("No pages extracted from %s — skipping.", file.name)
+                    if console:
+                        console.print("[yellow]no content — skipped[/yellow]")
+                    continue
 
-    # T1 memory policy: unload embedder before LLM is loaded
-    model_manager.after_ingestion(config)
+                # ── Chunk ────────────────────────────────────────────────────────
+                chunks = chunker.chunk_pages(
+                    pages,
+                    source=source,
+                    filename=file.name,
+                    source_type=source_type,
+                )
+
+                # ── Deduplicate (within-document) ────────────────────────────────
+                chunks = deduplicator.filter(chunks)
+                deduplicator.reset()  # reset between documents
+
+                if not chunks:
+                    log.warning("All chunks deduplicated for %s — skipping.", file.name)
+                    if console:
+                        console.print("[yellow]all chunks were duplicates — skipped[/yellow]")
+                    continue
+                # Filter Parent Chunks from Search Indices if parent docs enabled
+                if use_parent_docs:
+                    indexable_chunks = [c for c in chunks if c.parent_id is not None]
+                else:
+                    indexable_chunks = chunks
+
+                # ── Embed ────────────────────────────────────────────────────────
+                vectors = embedder.encode_batch(
+                    [c.text for c in indexable_chunks],
+                    prefix="search_document: ",
+                )
+
+                # ── Store ─────────────────────────────────────────────────────────
+                payloads = [_chunk_to_payload(c) for c in indexable_chunks]
+                tx_manager.execute_ingest(
+                    file_path=file,
+                    file_hash=file_hash,
+                    chunks=chunks,
+                    indexable_chunks=indexable_chunks,
+                    vectors=vectors,
+                    payloads=payloads,
+                    chunk_store=chunk_store,
+                    tracker=tracker,
+                    bm25=bm25,
+                    vector_store=vector_store,
+                )
+
+                files_processed += 1
+                chunks_added += len(chunks)
+
+                if console:
+                    console.print(
+                        f"[green]OK[/green] {len(chunks)} chunk(s)"
+                    )
+
+            except Exception as exc:
+                user_err = f"Could not process {file.name}: {exc}"
+                log.exception("Ingestion error for %s", file)
+                errors.append(user_err)
+                if console:
+                    console.print(f"[red]failed:[/red] {exc}")
+
+        # ── Hierarchical Indexing ──────────────────────────
+        if getattr(config.retrieval, "use_raptor", False) and files_processed > 0:
+            from rag.ingestion.raptor import build_raptor_summaries
+            try:
+                build_raptor_summaries(
+                    config, 
+                    console,
+                    chunk_store=chunk_store,
+                    bm25=bm25,
+                    vector_store=vector_store,
+                    embedder=embedder
+                )
+            except Exception as exc:
+                log.exception("RAPTOR indexing failed")
+                if console:
+                    console.print(f"[red]Summary generation error:[/red] {exc}")
+
+    finally:
+        # Release QdrantLocal file locks (important for Windows UX-03 safety)
+        if hasattr(vector_store, "close"):
+            try:
+                vector_store.close()
+            except Exception:
+                pass
+
+        # T1 memory policy: unload embedder before LLM is loaded
+        model_manager.after_ingestion(config)
 
     return IngestResult(
         files_processed=files_processed,
@@ -391,42 +396,34 @@ def remove_document(
 def sync_directory(
     directory: Path,
     config: RAGConfig,
-    recursive: bool = False,
+    recursive: bool = True,
     console: Console | None = None,
 ) -> SyncResult:
     """
-    Synchronise a directory with the knowledge base.
-
-    Phase 4 full implementation:
-    - Files present on disk but absent from the index → ingest.
-    - Files in the index but deleted from disk → remove.
-    - Files whose content hash has changed → remove then re-ingest.
-
-    Args:
-        directory: Target directory (must exist, validated by caller).
-        config:    Loaded RAGConfig.
-        recursive: If True, recurse into subdirectories.
-        console:   Rich Console for progress output.
+    Synchronise a directory with the knowledge base:
+      1. Collect files currently on disk.
+      2. Fetch files indexed under directory from IngestionTracker.
+      3. Compute diff:
+         - New files  → ingest_path()
+         - Removed    → remove_document()
+         - Modified   → re-ingest (remove then ingest)
+         - Relocated  → update SQLite in place (no re-embedding)
 
     Returns:
-        SyncResult(added, removed, reindexed, errors)
+        SyncResult with counts of added, removed, re-indexed, and errors.
     """
     from rag.storage.ingestion_tracker import IngestionTracker, compute_file_hash
-
     tracker = IngestionTracker(config)
-    indexed = {Path(r["filepath"]): r["content_hash"] for r in tracker.list_all()}
 
     disk_files = {f.resolve(): f for f in _collect_files(directory, recursive)}
     disk_paths = set(disk_files.keys())
+
+    indexed = {Path(r["filepath"]): r["content_hash"] for r in tracker.list_all()}
     indexed_paths = set(indexed.keys())
 
-    # Files on disk that are NOT indexed → ingest
     to_add = disk_paths - indexed_paths
-
-    # Files indexed but MISSING from disk → remove
     to_remove = indexed_paths - disk_paths
 
-    # Files that exist on both sides but have a different hash → reindex
     common = disk_paths & indexed_paths
     to_reindex: list[Path] = []
     for p in common:
@@ -437,43 +434,52 @@ def sync_directory(
         except OSError:
             pass
 
-    # ── Relocation Detection (AUDIT-05) ──────────────────────────────
+    # ── Relocation Detection (CRIT-03) ──────────────────────────────
     from rag.storage.db_manager import DatabaseManager
     db = DatabaseManager.get_connection(config)
 
+    # Pre-compute target file hashes once to avoid O(N*M) hash reads
+    new_hashes: dict[Path, str] = {}
+    for new_path in list(to_add):
+        try:
+            new_hashes[new_path] = compute_file_hash(disk_files[new_path])
+        except OSError:
+            pass
+
     relocated: set[tuple[Path, Path]] = set()
-    for old_path in list(to_remove):
+    to_remove_list = list(to_remove)
+    for old_path in to_remove_list:
         old_hash = indexed.get(old_path)
         if not old_hash:
             continue
-        for new_path in list(to_add):
-            try:
-                new_hash = compute_file_hash(disk_files[new_path])
-                if new_hash == old_hash:
-                    # File moved or renamed — relocate in place!
-                    relocated.add((old_path, new_path))
-                    to_remove.remove(old_path)
-                    to_add.remove(new_path)
+        to_add_list = list(to_add)
+        for new_path in to_add_list:
+            if new_path not in to_add:
+                continue
+            new_hash = new_hashes.get(new_path)
+            if new_hash and new_hash == old_hash:
+                # File moved or renamed — relocate in place!
+                relocated.add((old_path, new_path))
+                to_remove.discard(old_path)
+                to_add.discard(new_path)
 
-                    old_str = str(old_path.resolve())
-                    new_str = str(new_path.resolve())
-                    new_name = new_path.name
+                old_str = str(old_path.resolve())
+                new_str = str(new_path.resolve())
+                new_name = new_path.name
 
-                    db.execute(
-                        "UPDATE file_tracker SET filepath = ? WHERE filepath = ?",
-                        (new_str, old_str),
-                    )
-                    db.execute(
-                        "UPDATE chunks SET source = ?, filename = ? WHERE source = ?",
-                        (new_str, new_name, old_str),
-                    )
-                    db.commit()
-                    log.info("Relocated document %s -> %s", old_path.name, new_path.name)
-                    if console:
-                        console.print(f"  [cyan]relocated[/cyan] {old_path.name} → {new_path.name}")
-                    break
-            except OSError:
-                pass
+                db.execute(
+                    "UPDATE file_tracker SET filepath = ? WHERE filepath = ?",
+                    (new_str, old_str),
+                )
+                db.execute(
+                    "UPDATE chunks SET source = ?, filename = ? WHERE source = ?",
+                    (new_str, new_name, old_str),
+                )
+                db.commit()
+                log.info("Relocated document %s -> %s", old_path.name, new_path.name)
+                if console:
+                    console.print(f"  [cyan]relocated[/cyan] {old_path.name} → {new_path.name}")
+                break
 
     added = 0
     removed = 0

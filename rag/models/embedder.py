@@ -38,7 +38,7 @@ log = logging.getLogger(__name__)
 
 EMBEDDING_DIM: int = 768
 MAX_SEQ_LEN: int = 8192          # nomic-embed-text supports up to 8 192 tokens
-_DEFAULT_BATCH_SIZE: int = 4    # chunks per inference call
+_DEFAULT_BATCH_SIZE: int = 16   # chunks per inference call (HIGH-03: raised from 4)
 
 
 class Embedder:
@@ -100,8 +100,9 @@ class Embedder:
             )
 
         log.debug("Loading ONNX session from %s", onnx_path)
+        import os
         sess_opts = _ort.SessionOptions()
-        sess_opts.intra_op_num_threads = 4
+        sess_opts.intra_op_num_threads = min(os.cpu_count() or 4, 4)
         sess_opts.graph_optimization_level = (
             _ort.GraphOptimizationLevel.ORT_ENABLE_ALL
         )

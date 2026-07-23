@@ -173,7 +173,7 @@ class BM25Index:
         Rebuilds the BM25Okapi object immediately.
         """
         if chunk.id in self._chunk_ids:
-            self.delete(chunk.id)
+            self.delete(chunk.id, _rebuild=False)
 
         tokens = self._tokenize(chunk.text)
         self._corpus_tokens.append(tokens)
@@ -181,13 +181,13 @@ class BM25Index:
         self._dirty = True
         self._rebuild_bm25()
 
-    def add_batch(self, chunks: list[Chunk]) -> None:
+    def add_batch(self, chunks: list[Chunk], save: bool = True) -> None:
         """
         Add a list of chunks to the index in one operation.
 
         Handles duplicate ids (replaces existing entries).
         Performs a single BM25Okapi rebuild at the end.
-        Saves to disk after all chunks are added.
+        Saves to disk if save=True.
         """
         if not chunks:
             return
@@ -211,14 +211,15 @@ class BM25Index:
 
         self._dirty = True
         self._rebuild_bm25()
-        self.save()
+        if save:
+            self.save()
 
-    def delete(self, chunk_id: str) -> bool:
+    def delete(self, chunk_id: str, _rebuild: bool = True) -> bool:
         """
         Remove a single chunk from the index by its id.
 
         Returns True if found and removed, False if not found.
-        Rebuilds the BM25Okapi object.
+        Rebuilds the BM25Okapi object if _rebuild=True.
         """
         try:
             idx = self._chunk_ids.index(chunk_id)
@@ -228,7 +229,8 @@ class BM25Index:
         del self._corpus_tokens[idx]
         del self._chunk_ids[idx]
         self._dirty = True
-        self._rebuild_bm25()
+        if _rebuild:
+            self._rebuild_bm25()
         return True
 
     def delete_by_source(self, source: str, chunk_ids: list[str]) -> int:

@@ -26,6 +26,6 @@ def handle_help(args, session, config, console) -> None:
         "  [cyan]/file FILENAME[/cyan]    Restrict to a specific document\n"
         "  [cyan]/type TYPE[/cyan]        Restrict to document type (pdf, md, audio, image)\n"
         "  [cyan]/pages MIN-MAX[/cyan]    Restrict to a page range\n"
-        "  [cyan]/no-hyde[/cyan]          Skip HyDE query expansion\n"
+        "  [cyan]/hyde[/cyan]              Enable HyDE query expansion\n"
         "  [cyan]/no-sources[/cyan]       Suppress citations\n"
     )

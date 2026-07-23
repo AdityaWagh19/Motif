@@ -122,8 +122,9 @@ class Reranker:
 
         log.info("Loading reranker ONNX from %s", onnx_path)
 
+        import os
         sess_opts = ort.SessionOptions()  # type: ignore[attr-defined]
-        sess_opts.intra_op_num_threads = 4
+        sess_opts.intra_op_num_threads = min(os.cpu_count() or 4, 4)
         sess_opts.graph_optimization_level = (
             ort.GraphOptimizationLevel.ORT_ENABLE_ALL  # type: ignore[attr-defined]
         )

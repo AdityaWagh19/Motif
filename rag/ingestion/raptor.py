@@ -95,7 +95,7 @@ def build_raptor_summaries(
     
     if not rows:
         if console:
-            console.print("[yellow]No chunks found for RAPTOR clustering.[/yellow]")
+            console.print("[yellow]No chunks available for hierarchical summarization.[/yellow]")
         return
         
     k = int(np.sqrt(len(rows)))
@@ -123,7 +123,7 @@ def build_raptor_summaries(
     summary_chunks: list[Chunk] = []
     
     if console:
-        console.print(f"[dim]RAPTOR: Generating {k} summary chunks...[/dim]")
+        console.print(f"[dim]Generating {k} hierarchical summary chunks...[/dim]")
         
     # 3. Generate summaries
     for i, cluster in enumerate(clusters):
@@ -144,7 +144,7 @@ def build_raptor_summaries(
         try:
             summary = llm.generate(prompt, max_tokens=50, temperature=0.1)
         except Exception as exc:
-            log.warning("RAPTOR LLM generation failed for cluster %d: %s", i, exc)
+            log.warning("Hierarchical summary LLM generation failed for cluster %d: %s", i, exc)
             continue
             
         if not summary.strip():
@@ -168,7 +168,7 @@ def build_raptor_summaries(
         
     # 4. Ingest summaries
     if console:
-        console.print(f"[green]RAPTOR:[/green] Indexing {len(summary_chunks)} summary chunks.")
+        console.print(f"[green]OK[/green] Indexing {len(summary_chunks)} summary chunks.")
         
     summary_vectors = embedder.encode_batch(
         [c.text for c in summary_chunks], 

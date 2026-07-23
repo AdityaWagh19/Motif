@@ -27,6 +27,35 @@ _DEFAULT_DB_ROOT = Path("~/.ragdb").expanduser()  # type: ignore[union-attr]
 _HISTORY_FILENAME = "history.json"
 
 
+# ── Module-level Context Budget Helper (HIGH-06) ───────────────────────────
+
+def get_history_for_context(
+    history: list[dict[str, str]],
+    token_budget: int,
+    passage_tokens: int = 0,
+    chars_per_token: int = 4,
+) -> list[dict[str, str]]:
+    """
+    Return a rolling window of history turns that fits within the token budget
+    AFTER the retrieved passages have been allocated their space.
+
+    Oldest turns are dropped first. Retrieved passages always take priority.
+    """
+    remaining = token_budget - passage_tokens
+    if remaining <= 0 or not history:
+        return []
+
+    selected: list[dict[str, str]] = []
+    for turn in reversed(history):
+        turn_tokens = len(turn.get("content", "")) // chars_per_token
+        if turn_tokens > remaining:
+            break
+        selected.append(turn)
+        remaining -= turn_tokens
+
+    return list(reversed(selected))
+
+
 class Session:
     """
     Lightweight session: conversation history + config reference.
@@ -39,6 +68,9 @@ class Session:
     """
 
     def __init__(self, config: RAGConfig | None = None) -> None:
+        if config is None:
+            from rag.config import load_config
+            config = load_config()
         self.config = config
         self.history: list[dict[str, str]] = []
 
@@ -88,38 +120,15 @@ class Session:
     def get_history_for_context(
         self,
         token_budget: int,
-        passage_tokens: int,
+        passage_tokens: int = 0,
         chars_per_token: int = 4,
     ) -> list[dict[str, str]]:
-        """
-        Return a rolling window of history turns that fits within the token budget
-        AFTER the retrieved passages have been allocated their space.
-
-        Oldest turns are dropped first. Retrieved passages always take priority.
-
-        Args:
-            token_budget:    Total context window token budget (e.g. 2048).
-            passage_tokens:  Tokens already consumed by retrieved passages.
-            chars_per_token: Approximate characters per token (default: 4).
-
-        Returns:
-            A list of {"role", "content"} dicts (oldest-first), truncated to fit.
-        """
-        remaining = token_budget - passage_tokens
-        if remaining <= 0 or not self.history:
-            return []
-
-        # Walk history newest-first, accumulating until budget exhausted
-        selected: list[dict[str, str]] = []
-        for turn in reversed(self.history):
-            turn_tokens = len(turn["content"]) // chars_per_token
-            if turn_tokens > remaining:
-                break
-            selected.append(turn)
-            remaining -= turn_tokens
-
-        # Return in chronological order (oldest-first)
-        return list(reversed(selected))
+        return get_history_for_context(
+            self.history,
+            token_budget=token_budget,
+            passage_tokens=passage_tokens,
+            chars_per_token=chars_per_token,
+        )
 
     # ── Persistence ──────────────────────────────────────────────────────────
 

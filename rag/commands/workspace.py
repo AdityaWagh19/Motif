@@ -103,8 +103,22 @@ def handle_workspace(args, session, config, console) -> None:
             console.print(f"[error]Workspace '{name}' does not exist.[/error]")
             return
             
-        shutil.rmtree(target, ignore_errors=True)
-        console.print(f"[success]Deleted workspace '{name}'.[/success]")
+        from prompt_toolkit import prompt
+        from prompt_toolkit.formatted_text import HTML
+        try:
+            confirm = prompt(HTML(f"<ansired>?</ansired> Are you sure you want to delete workspace '<b>{name}</b>' and all its data? [y/N]: ")).strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            return
+
+        if confirm not in ("y", "yes"):
+            console.print("[structure]Deletion cancelled.[/structure]")
+            return
+
+        try:
+            shutil.rmtree(target)
+            console.print(f"[success]Deleted workspace '{name}'.[/success]")
+        except Exception as exc:
+            console.print(f"[error]Failed to delete workspace '{name}':[/error] {exc}")
         
     else:
         console.print(f"[error]Unknown subcommand: {subcmd}[/error]")

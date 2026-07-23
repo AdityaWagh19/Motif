@@ -69,13 +69,13 @@ class IntentClassifier:
             log.info("Intent classified as CHITCHAT (meta question)")
             return Intent.CHITCHAT
             
-        # 4. Short conversational checks
+        # 4. Short conversational checks (HIGH-08)
         word_count = len(query_clean.split())
-        if word_count < 5:
-            # If it's very short and contains conversational words but no clear nouns,
-            # we might route to chitchat. But for safety, default to QUERY 
-            # and let retrieval confidence handle the rest.
-            pass
-            
+        if word_count <= 3 and "?" not in query:
+            common_chitchat_tokens = {"cool", "awesome", "great", "ok", "okay", "nice", "bye", "goodbye", "cheers", "yep", "nope", "sure", "thanks", "hello", "hi"}
+            if any(w in common_chitchat_tokens for w in query_clean.split()):
+                log.info("Intent classified as CHITCHAT (short conversational token: %r)", query_clean)
+                return Intent.CHITCHAT
+
         log.debug("Intent classified as QUERY (heuristic fallback)")
         return Intent.QUERY

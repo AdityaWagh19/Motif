@@ -72,12 +72,14 @@ def prewarm_models(config: RAGConfig, console: Console | None = None) -> dict:
         ),
     ]
 
+    warnings: list[str] = []
+
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         TimeElapsedColumn(),
         console=console,
-        transient=True,
+        transient=False,
     ) as progress:
         for name, desc, loader in steps:
             task = progress.add_task(desc, total=None)
@@ -88,22 +90,26 @@ def prewarm_models(config: RAGConfig, console: Console | None = None) -> dict:
                 timings[name] = elapsed_ms
                 progress.update(
                     task,
-                    description=f"[green]{name.capitalize()} ready[/green] ({elapsed_ms} ms)",
+                    description=f"[green]✓ {name.capitalize()} ready[/green] ({elapsed_ms} ms)",
                 )
             except FileNotFoundError as exc:
                 elapsed_ms = round((time.monotonic() - t0) * 1000)
                 timings[name] = elapsed_ms
+                msg = f"{name.capitalize()} skipped — model file not found ({exc})"
+                warnings.append(msg)
                 progress.update(
                     task,
-                    description=f"[yellow]{name.capitalize()} skipped[/yellow] — model not found",
+                    description=f"[yellow]⚠ {name.capitalize()} skipped[/yellow] — model not found",
                 )
                 log.warning("Pre-warm skipped %s: %s", name, exc)
             except Exception as exc:
                 elapsed_ms = round((time.monotonic() - t0) * 1000)
                 timings[name] = elapsed_ms
+                msg = f"{name.capitalize()} load failed: {exc}"
+                warnings.append(msg)
                 progress.update(
                     task,
-                    description=f"[red]{name.capitalize()} failed[/red]: {exc}",
+                    description=f"[red]✗ {name.capitalize()} failed[/red]: {exc}",
                 )
                 log.error("Pre-warm error for %s: %s", name, exc)
             finally:
@@ -113,10 +119,16 @@ def prewarm_models(config: RAGConfig, console: Console | None = None) -> dict:
     log.info("Pre-warm complete in %d ms: %s", total_ms, timings)
 
     if console:
-        console.print(
-            f"[dim]Models ready in {total_ms / 1000:.1f} s "
-            f"(tier {config.resolved_tier}, "
-            f"backend {getattr(config.hardware, 'backend', 'cpu').upper()})[/dim]"
-        )
+        if warnings:
+            console.print("\n[warning]Pre-warm Warnings:[/warning]")
+            for w in warnings:
+                console.print(f"  [warning]•[/warning] {w}")
+            console.print()
+        else:
+            console.print(
+                f"[dim]Models ready in {total_ms / 1000:.1f} s "
+                f"(tier {config.resolved_tier}, "
+                f"backend {getattr(config.hardware, 'backend', 'cpu').upper()})[/dim]"
+            )
 
     return timings

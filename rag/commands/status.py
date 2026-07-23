@@ -53,10 +53,23 @@ def handle_status(args, session, config, console) -> None:
     table.add_row("Session history", f"{session.turn_count} exchange{'s' if session.turn_count != 1 else ''}")
     table.add_section()
 
-    # Hardware
+    # Hardware & Models (UX-09)
+    from rag.models.model_manager import get_model_manager
+    manager = get_model_manager()
+    llm_path = Path(config.models.llm_path)
+    llm_loaded = manager._llm is not None and getattr(manager._llm, "is_loaded", lambda: True)()
+    embed_loaded = manager._embedder is not None and getattr(manager._embedder, "is_loaded", lambda: True)()
+    rerank_loaded = manager._reranker is not None and getattr(manager._reranker, "is_loaded", lambda: True)()
+
+    llm_str = "[green]✓ loaded[/green]" if llm_loaded else ("[dim]on disk[/dim]" if llm_path.exists() else "[red]✗ missing[/red]")
+    embed_str = "[green]✓ loaded[/green]" if embed_loaded else "[dim]available[/dim]"
+    rerank_str = "[green]✓ loaded[/green]" if rerank_loaded else "[dim]available[/dim]"
+
     table.add_row("Workspace", config.storage.workspace)
     table.add_row("Tier", config.resolved_tier)
-    table.add_row("LLM", Path(config.models.llm_path).name)
+    table.add_row("LLM", f"{llm_path.name} ({llm_str})")
+    table.add_row("Embedder", f"nomic-embed-text-v1.5 ({embed_str})")
+    table.add_row("Reranker", f"{Path(config.models.reranker).name} ({rerank_str})")
     table.add_row("GPU layers", str(config.llm.n_gpu_layers))
     table.add_row("Context window", f"{config.llm.ctx_size} tokens")
     table.add_row("Retrieval top-k", f"{config.retrieval.top_k_retrieval} → rerank → {config.retrieval.top_k_rerank}")

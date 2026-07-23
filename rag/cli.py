@@ -158,8 +158,11 @@ def _handle_slash_command(raw: str, session: Session, config: RAGConfig) -> None
 
     handler = get_command(command_name)
     if handler is None:
+        import difflib
+        matches = difflib.get_close_matches(command_name, SLASH_COMMANDS.keys(), n=1, cutoff=0.6)
+        suggestion = f" Did you mean [accent_bold]{matches[0]}[/accent_bold]?" if matches else ""
         console.print(
-            f"[error]Unknown command:[/error] {command_name}. "
+            f"[error]Unknown command:[/error] {command_name}.{suggestion} "
             f"Type [accent_bold]/help[/accent_bold] for available commands."
         )
         return
@@ -176,7 +179,7 @@ def _handle_slash_command(raw: str, session: Session, config: RAGConfig) -> None
 # Query Handler (plain-text input)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _handle_query(raw: str, session: Session, config: RAGConfig) -> None:
+def _handle_query(raw: str, session: Session, config: RAGConfig, pipeline: QueryPipeline | None = None) -> None:
     """
     Parse inline modifiers from the query string and run the RAG pipeline.
 
@@ -208,13 +211,17 @@ def _handle_query(raw: str, session: Session, config: RAGConfig) -> None:
         )
         return
 
+    close_pipeline_on_finish = False
+    if pipeline is None:
+        pipeline = QueryPipeline(config)
+        close_pipeline_on_finish = True
+
     try:
         history_context = session.get_history_for_context(
             token_budget=config.generation.context_max_tokens,
             passage_tokens=0,   # pipeline will report actual passage tokens
         )
 
-        pipeline = QueryPipeline(config)
         answer = pipeline.answer(
             query=query,
             history=history_context,
@@ -231,6 +238,9 @@ def _handle_query(raw: str, session: Session, config: RAGConfig) -> None:
         console.print("[structure]Generation interrupted.[/structure]")
     except Exception as exc:
         console.print(f"[error]Error:[/error] {exc}")
+    finally:
+        if close_pipeline_on_finish and hasattr(pipeline, "close"):
+            pipeline.close()
 
 
 def _parse_query_modifiers(raw: str) -> tuple[str, dict]:
@@ -358,8 +368,11 @@ def _interactive_mode(no_prewarm: bool = False) -> None:
         "bottom-toolbar": "noreverse bg:default",
     })
 
+    from prompt_toolkit.history import FileHistory
+    history_file = config.db_root / ".prompt_history"
+
     prompt_session: PromptSession = PromptSession(
-        history=InMemoryHistory(),
+        history=FileHistory(str(history_file)),
         completer=completer,
         key_bindings=bindings,
         enable_history_search=True,
@@ -367,35 +380,51 @@ def _interactive_mode(no_prewarm: bool = False) -> None:
         style=custom_style,
     )
 
+    # ── Persistent QueryPipeline (Phase 1 / CRIT-02) ─────────────────────────
+    from rag.pipeline import QueryPipeline
+    pipeline = QueryPipeline(config)
+    current_workspace = config.storage.workspace
+
     # ── REPL loop ─────────────────────────────────────────────────────────────
-    while True:
-        try:
-            raw = prompt_session.prompt(HTML('<b><style fg="#FF2E93">motif ❯</style></b> '))
-        except KeyboardInterrupt:
-            # Ctrl+C at the prompt — save history and exit
-            console.print("\n[structure]Saving session…[/structure]")
-            session.save()
-            console.print("[structure]Goodbye.[/structure]")
-            break
-        except EOFError:
-            # Ctrl+D
-            session.save()
-            break
+    try:
+        while True:
+            try:
+                raw = prompt_session.prompt(HTML('<b><style fg="#FF2E93">motif ❯</style></b> '))
+            except KeyboardInterrupt:
+                # Ctrl+C at the prompt — save history and exit
+                console.print("\n[structure]Saving session…[/structure]")
+                session.save()
+                console.print("[structure]Goodbye.[/structure]")
+                break
+            except EOFError:
+                # Ctrl+D
+                session.save()
+                break
 
-        raw = raw.strip()
+            raw = raw.strip()
 
-        if not raw:
-            continue
+            if not raw:
+                continue
 
-        if raw.lower() in ("exit", "quit"):
-            session.save()
-            console.print("[structure]Session saved. Goodbye.[/structure]")
-            break
+            if raw.lower() in ("exit", "quit"):
+                session.save()
+                console.print("[structure]Session saved. Goodbye.[/structure]")
+                break
 
-        if raw.startswith("/"):
-            _handle_slash_command(raw, session, config)
-        else:
-            _handle_query(raw, session, config)
+            if raw.startswith("/"):
+                _handle_slash_command(raw, session, config)
+                # Check if workspace was switched (UX-06)
+                if config.storage.workspace != current_workspace:
+                    log.info("Workspace changed from %s to %s — reloading QueryPipeline", current_workspace, config.storage.workspace)
+                    if hasattr(pipeline, "close"):
+                        pipeline.close()
+                    pipeline = QueryPipeline(config)
+                    current_workspace = config.storage.workspace
+            else:
+                _handle_query(raw, session, config, pipeline=pipeline)
+    finally:
+        if hasattr(pipeline, "close"):
+            pipeline.close()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

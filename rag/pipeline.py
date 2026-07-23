@@ -529,10 +529,9 @@ class QueryPipeline:
 
     def _get_history_context(self, full_history: list[dict]) -> list[dict]:
         """Return a rolling window of history that fits within the token budget."""
-        from rag.session import Session
-        tmp = Session(self._config)
-        tmp.history = full_history
-        return tmp.get_history_for_context(
+        from rag.session import get_history_for_context
+        return get_history_for_context(
+            history=full_history,
             token_budget=self._config.generation.context_max_tokens,
             passage_tokens=500,  # conservative estimate before passages are selected
         )
