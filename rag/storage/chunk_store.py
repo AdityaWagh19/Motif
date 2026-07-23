@@ -281,5 +281,5 @@ class ChunkStore:
     # ------------------------------------------------------------------
 
     def close(self) -> None:
-        """Close the underlying SQLite connection."""
-        self._conn.close()
+        """Close/release this chunk store instance reference (lifecycle managed by DatabaseManager)."""
+        self._conn = None

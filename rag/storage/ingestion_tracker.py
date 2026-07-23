@@ -170,5 +170,5 @@ class IngestionTracker:
     # ------------------------------------------------------------------
 
     def close(self) -> None:
-        """Close the underlying SQLite connection."""
-        self._conn.close()
+        """Close/release this tracker instance reference (lifecycle managed by DatabaseManager)."""
+        self._conn = None

@@ -118,6 +118,13 @@ class DatabaseManager:
         db_key = str(db_path.resolve())
 
         conn = cls._connections.get(db_key)
+        if conn is not None:
+            try:
+                conn.execute("SELECT 1;")
+            except (sqlite3.ProgrammingError, sqlite3.OperationalError):
+                conn = None
+                cls._connections.pop(db_key, None)
+
         if conn is None:
             db_path.parent.mkdir(parents=True, exist_ok=True)
             conn = sqlite3.connect(str(db_path), check_same_thread=False)
