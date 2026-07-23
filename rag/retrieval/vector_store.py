@@ -36,6 +36,9 @@ COLLECTION_NAME_SUFFIX: str = "motif_chunks"
 VECTOR_SIZE: int = 768
 
 
+_client_registry: dict[str, tuple[object, int]] = {}
+
+
 # ---------------------------------------------------------------------------
 # Public class
 # ---------------------------------------------------------------------------
@@ -55,6 +58,7 @@ class VectorStore:
     """
 
     def __init__(self, config: RAGConfig) -> None:
+        import os
         try:
             from qdrant_client import QdrantClient  # type: ignore[import]
         except ImportError as exc:
@@ -63,11 +67,40 @@ class VectorStore:
             ) from exc
 
         db_path = config.db_root / "qdrant"
-        db_path.mkdir(parents=True, exist_ok=True)  # type: ignore[call-arg]
+        db_path_str = str(db_path.resolve())
+        os.makedirs(db_path_str, exist_ok=True)
+        self._db_path_str = db_path_str
         self._collection_name = f"{config.storage.workspace}_{COLLECTION_NAME_SUFFIX}"
-        self._client = QdrantClient(path=str(db_path))
+
+        if db_path_str in _client_registry:
+            client, ref_count = _client_registry[db_path_str]
+            _client_registry[db_path_str] = (client, ref_count + 1)
+            self._client = client
+        else:
+            self._client = QdrantClient(path=db_path_str)
+            _client_registry[db_path_str] = (self._client, 1)
+
         self._ensure_collection()
-        log.debug("VectorStore initialised at %s, collection: %s", db_path, self._collection_name)
+        log.debug("VectorStore initialised at %s, collection: %s", db_path_str, self._collection_name)
+
+    def close(self) -> None:
+        """Close/release this vector store reference."""
+        if hasattr(self, "_db_path_str") and self._db_path_str in _client_registry:
+            client, ref_count = _client_registry[self._db_path_str]
+            if ref_count <= 1:
+                try:
+                    client.close()
+                except Exception:
+                    pass
+                _client_registry.pop(self._db_path_str, None)
+            else:
+                _client_registry[self._db_path_str] = (client, ref_count - 1)
+
+    def __enter__(self) -> VectorStore:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
 
     # ------------------------------------------------------------------
     # Collection management
