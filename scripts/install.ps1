@@ -54,6 +54,20 @@ $InstallSpec = if ($MotifRepo -eq "." -or (Test-Path $MotifRepo)) { $MotifRepo }
 if ($LASTEXITCODE -ne 0) { Write-Fail "Motif installation failed." }
 Write-Ok "motif installed"
 
+# Clear any stale PowerShell session alias or cached command path for motif
+Remove-Item Alias:motif -ErrorAction SilentlyContinue
+Remove-Item Function:motif -ErrorAction SilentlyContinue
+
+# Ensure ~/.local/bin and ~/.cargo/bin are prepended to PATH in the active PowerShell session
+$LocalBin = "$env:USERPROFILE\.local\bin"
+$CargoBin = "$env:USERPROFILE\.cargo\bin"
+if ((Test-Path $LocalBin) -and ($env:PATH -notlike "*$LocalBin*")) {
+    $env:PATH = "$LocalBin;$env:PATH"
+}
+if ((Test-Path $CargoBin) -and ($env:PATH -notlike "*$CargoBin*")) {
+    $env:PATH = "$CargoBin;$env:PATH"
+}
+
 # Add uv tool bin dir to PATH for this session
 & uv tool update-shell 2>$null
 
