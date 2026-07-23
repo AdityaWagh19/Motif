@@ -199,21 +199,24 @@
 | History appended after each query | HST-01 | After each answered query, `session.history` grows by exactly one `{role:user}` + one `{role:assistant}` entry |
 | Rolling window enforced | HST-02 | History passed to LLM never includes more turns than fit within the remaining context budget after retrieved passages |
 | Retrieved passages take priority | HST-03 | If budget forces a choice, passages are kept and oldest history turns are dropped first |
-| History persisted on exit | HST-04 | `~/.ragdb/history.json` contains the full session history after clean exit |
+| History persisted on exit | HST-04 | `<APP_DIR>/workspaces/<ws>/history.json` contains the full session history after clean exit |
 | History loaded on restart | HST-05 | On next `motif` launch, history.json is loaded and last query is shown in welcome screen |
 | Empty history valid | HST-06 | A fresh install with no history.json starts with empty history and no error |
 | `/clear` resets completely | HST-07 | After `/clear`, `session.history == []` and `history.json` is deleted |
+| Isolated workspaces supported | WKS-01 | `/workspace new <name>` creates isolated index and history under `<APP_DIR>/workspaces/<name>` |
 
-### 6.4 Installer
+### 6.4 Installer & Continuous Integration
 
 | Requirement | ID | Criterion |
 |---|---|---|
-| Linux/macOS install succeeds | INS-01 | `curl -fsSL .../install.sh \| bash` installs `motif` command on a clean Ubuntu 22.04 system |
-| Windows install succeeds | INS-02 | `irm .../install.ps1 \| iex` installs `motif` command on a clean Windows 11 system |
-| Python auto-installed if missing | INS-03 | If Python < 3.11 or absent, installer bootstraps uv which installs Python 3.11 automatically |
+| Linux/macOS install succeeds | INS-01 | `curl -fsSL .../install.sh \| bash` installs `motif` command on a clean Ubuntu system |
+| Windows install succeeds | INS-02 | `irm .../install.ps1 \| iex` installs `motif` command on a clean Windows system |
+| Python auto-installed if missing | INS-03 | If Python < 3.11 or absent, installer bootstraps uv which installs Python 3.11+ automatically |
 | CUDA wheel attempted on GPU systems | INS-04 | Installer detects CUDA via `nvidia-smi`; attempts pre-built CUDA wheel; falls back to CPU with warning |
 | `motif setup` downloads correct models | INS-05 | After install, `motif setup` detects tier and downloads the correct model set with progress bars |
 | Installer is idempotent | INS-06 | Running the install script twice does not break the existing installation |
+| CLI flag entrypoints supported | INS-07 | `motif --help`, `motif --version`, and `motif setup --dry-run` return exit code 0 |
+| Automated CI workflow enforced | INS-08 | GitHub Actions matrix (`.github/workflows/test-install.yml`) passes 15 parallel jobs across Linux, Windows, macOS |
 
 ---
 
@@ -229,7 +232,7 @@
 | No server process | NFR-06 | Qdrant runs as embedded library; no background daemon |
 | Config file in TOML | NFR-07 | `config.toml` is valid TOML and loads without error |
 | Graceful shutdown | NFR-08 | Ctrl+C during ingestion does not corrupt the Qdrant index or SQLite database |
-| Logging to file | NFR-09 | All log entries written to `~/.ragdb/motif.log` with timestamps |
+| Logging to file | NFR-09 | All log entries written to `<APP_DIR>/logs/motif.log` with timestamps |
 | Single-user | NFR-10 | No concurrent access handling required; SQLite WAL is sufficient |
 | `motif` on PATH after install | NFR-11 | After running install script, `which motif` (Linux/macOS) or `Get-Command motif` (Windows) returns a valid path |
    

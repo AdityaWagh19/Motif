@@ -40,49 +40,49 @@ This is the only interpretation that is engineering-enforceable at design time. 
 
 ## 3. Hardware Tiers
 
-The system detects available hardware at startup and selects a configuration profile. Users can override via `config.toml`.
+The system detects available hardware and platform backends (NVIDIA CUDA via `nvidia-smi`, Apple Silicon Metal via `sysctl`, AMD ROCm via `rocm-smi`, or CPU fallback) at startup and selects a configuration profile. Users can override via `config.toml`.
 
 ### T1 — CPU / 8 GB RAM
 
 | Property | Value |
 |---|---|
-| GPU | None (or integrated) |
+| GPU | None (or integrated / Mac <8 GB) |
 | System RAM | 8 GB |
 | VRAM | 0 GB |
 | LLM | Phi-3.5-mini-instruct Q4_K_M (2.2 GB) |
 | GPU layers | 0 |
-| Disk footprint | **2.8 GB** |
+| Disk footprint | **2.7 GB** |
 | Query-time RAM | ~5.5 GB |
 | Target faithfulness | ~78% |
 | Target latency (P95) | ~11s (no HyDE) |
 
 > T1 does not meet the 85% accuracy target. This is an accepted hardware-constrained trade-off documented explicitly so user expectations are calibrated. T1 is a fully functional system, not a degraded one.
 
-### T2 — GTX 1650 / 4 GB VRAM
+### T2 — GTX 1650 / Apple Silicon 8–15 GB / 4 GB VRAM
 
 | Property | Value |
 |---|---|
-| GPU | GTX 1650 (or equivalent, ≥3.5 GB VRAM) |
+| GPU | GTX 1650 (or equivalent, ≥3.5 GB VRAM) / Apple Silicon 8–15 GB / AMD ROCm |
 | System RAM | 8 GB |
 | VRAM | 4 GB |
 | LLM | Qwen2.5-7B-Instruct Q4_K_M (4.2 GB) |
 | GPU layers | 20 of 28 (partial offload) |
-| Disk footprint | **4.9 GB** |
+| Disk footprint | **4.7 GB** |
 | Query-time VRAM | ~3.14 GB |
 | Query-time RAM | ~4.8 GB |
 | Target faithfulness | ~85% |
 | Target latency (P95) | ~5s (adaptive HyDE) |
 
-### T3 — RTX 3050 / 6–8 GB VRAM
+### T3 — RTX 3050 / Apple Silicon 16+ GB / 6–8 GB VRAM
 
 | Property | Value |
 |---|---|
-| GPU | RTX 3050 (or equivalent, ≥5.5 GB VRAM) |
+| GPU | RTX 3050 (or equivalent, ≥5.5 GB VRAM) / Apple Silicon 16+ GB / AMD ROCm |
 | System RAM | 8+ GB |
 | VRAM | 6–8 GB |
 | LLM | Qwen2.5-7B-Instruct Q4_K_M (4.2 GB) |
 | GPU layers | 28 of 28 (full offload) |
-| Disk footprint | **5.2 GB** (with optional moondream2) |
+| Disk footprint | **5.0 GB** (base; ~5.9 GB with optional moondream2) |
 | Query-time VRAM | ~4.46 GB |
 | Query-time RAM | ~3.9 GB |
 | Target faithfulness | ~87% |
@@ -131,14 +131,16 @@ These decisions are **final**. Revisiting them requires updating this file, `arc
 | Image captioning | PaddleOCR text-only (base) + moondream2 Q4 (T3 opt-in, ingestion-time only) | CLIP (removed — cannot generate captions), BLIP-2 | CLIP captioning was architecturally incorrect; moondream2 is smallest capable generative VLM |
 | Context compression | Extractive (cosine similarity per sentence, using loaded embed model) | LLMLingua-2 | LLMLingua-2 adds 134 MB for ~3% gain; extractive achieves 92% retention at zero extra cost |
 | Chunk storage | SQLite (WAL mode, 64 MB cache) | PostgreSQL, MongoDB | Zero-config, ACID, single-file, offline; appropriate for single-user |
+| Storage Location | OS-standard `platformdirs` paths with workspace subdirs | Static hardcoded `~/.ragdb` | Adheres to OS platform conventions (`%LOCALAPPDATA%/motif` on Win, `~/.local/share/motif` on Linux); supports multiple named workspaces via `/workspace` command |
 | Context window | T1: 2048 / T2: 3072 / T3: 4096 tokens | 1500 / 2048 / 2048 | Qwen2.5-7B handles these safely; more context improves multi-page reasoning |
 | HyDE | Adaptive (lightweight heuristic) for T2/T3; Off for T1 | Always on, always off, regex classifier | CPU too slow for HyDE; regex classifier was brittle; adaptive heuristic is robust |
-| Parent-document retrieval | Off (optional Phase 3 feature) | Default on | 2× index storage for +5% recall already largely covered by 64-token overlap |
-| RAPTOR | Phase 5, >500 pages, explicit opt-in | Default on | Doubles indexing time and storage; only beneficial for very large corpora |
-| **Primary interface** | **prompt_toolkit REPL** (`motif` launches interactive session) | One-shot CLI only, web UI | Models stay warm between queries; slash commands + plain-text queries in one loop; one-shot mode preserved for scripting |
-| **Conversation history** | **Rolling window (last 3 turns), persisted to `~/.ragdb/history.json`** | No history, full history | Single-user local system; history is a list + JSON file; no complex sessioning needed; rolling window prevents context budget exhaustion |
-| **Session persistence** | **JSON file at `~/.ragdb/history.json`**, loaded on startup | SQLite session DB, no persistence | Trivial to implement; allows resuming exploration without retyping context; `/clear` and `/new` reset it |
-| **Installer** | **uv + shell bootstrap scripts** (`install.sh` / `install.ps1`) | pip, pipx, Homebrew, Docker | uv manages Python version + venv + install in one binary; no pre-existing Python required; CUDA wheel detection built-in |
+| Query Rewriting | Local LLM `QueryRewriter` (`rag.generation.query_rewriter`) | Raw query string | Rewrites imperative/conversational prompts to keyword search phrases for BM25 and cross-encoder scoring |
+| RAPTOR | NumPy k-means clustering + cluster summaries (`rag.ingestion.raptor`) | Heavy scikit-learn dependency | Provides hierarchical thematic summaries over document chunks without extra dependencies |
+| FLARE | Dynamic token logprob confidence retrieval (`rag.generation.flare`) | Static context injection | Automatically triggers secondary retrieval if model confidence drops during generation |
+| **Primary interface** | **prompt_toolkit REPL** (`motif` launches interactive session) | One-shot CLI only, web UI | Models stay warm between queries; slash commands + plain-text queries in one loop; one-shot mode & flags (`--help`, `--version`) preserved |
+| **Workspace isolation** | **`/workspace` command + `<app_dir>/workspaces/<ws>` subdirs** | Single global database | Isolated vector stores and SQLite databases per project/topic |
+| **Conversation history** | **Rolling window (last 3 turns), persisted to workspace history** | No history, full history | Single-user local system; history is a list + JSON file; rolling window prevents context budget exhaustion |
+| **Installer & CI** | **`uv` + bootstrap scripts + 15-job GitHub Actions CI matrix** | pip, pipx, Homebrew, Docker | `uv` manages Python + venv in one binary; CI workflow enforces 100% pass rate across Linux, Windows, macOS |
 
 ---
 
@@ -150,8 +152,6 @@ These decisions are **final**. Revisiting them requires updating this file, `arc
 | Optimal relevance threshold | Auto-calibrated on first run | Corpus-dependent; 0.3 is safe default |
 | Semantic chunking threshold | 0.3 default, user-tunable | Domain-dependent; no universal optimum |
 | Parent-document retrieval | Phase 3 optional | Adds complexity; current stack may be sufficient |
-| RAPTOR hierarchical indexing | Phase 5 | Only for large corpora |
-| FLARE iterative retrieval | Phase 5 | Requires stable logit API in llama-cpp-python |
 | SQLCipher (encrypted cache) | User opt-in, advanced | Adds key management; not needed for most use cases |
 | REST API / GUI | Post-Phase 4 | REPL-first is the primary interface; web UI is a non-goal until pipeline is stable |
 

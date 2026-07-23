@@ -10,11 +10,17 @@
 ```
 motif                          ← user runs the command
   │
+  ├─└► check CLI flags (--help, -h, --version, setup --dry-run)
+  │     if flag passed: execute handler and exit 0
+  │
+  ├─└► migrate_if_needed()              ← rag/config.py
+  │     atomic migration from legacy ~/.ragdb to OS-standard platformdirs <APP_DIR>
+  │
   ├─└► load config.toml
-  │     detect_hardware_tier() → "T1" | "T2" | "T3"
+  │     detect_hardware_tier() → "T1" | "T2" | "T3" (backend: CUDA / Metal / ROCm / CPU)
   │
   ├─└► Session.load()
-  │     check ~/.ragdb/history.json
+  │     check <APP_DIR>/workspaces/<workspace>/history.json
   │     if exists: load conversation_history list
   │     if not:    start with empty history []
   │
@@ -33,7 +39,7 @@ motif                          ← user runs the command
   │     │  Motif v0.1.0                                     │
   │     │  Tier: T2  |  Qwen2.5-7B Q4_K_M  |  GTX 1650    │
   │     │  Index: 3,241 chunks  |  47 documents             │
-  │     │  C:\Users\omen\research\                          │
+  │     │  Workspace: default                               │
   │     │  Resuming previous session — 8 exchanges          │  ← if history loaded
   │     │  Last: "What does Chen et al. say about dropout?" │
   │     │  Type /new to start fresh.                        │
@@ -215,6 +221,9 @@ metadata_filter: Optional[dict]
   ├─► [Index guard]
   │     ChunkStore.count() == 0 → return "No documents indexed" message
   │
+  ├─► rewrite_query(raw_query, llm)               ← rag/generation/query_rewriter.py
+  │     Translates conversational/imperative query into keyword search phrase
+  │
   ├─► QueryExpander.expand(query, cfg, embedder)
   │     should_use_hyde(query, config):
   │       word_count ≤ 7 AND starts with factual marker AND no reasoning marker
@@ -243,6 +252,7 @@ metadata_filter: Optional[dict]
   │     → (prompt: str, passages_used: List[ScoredPassage])
   │
   ├─► LLMClient.stream(prompt, max_tokens, temperature)
+  │     OR FlareController.stream() (if use_flare=true)
   │     via create_chat_completion(stream=True)
   │     → Iterator[str]  (token stream printed to terminal)
   │

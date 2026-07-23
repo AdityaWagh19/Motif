@@ -38,21 +38,23 @@ Motif is a single-user, offline CLI application. There is no server process, no 
 
 | Module | Responsibility | Key Classes/Functions |
 |---|---|---|
-| `rag/cli.py` | prompt_toolkit REPL entry point; routes plain-text queries and slash commands; suppresses library warnings on startup | `main()`, `_interactive_mode()`, `_handle_slash_command()`, `_handle_query()` |
+| `rag/cli.py` | prompt_toolkit REPL entry point; routes plain-text queries and slash commands; handles `--help`, `-h`, `--version` CLI flags | `main()`, `_interactive_mode()`, `_handle_slash_command()`, `_handle_query()` |
 | `rag/session.py` | Conversation history: list of turns, JSON persist, rolling window trim | `Session`, `Session.add_turn()`, `Session.get_history_for_context()`, `.save()`, `.load()`, `.clear()`, `.new()` |
 | `rag/types.py` | **Shared data contracts** — all cross-module dataclasses live here | `Chunk`, `ScoredPassage`, `Citation`, `AnswerResult`, `IngestResult`, `SyncResult` |
-| `rag/commands/` | Slash command handlers (one file per command) | `handle_ingest()`, `handle_remove()`, `handle_sync()`, `handle_status()`, `handle_clear()`, `handle_new()`, `handle_setup()`, `handle_help()` |
-| `rag/config.py` | Config dataclasses; TOML loading; tier detection | `RAGConfig`, `detect_hardware_tier()`, `load_config()` |
-| `rag/pipeline.py` | End-to-end query orchestration — coordinator only, no business logic; integrates intent classifier and query cache | `QueryPipeline.answer()`, `QueryPipeline._handle_chitchat()` |
+| `rag/commands/` | Slash command handlers (one file per command) | `handle_ingest()`, `handle_remove()`, `handle_sync()`, `handle_status()`, `handle_clear()`, `handle_new()`, `handle_setup()`, `handle_workspace()`, `handle_help()`, `handle_exit()` |
+| `rag/config.py` | Config dataclasses; TOML loading; tier & multi-backend detection (`cuda`, `metal`, `rocm`, `cpu`); `platformdirs` OS paths & migration | `RAGConfig`, `detect_hardware_tier()`, `load_config()`, `get_app_dir()`, `migrate_if_needed()` |
+| `rag/pipeline.py` | End-to-end query orchestration — coordinator only, no business logic; integrates intent classifier, query rewriter, and query cache | `QueryPipeline.answer()`, `QueryPipeline._handle_chitchat()` |
 | `rag/intent.py` | Zero-shot intent classifier using embedding cosine similarity | `IntentClassifier.classify()` → `Intent.GREETING_FAST` \| `CHITCHAT` \| `QUERY` |
 | `rag/warmup.py` | Pre-load all models at startup with Rich spinner progress | `prewarm_models(config, console)` |
 | `rag/models/model_manager.py` | Lazy load / unload of all models; single source of model instances | `ModelManager.get_embedder()`, `.get_reranker()`, `.get_llm()`, `.unload()` |
 | `rag/models/embedder.py` | nomic-embed-text-v1.5 ONNX INT8 inference wrapper | `Embedder.encode(text)`, `.encode_batch(texts)` |
 | `rag/models/reranker.py` | Cross-encoder ONNX inference wrapper (MiniLM-L12-v2 / bge-reranker-base) | `Reranker.score(query, passages)` |
+| `rag/models/captioner.py` | Moondream2 ONNX/GGUF image captioning wrapper | `Captioner.caption(image_path)` |
 | `rag/ingestion/__init__.py` | **Public ingestion API** — top-level functions consumed by commands | `ingest_path(path, config, recursive, console)`, `remove_document(path, config)`, `sync_directory(path, config, recursive, console)` |
-| `rag/ingestion/parsers/` | Modality-specific document parsing | `PDFParser`, `DOCXParser`, `MarkdownParser`, `ImageParser`, `AudioParser` |
+| `rag/ingestion/parsers/` | Modality-specific document parsing & shared OCR engine | `PDFParser`, `DOCXParser`, `MarkdownParser`, `ImageParser`, `AudioParser`, `get_ocr()` |
 | `rag/ingestion/chunker.py` | Sentence chunking (all tiers) | `SentenceChunker` |
 | `rag/ingestion/semantic_chunker.py` | Semantic boundary chunking (T2/T3) | `SemanticChunker` |
+| `rag/ingestion/raptor.py` | Hierarchical chunk summaries via NumPy k-means clustering | `build_raptor_summaries(config)` |
 | `rag/ingestion/deduplicator.py` | Near-duplicate chunk detection via SimHash | `Deduplicator.is_duplicate(chunk)` |
 | `rag/retrieval/vector_store.py` | Qdrant HNSW dense search wrapper | `VectorStore.search_dense()`, `.upsert()`, `.delete()` |
 | `rag/retrieval/bm25_index.py` | BM25 lexical search; auto-switch to tantivy >100K chunks | `BM25Index.search()`, `.add()`, `.delete()`, `.rebuild()` |
@@ -62,6 +64,8 @@ Motif is a single-user, offline CLI application. There is no server process, no 
 | `rag/reranking/cross_encoder.py` | Reranking algorithm only — calls `ModelManager.get_reranker()` | `rerank(query, passages, config, top_k) -> List[ScoredPassage]` |
 | `rag/generation/llm_client.py` | llama-cpp-python streaming wrapper using `create_chat_completion` | `LLMClient.stream()`, `.generate()` |
 | `rag/generation/context_builder.py` | Context assembly: anti-middle ordering, history injection, token budget | `ContextBuilder.build(passages, query, history, config) -> str` |
+| `rag/generation/query_rewriter.py` | Query reformulation for BM25/cross-encoder optimization | `rewrite_query(query, llm)` |
+| `rag/generation/flare.py` | Logprob token-confidence dynamic iterative retrieval controller | `FlareController.stream()` |
 | `rag/generation/prompts.py` | All prompt templates and formatting utilities | `RAG_PROMPT`, `HYDE_PROMPT`, `HISTORY_SYSTEM_PROMPT`, `CHITCHAT_PROMPT`, `build_prompt()`, `build_citations()` |
 | `rag/storage/chunk_store.py` | SQLite CRUD for chunk text + ChunkMetadata | `ChunkStore.insert()`, `.fetch()`, `.fetch_batch()`, `.delete_by_source()`, `.count()`, `.count_documents()` |
 | `rag/storage/ingestion_tracker.py` | File hash tracking for incremental ingestion | `IngestionTracker.is_indexed()`, `.update()`, `.remove()` |
@@ -196,65 +200,36 @@ class AnswerResult:
     """Returned by QueryPipeline.answer() and consumed by the REPL."""
     text: str
     citations: list[Citation]
-    passages_used: int
-    used_hyde: bool = False
-    latency_ms: float = 0.0
-    ttft_ms: float = 0.0           # Time-to-first-token (ms)
-    retrieval_latency_ms: float = 0.0
-    generation_latency_ms: float = 0.0
-    tier: str = ""
+    ## 5. Storage Layout
 
-@dataclass
-class IngestResult:
-    """Returned by rag.ingestion.ingest_path() and consumed by /ingest command."""
-    files_processed: int
-    chunks_added: int
-    files_skipped: int              # Already indexed (dedup / hash unchanged)
-    errors: list[str] = field(default_factory=list)
-
-@dataclass
-class SyncResult:
-    """Returned by rag.ingestion.sync_directory() and consumed by /sync command."""
-    added: int
-    removed: int
-    reindexed: int
-    errors: list[str] = field(default_factory=list)
-```
-
-> **Rule:** If a function returns data that crosses a module boundary, that return type must be defined in `rag/types.py`. No exceptions.
-
-
----
-
-## 5. Storage Layout
+Storage is managed using OS-standard `platformdirs` paths (`<app_dir>` = `%LOCALAPPDATA%/motif` on Windows, `~/.local/share/motif` on Linux, `~/Library/Application Support/motif` on macOS). Workspaces provide isolated database and vector store environments.
 
 ```
-~/.ragdb/
-├── qdrant/
-│   └── collection/
-│       ├── 0/
-│       │   ├── segments/        # HNSW graph + vector files
-│       │   └── wal/             # Write-ahead log
-│       └── meta.json
-├── bm25/
-│   ├── bm25_index.pkl           # rank_bm25 serialized index (small corpus)
-│   └── tantivy_index/           # tantivy index directory (large corpus)
-├── chunks.db                    # SQLite: chunk text + ChunkMetadata
-├── ingestion_tracker.db         # SQLite: filepath → {hash, indexed_at}
-└── query_cache.db               # SQLite: query hash → {answer, timestamp}
-```
-
-Application config and models are stored separately:
-```
-./config.toml                   # User config (in project root)
-./models/                       # Downloaded model files
-    Phi-3.5-mini-instruct-Q4_K_M.gguf
-    Qwen2.5-7B-Instruct-Q4_K_M.gguf
-    nomic-embed-text-v1.5/      # ONNX model directory
-    MiniLM-L12-v2/              # ONNX reranker
-    bge-reranker-base/          # ONNX reranker (T3)
-    whisper-tiny-q5_k.bin
-    whisper-small-q5_k.bin
+<app_dir>/
+├── config.toml                      # Global configuration
+├── models/                          # Shared model weight directory
+│   ├── Phi-3.5-mini-instruct-Q4_K_M.gguf
+│   ├── Qwen2.5-7B-Instruct-Q4_K_M.gguf
+│   ├── nomic-embed-text-v1.5/       # ONNX model directory
+│   ├── MiniLM-L12-v2/               # ONNX reranker (T1/T2)
+│   ├── bge-reranker-base/           # ONNX reranker (T3)
+│   └── ggml-tiny-q5_1.bin
+├── logs/
+│   └── motif.log                    # File logging
+└── workspaces/
+    └── <workspace_name>/            # Default: "default"
+        ├── qdrant/
+        │   └── collection/
+        │       ├── 0/
+        │       │   ├── segments/    # HNSW graph + vector files
+        │       │   └── wal/         # Write-ahead log
+        │       └── meta.json
+        ├── bm25/
+        │   ├── bm25_index.pkl       # rank_bm25 serialized index
+        │   └── tantivy_index/       # tantivy index directory (>100K chunks)
+        ├── chunks.sqlite            # SQLite: chunk text + ChunkMetadata
+        ├── tracker.sqlite           # SQLite: filepath -> {hash, indexed_at}
+        └── query_cache.sqlite       # SQLite: query hash -> {answer, timestamp}
 ```
 
 ---
@@ -317,43 +292,52 @@ RAM:
 
 ```
 Motif/                              ← Git repo root
-├── cli.py                          ← Dev shim (python cli.py → rag.cli:main)
+├── cli.py                          ← Dev shim (python cli.py -> rag.cli:main)
 ├── pyproject.toml                  ← Package definition; `motif` entry point
-├── config.template.toml            ← Fully documented config; copy to config.toml
+├── config.template.toml            ← Fully documented config template
 ├── install.sh                      ← Linux/macOS bootstrap installer
 ├── install.ps1                     ← Windows PowerShell bootstrap installer
 ├── setup_models.py                 ← Model download helper (`motif setup`)
+├── .github/
+│   └── workflows/
+│       └── test-install.yml        ← 15-job cross-platform CI matrix workflow
 │
 ├── rag/                            ← The installable Python package
 │   ├── __init__.py                 ← __version__ = "0.1.0"
-│   ├── cli.py                      ← prompt_toolkit REPL entry point
-│   ├── config.py                   ← RAGConfig dataclasses + tier detection
+│   ├── cli.py                      ← prompt_toolkit REPL entry point & CLI flags
+│   ├── config.py                   ← RAGConfig, hardware detection, platformdirs
+│   ├── intent.py                   ← Zero-shot embedding intent classifier
+│   ├── logging_config.py           ← File & console logging setup
 │   ├── pipeline.py                 ← Query pipeline coordinator
 │   ├── session.py                  ← Session: history, JSON persist, /clear, /new
-│   ├── types.py                    ← Shared dataclasses: Chunk, ScoredPassage, Citation,
-│   │                                  AnswerResult, IngestResult, SyncResult
+│   ├── theme.py                    ← Rich console theme & styling
+│   ├── types.py                    ← Shared dataclasses: Chunk, ScoredPassage, Citation, etc.
+│   ├── warmup.py                   ← Model prewarming at startup
 │   │
 │   ├── commands/                   ← Slash command handlers
 │   │   ├── __init__.py             ← SLASH_COMMANDS registry + get_command()
-│   │   ├── ingest.py               ← /ingest
-│   │   ├── remove.py               ← /remove
-│   │   ├── sync.py                 ← /sync
-│   │   ├── status.py               ← /status
-│   │   ├── setup.py                ← /setup (model download)
 │   │   ├── clear.py                ← /clear, /new
-│   │   └── help.py                 ← /help
+│   │   ├── exit.py                 ← /exit, /quit
+│   │   ├── help.py                 ← /help
+│   │   ├── ingest.py               ← /ingest
+      ├── remove.py               ← /remove
+│   │   ├── setup.py                ← /setup
+│   │   ├── status.py               ← /status
+│   │   ├── sync.py                 ← /sync
+│   │   └── workspace.py            ← /workspace (list, new, switch, delete)
 │   │
-│   ├── models/                     ← Model wrappers ONLY. No pipeline logic.
+│   ├── models/                     ← Model wrappers ONLY
 │   │   ├── __init__.py
 │   │   ├── model_manager.py        ← Lazy load/unload singleton
 │   │   ├── embedder.py             ← nomic-embed-text-v1.5 ONNX wrapper
-│   │   └── reranker.py             ← Cross-encoder ONNX wrapper
+│   │   ├── reranker.py             ← Cross-encoder ONNX wrapper
+│   │   └── captioner.py            ← Moondream2 image captioning wrapper
 │   │
 │   ├── ingestion/
-│   │   ├── __init__.py             ← PUBLIC API: ingest_path(), remove_document(),
-│   │   │                              sync_directory() — consumed by commands layer
+│   │   ├── __init__.py             ← PUBLIC API: ingest_path(), remove_document(), sync_directory()
 │   │   ├── chunker.py              ← SentenceChunker (all tiers)
 │   │   ├── semantic_chunker.py     ← SemanticChunker (T2/T3 only)
+│   │   ├── raptor.py               ← RAPTOR k-means hierarchical chunk summaries
 │   │   ├── deduplicator.py         ← SimHash near-dup detection
 │   │   └── parsers/
 │   │       ├── base.py             ← BaseParser ABC
@@ -361,13 +345,14 @@ Motif/                              ← Git repo root
 │   │       ├── docx.py             ← DOCX parser (python-docx)
 │   │       ├── markdown.py         ← Markdown parser (markdown-it-py)
 │   │       ├── image.py            ← PaddleOCR + optional moondream2 caption
-│   │       └── audio.py            ← whisper.cpp (pywhispercpp); 16000 Hz WAV
+│   │       ├── audio.py            ← whisper.cpp (pywhispercpp); 16000 Hz WAV
+│   │       └── ocr_engine.py       ← Shared PaddleOCR singleton with show_log=False
 │   │
 │   ├── retrieval/
 │   │   ├── __init__.py
 │   │   ├── vector_store.py         ← Qdrant local client wrapper (dense HNSW)
 │   │   ├── bm25_index.py           ← rank_bm25 wrapper; tantivy auto-switch >100K
-│   │   ├── fusion.py               ← RRF: rrf_fuse() → List[ScoredPassage]
+│   │   ├── fusion.py               ← RRF: rrf_fuse() -> List[ScoredPassage]
 │   │   ├── expander.py             ← HyDE + routing heuristic
 │   │   └── calibrate.py            ← Auto-calibrate relevance threshold
 │   │
@@ -379,28 +364,49 @@ Motif/                              ← Git repo root
 │   │   ├── __init__.py
 │   │   ├── llm_client.py           ← llama-cpp-python create_chat_completion wrapper
 │   │   ├── context_builder.py      ← Assembly, ordering, history injection
-│   │   └── prompts.py              ← RAG_PROMPT, HYDE_PROMPT, HISTORY_SYSTEM_PROMPT,
-│   │                                  CHITCHAT_PROMPT
+│   │   ├── query_rewriter.py       ← Conversational query -> search phrase rewriter
+│   │   ├── flare.py                ← Logprob token-confidence FLARE controller
+│   │   └── prompts.py              ← RAG_PROMPT, HYDE_PROMPT, HISTORY_SYSTEM_PROMPT, CHITCHAT_PROMPT
 │   │
 │   ├── storage/
 │   │   ├── __init__.py
 │   │   ├── chunk_store.py          ← SQLite: chunk text + Chunk metadata
 │   │   ├── ingestion_tracker.py    ← SHA-256 file hash tracking
-│   │   └── query_cache.py          ← SQLite LRU query cache (500-entry)
+│   │   └── query_cache.py          ← SQLite LRU query cache
 │   │
 │   └── evaluation/
 │       ├── __init__.py
 │       ├── ragas_runner.py         ← Offline RAGAS evaluation
-│       └── test_generator.py       ← Synthetic QA generation
+│       ├── test_generator.py       ← Synthetic QA generation
+│       ├── latency_test.py         ← Latency benchmarking (P50/P95/P99)
+│       ├── retrieval_benchmark.py  ← Retrieval accuracy benchmark
+│       └── multimodal_benchmark.py ← Multimodal parsing & ingestion benchmark
 │
-├── models/                         ← Downloaded .gguf and ONNX files (not committed)
+├── models/                         ← Downloaded model weights (not committed)
 │   └── .gitkeep
 │
 ├── tests/
-│   ├── conftest.py                 ← Shared pytest fixtures (tmp Qdrant, SQLite, docs)
-│   ├── unit/
-│   │   ├── __init__.py
-│   │   ├── test_parsers.py         ← PDFParser, MarkdownParser, DOCXParser, get_parser
+│   ├── conftest.py                 ← Shared pytest fixtures
+│   ├── verify_wheel.py             ← Wheel verification for CI
+│   ├── unit/                       ← Unit test modules
+│   └── integration/                ← Integration test modules
+│
+├── project-context/                ← Engineering documentation
+│   ├── context.md
+│   ├── architecture.md
+│   ├── flow.md
+│   ├── trd.md
+│   ├── mvp.md
+│   ├── instructions.md
+│   ├── tests.md
+│   └── progress.md
+│
+└── docs/                           ← Research reports
+    ├── report-1.md
+    ├── report-2 p1.md
+    ├── report-2 p2.md
+    └── report-2 p3.md
+```FParser, MarkdownParser, DOCXParser, get_parser
 │   │   ├── test_chunker.py         ← SentenceChunker token boundaries
 │   │   ├── test_semantic_chunker.py ← SemanticChunker boundary detection
 │   │   ├── test_bm25.py            ← BM25Index add / search / rebuild

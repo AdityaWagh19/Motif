@@ -14,13 +14,13 @@ The system is built around three hardware tiers, each with a configuration tuned
 
 ## Hardware Requirements
 
-| Tier | Hardware | RAM | VRAM | LLM | Disk | Faithfulness |
+| Tier | Hardware / Platform | RAM | VRAM | LLM | Disk Footprint | Faithfulness |
 |---|---|---|---|---|---|---|
-| T1 | CPU-only | 8 GB | — | Phi-3.5-mini Q4 | 2.8 GB | ~78% |
-| T2 | GTX 1650 or equivalent | 8 GB | 4 GB | Qwen2.5-7B Q4_K_M (partial GPU) | 4.9 GB | ~85% |
-| T3 | RTX 3050 or equivalent | 8 GB | 6–8 GB | Qwen2.5-7B Q4_K_M (full GPU) | 5.2 GB | ~87% |
+| T1 | CPU-only / Mac <8 GB | 8 GB | — | Phi-3.5-mini Q4_K_M (0 GPU layers) | 2.7 GB | ~78% |
+| T2 | GTX 1650 / Apple Silicon (8–15 GB) / AMD ROCm | 8 GB | 4 GB | Qwen2.5-7B Q4_K_M (20 GPU layers) | 4.7 GB | ~85% |
+| T3 | RTX 3050 / Apple Silicon (16+ GB) / AMD ROCm | 8 GB | 6–8 GB | Qwen2.5-7B Q4_K_M (28 GPU layers) | 5.0 GB | ~87% |
 
-The tier is detected automatically at startup. The 5 GB figure covers model weights on disk only. The corpus index scales separately with document volume.
+The hardware tier and acceleration backend (NVIDIA CUDA via `nvidia-smi`, Apple Silicon Metal via `sysctl`, AMD ROCm via `rocm-smi`, or CPU fallback) are detected automatically at startup. Disk footprint covers base model weight files on disk; the corpus vector index scales separately with document volume.
 
 ---
 
@@ -62,8 +62,13 @@ motif
 /status                       # Check index statistics
 /sync ./documents/            # Sync: add new, remove deleted, re-index changed
 /remove ./documents/old.pdf   # Remove a document
+/workspace list               # List all isolated workspaces
+/workspace new research       # Create and switch to new workspace 'research'
+/workspace switch default     # Switch back to 'default' workspace
+/workspace delete research    # Delete an inactive workspace
 /new                          # Start a fresh session
 /help                         # Show all commands
+/exit                         # Save session and exit
 
 # Ask questions — just type at the prompt:
 What are the main findings?
@@ -74,11 +79,14 @@ Explain the methodology /file thesis.pdf /pages 20-40
 What was said about X? /type audio
 ```
 
-### One-shot mode (scripting)
+### One-shot mode & CLI Flags
 
 ```bash
 motif ask "What are the main findings?"
 motif ingest ./docs --recursive
+motif setup --dry-run        # Verify tier models without downloading
+motif --version              # Print Motif version
+motif --help                 # Print CLI command summary
 ```
 
 ---
@@ -100,9 +108,9 @@ motif ingest ./docs --recursive
 
 Motif is structured as a two-phase system:
 
-**Ingestion (one-time):** Documents are parsed by a modality-specific parser, split into semantic chunks (T2/T3) or sentence chunks (T1), embedded with nomic-embed-text-v1.5 (ONNX INT8), and indexed into three complementary stores: a Qdrant HNSW vector index (dense), a rank_bm25 lexical index, and a SQLite chunk store.
+**Ingestion (one-time):** Documents are parsed by a modality-specific parser, split into semantic chunks (T2/T3) or sentence chunks (T1), embedded with nomic-embed-text-v1.5 (ONNX INT8), and indexed into three complementary stores: a Qdrant HNSW vector index (dense), a rank_bm25 lexical index (auto-switches to tantivy at >100K chunks), and a SQLite chunk store. Advanced hierarchical indexing is supported via NumPy k-means RAPTOR summaries (`rag.ingestion.raptor`). Storage is isolated per workspace under OS-standard `platformdirs` paths (`~/.local/share/motif/workspaces/<ws>` or `%LOCALAPPDATA%\motif\workspaces\<ws>`).
 
-**Query (per-query):** The query is first classified by an intent classifier (greetings → fast-path; chitchat → LLM without retrieval; document queries → full pipeline). Document queries are optionally expanded via HyDE, then retrieved via hybrid search (dense + BM25), fused with Reciprocal Rank Fusion (k=60), re-ranked by a cross-encoder, assembled into a token-budgeted context, and passed to the local LLM for streaming grounded generation with inline citations.
+**Query (per-query):** The query is first classified by an intent classifier (greetings → fast-path; chitchat → LLM without retrieval; document queries → full pipeline). Queries are rewritten for BM25/cross-encoder optimization (`rag.generation.query_rewriter`), optionally expanded via HyDE, retrieved via hybrid search (dense + BM25), fused with Reciprocal Rank Fusion (k=60), re-ranked by a cross-encoder, assembled into a token-budgeted context, and passed to the local LLM for streaming grounded generation with inline citations. Dynamic iterative retrieval during generation is supported via `FlareController` (`rag.generation.flare`).
 
 ```
 Query
@@ -111,13 +119,14 @@ Query
        -> CHITCHAT: LLM direct response (no retrieval)
        -> QUERY: full RAG pipeline below
   -> [QueryCache check]
+  -> [QueryRewriter: conversational -> search phrase]
   -> [HyDE expand, T2/T3 adaptive]
   -> nomic-embed encode
   -> Qdrant dense + BM25  ->  RRF fusion  ->  top-N
   -> SQLite fetch (chunk text + metadata)
   -> Cross-encoder rerank  ->  top-3/5
   -> Context assembly (merge adjacent, anti-middle order, extractive compress)
-  -> LLM (llama.cpp, streaming via create_chat_completion)
+  -> LLM (llama.cpp, streaming via create_chat_completion / FlareController)
   -> Answer + Citations
 ```
 
@@ -135,9 +144,8 @@ Full architecture, data flow diagrams, and interface contracts are documented in
 | [`project-context/trd.md`](project-context/trd.md) | Machine-testable acceptance criteria for every subsystem |
 | [`project-context/mvp.md`](project-context/mvp.md) | MVP scope, explicit exclusions, acceptance tests, delivery phases |
 | [`project-context/instructions.md`](project-context/instructions.md) | Developer setup, model download, configuration, CLI reference, troubleshooting |
-| [`project-context/tests.md`](project-context/tests.md) | Unit/integration test specifications, RAGAS evaluation, latency benchmarks |
+| [`project-context/tests.md`](project-context/tests.md) | Unit/integration test specifications, RAGAS evaluation, CI workflow, latency benchmarks |
 | [`project-context/progress.md`](project-context/progress.md) | Implementation progress, metrics snapshots, active blockers |
-| [`pre_implementation_resolution.md`](pre_implementation_resolution.md) | Gap analysis, hardware tier decisions, redundancy audit |
 
 ---
 
@@ -150,8 +158,10 @@ Full architecture, data flow diagrams, and interface contracts are documented in
 | Reranker | MiniLM-L12-v2 (T1/T2) / bge-reranker-base (T3) ONNX |
 | Vector store | Qdrant (local embedded mode, no server) |
 | Lexical index | rank_bm25 (auto-upgrades to tantivy >100K chunks) |
+| Hierarchical index | RAPTOR (NumPy k-means + cluster summaries) |
+| Query Rewriting / Dynamic RAG | QueryRewriter & FlareController (logprob dynamic retrieval) |
 | PDF parsing | pymupdf |
-| OCR | PaddleOCR (T2/T3) |
+| OCR | PaddleOCR (T2/T3, `show_log=False`) |
 | DOCX parsing | python-docx |
 | Markdown parsing | markdown-it-py |
 | Audio transcription | whisper.cpp (pywhispercpp); requires 16000 Hz WAV |
@@ -159,13 +169,15 @@ Full architecture, data flow diagrams, and interface contracts are documented in
 | Semantic chunking | semantic-text-splitter (T2/T3) |
 | Intent classification | embedding cosine similarity (nomic-embed anchors) |
 | CLI / REPL | prompt_toolkit + rich |
+| Workspace isolation | `platformdirs` OS paths + `/workspace` command |
+| Continuous Integration | GitHub Actions 15-job cross-platform test matrix (`.github/workflows/test-install.yml`) |
 | Evaluation | RAGAS (offline, local LLM judge) |
 
 ---
 
 ## Configuration
 
-Copy `config.template.toml` to `config.toml` in the project root. Key settings:
+Copy `config.template.toml` to `config.toml` in the project root (or let Motif generate it automatically in global app storage). Key settings:
 
 ```toml
 [hardware]
@@ -176,13 +188,16 @@ n_gpu_layers = 20    # T1: 0, T2: 20, T3: 28
 ctx_size     = 3072  # T1: 2048, T2: 3072, T3: 4096
 
 [retrieval]
-query_expansion = "hyde"    # T1: "none"; T2/T3: "hyde" or "none"
+query_expansion = "none"    # "none" | "hyde"
+use_raptor = false          # RAPTOR hierarchical summaries
+use_flare = false           # FLARE dynamic logprob retrieval
 
 [chunking]
 use_semantic = true         # T1: false (sentence split), T2/T3: true
 
 [storage]
-query_cache_enabled = false  # Enable SQLite LRU query cache (500-query limit)
+workspace = "default"        # Active isolated workspace
+query_cache_enabled = true   # Enable SQLite LRU query cache
 ```
 
 Full configuration reference is in [`project-context/instructions.md`](project-context/instructions.md).
@@ -191,13 +206,13 @@ Full configuration reference is in [`project-context/instructions.md`](project-c
 
 ## Research Foundation
 
-The architecture, model selections, and retrieval strategy are derived from a structured literature synthesis covering hybrid retrieval systems, quantized LLM inference, and multimodal document processing. The research reports are in [`docs/`](docs/) and the pre-implementation validation is in the [gap analysis artifact](pre_implementation_resolution.md).
+The architecture, model selections, and retrieval strategy are derived from a structured literature synthesis covering hybrid retrieval systems, quantized LLM inference, and multimodal document processing. The research reports are in [`docs/`](docs/).
 
 ---
 
 ## Status
 
-**Fully implemented.** All six development phases (Infrastructure → Storage → Ingestion → Query Pipeline → Quality & Hardening → Multimodal → Evaluation) are complete. The system is installable globally via `uv tool install`, runs from any directory with the `motif` command, and correctly ingests PDF, DOCX, Markdown, image, and audio documents with grounded cited answers.
+**Fully implemented and CI verified.** All development phases (Infrastructure → Storage → Ingestion → Query Pipeline → Quality & Hardening → Multimodal → Evaluation → UX Hardening → Repository Cleanup → CI Workflow Matrix) are complete. The system is installable globally via `uv tool install`, runs from any directory with the `motif` command, supports isolated workspaces via `/workspace`, and correctly ingests PDF, DOCX, Markdown, image, and audio documents with grounded cited answers. Continuous integration is enforced via a 15-job GitHub Actions matrix (`.github/workflows/test-install.yml`) passing 100% across Linux, Windows, and macOS.
 
 See [`project-context/progress.md`](project-context/progress.md) for detailed phase-by-phase status and metrics.
 

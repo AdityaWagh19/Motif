@@ -105,21 +105,34 @@ pytest tests/unit/ -v
 | `test_add_turn_grows_history` | After `add_turn(q, a)`, `len(history) == 2` (one user + one assistant entry) | HST-01 |
 | `test_rolling_window_trims_oldest` | With budget=512 tokens, oldest turns are dropped when limit exceeded | HST-02 |
 | `test_passages_kept_over_history` | When budget forces a choice, retrieved passage is included and oldest history dropped | HST-03 |
-| `test_save_creates_json` | After `session.save()`, `~/.ragdb/history.json` exists and is valid JSON | HST-04 |
+| `test_save_creates_json` | After `session.save()`, `<APP_DIR>/workspaces/<ws>/history.json` exists and is valid JSON | HST-04 |
 | `test_load_restores_history` | After `session.load()`, `session.history` matches what was saved | HST-05 |
 | `test_empty_history_no_error` | `Session()` with no history.json starts with `history == []` and no exception | HST-06 |
 | `test_clear_resets_and_deletes` | After `session.clear()`, `history == []` and `history.json` does not exist | HST-07 |
 | `test_new_archives_history` | After `session.new()`, `history_TIMESTAMP.json` exists and `history.json` is gone | CMD-07 |
 
+### 1.11 Wheel & Binary Verification (`tests/verify_wheel.py`)
+
+| Test | What It Checks |
+|---|---|
+| `test_llama_cpp_import` | Asserts `llama_cpp` is importable without binary loading exceptions |
+| `test_llama_cpp_version` | Validates installed version matches release tags |
+| `test_llama_cpp_system_deps` | Verifies OpenMP runtime libraries (`libgomp1` on Linux, `libomp` on macOS) |
+
 ---
 
-## 2. Integration Tests
+## 2. Integration Tests & Continuous Integration Matrix
 
-All integration tests live in `tests/integration/`. They require models to be downloaded. Run with:
-```powershell
-pytest tests/integration/ -v -m "not slow"    # Skip slow LLM tests
-pytest tests/integration/ -v                   # Run all including LLM tests
-```
+All integration tests live in `tests/integration/`. They require models to be downloaded for full execution.
+
+### 2.0 GitHub Actions CI Matrix (`.github/workflows/test-install.yml`)
+
+The repository runs a 15-job parallel GitHub Actions matrix on every push/PR:
+- **Platforms:** Ubuntu 24.04, Windows 2022, macOS 14.
+- **Python Versions:** 3.11, 3.12 (aligned with `pyproject.toml` `requires-python = ">=3.11"`).
+- **Modes:** Fresh install (`uv tool install`), Upgrade baseline (`uv tool update`).
+- **Hardware Mocks:** CPU, CUDA (`nvidia-smi` mock), ROCm (`rocm-smi` mock).
+- **Verification:** Runs `motif --version`, `motif setup --dry-run`, `pytest tests/unit/`, and `python tests/verify_wheel.py`.
 
 ### 2.1 End-to-End Ingestion (`tests/integration/test_ingestion.py`)
 

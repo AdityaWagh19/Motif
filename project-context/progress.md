@@ -18,6 +18,7 @@
 | **6** | Evaluation & Production Hardening | ✅ Done | 2026-07-18 | 2026-07-18 |
 | **7** | UX Hardening (intent classifier, warmup, warning suppression, global install) | ✅ Done | 2026-07-20 | 2026-07-20 |
 | **8** | Repository Cleanup & Finalization | ✅ Done | 2026-07-20 | 2026-07-20 |
+| **9** | CI Workflow Automation & OS Storage Migration | ✅ Done | 2026-07-23 | 2026-07-23 |
 
 Legend: 🔲 Not started | 🔄 In progress | ✅ Done | ❌ Blocked
 
@@ -286,6 +287,28 @@ Re-running the same command produces zero new chunks (deduplication).
 - ✅ Repository footprint strictly reflects production-ready code and contextual documentation
 - ✅ Local `.venv/` and `models/` caches minimized to necessary pipeline runtimes
 - ✅ `.gitignore` enforces exclusion of `.md` root artifacts, benchmarking logs, and test data
+
+---
+
+## Phase 9 — CI Workflow Automation & OS Storage Migration
+
+**Goal:** Establish multi-platform continuous integration testing, OS-standard `platformdirs` storage pathing, isolated multi-workspace management, and advanced retrieval/generation extensions.
+
+### Tasks (Completed)
+
+- ✅ `.github/workflows/test-install.yml` — Automated 15-job parallel GitHub Actions CI workflow across Linux (Ubuntu 24.04), Windows 2022, macOS 14, Python 3.11 & 3.12, Fresh/Upgrade modes, and CPU/CUDA/ROCm hardware detection mocks (~1m 24s execution time)
+- ✅ `tests/verify_wheel.py` — Strict wheel verification script testing `llama-cpp-python` binary loading and runtime OpenMP dependencies (`libgomp1` / `libomp`)
+- ✅ `rag/config.py` — `platformdirs` storage migration (`get_app_dir()`, `migrate_if_needed()`) to replace static `~/.ragdb`
+- ✅ `rag/commands/workspace.py` — `/workspace` command (`list`, `new <name>`, `switch <name>`, `delete <name>`) for isolated project vector databases and history
+- ✅ `rag/generation/query_rewriter.py` — Local LLM query rewriter translating conversational queries into search keyphrases
+- ✅ `rag/generation/flare.py` — `FlareController` for token logprob dynamic iterative retrieval
+- ✅ `rag/ingestion/raptor.py` — Pure NumPy k-means hierarchical chunk summaries
+- ✅ `rag/cli.py` — `--help`, `-h`, and `--version` CLI flag handling with exit code 0
+
+### Phase 9 Acceptance Checkpoint
+- ✅ GitHub Actions CI test matrix passing 100% (15/15 jobs) across all OS platforms
+- ✅ Isolated workspace creation and switching verified via `/workspace`
+- ✅ CLI entrypoint flags return status code 0 without launching full REPL loop
 
 ---
 

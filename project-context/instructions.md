@@ -168,7 +168,8 @@ ctx_size     = 3072
 threads      = 6
 
 [storage]
-db_path = "~/.ragdb"   # Change if you want the index elsewhere
+workspace = "default"   # Active isolated workspace inside OS app directory
+query_cache_enabled = true
 ```
 
 ---
@@ -178,34 +179,42 @@ db_path = "~/.ragdb"   # Change if you want the index elsewhere
 ```bash
 # 1. Launch the REPL
 motif
-# Welcome screen shows tier, model, document count
+
+# Welcome screen shows tier, model, document count, active workspace
 
 # 2. Ingest a folder of documents
 /ingest ./my_documents/ -r
 
-# 3. Ask questions (plain text at the prompt)
+# 3. Manage workspaces
+/workspace new research       # Create & switch to isolated workspace
+/workspace list               # Show all workspaces
+
+# 4. Ask questions (plain text at the prompt)
 What are the main conclusions?
 
-# 4. Follow up naturally
+# 5. Follow up naturally
 Expand on the second point.
 
-# 5. Restrict to a specific file
+# 6. Restrict to a specific file
 What does chapter 3 say about X? /file report.pdf
 
-# 6. Restrict to a page range
+# 7. Restrict to a page range
 Explain the methodology /file thesis.pdf /pages 20-40
 
-# 7. Start a fresh session without prior history
+# 8. Start a fresh session without prior history
 /new
 
-# 8. Exit (history is auto-saved)
-exit
+# 9. Exit (history is auto-saved)
+/exit
 ```
 
-One-shot mode (for scripting, no REPL):
+One-shot mode & CLI flags:
 ```bash
 motif ask "What are the main findings?"
 motif ingest ./docs/ --recursive
+motif setup --dry-run        # Validate model manifest without downloading
+motif --version              # Print Motif version
+motif --help                 # Display command summary
 ```
 
 ---
@@ -218,10 +227,12 @@ motif ingest ./docs/ --recursive
 | `/remove PATH` | — | Remove a document and all its chunks |
 | `/sync DIR` | `-r` | Sync directory: add new, remove deleted, re-index changed |
 | `/status` | — | Show knowledge base stats and loaded models |
+| `/workspace` | `list \| new <name> \| switch <name> \| delete <name>` | Manage isolated vector store & SQLite workspaces |
 | `/clear` | — | Clear conversation history and delete history.json |
 | `/new` | — | Archive current history, start fresh session |
-| `/setup` | `--tier T1/T2/T3`, `--captioning` | Download models for your tier |
+| `/setup` | `--tier T1/T2/T3`, `--captioning`, `--dry-run` | Download models for your tier |
 | `/help` | — | Show all available commands |
+| `/exit` | — | Save session and exit the application |
 
 Query modifiers (append to any plain-text query):
 

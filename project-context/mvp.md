@@ -10,29 +10,31 @@
 
 These files are created before any pipeline code. They must exist before Phase 1 begins.
 
-- [ ] `pyproject.toml` — package definition, `motif` entry point, pinned deps
-- [ ] `install.sh` — Linux/macOS bootstrap (uv + CUDA detection)
-- [ ] `install.ps1` — Windows PowerShell bootstrap
-- [ ] `config.template.toml` — fully commented config with T1/T2/T3 variants shown
-- [ ] `rag/config.py` — config dataclasses, `detect_hardware_tier()`
-- [ ] `rag/types.py` — **all shared dataclasses** (`Chunk`, `ScoredPassage`, `Citation`, `AnswerResult`, `IngestResult`, `SyncResult`) — **must exist before any Phase 1 code**
-- [ ] `rag/models/__init__.py` — package init
-- [ ] `rag/models/embedder.py` — `Embedder` class skeleton (ONNX wrapper, no Phase 1 logic yet)
-- [ ] `rag/models/reranker.py` — `Reranker` class skeleton
-- [ ] `rag/session.py` — Session class: history list, `add_turn()`, `save()`, `load()`, `clear()`, `new()`, rolling window trim
-- [ ] `cli.py` — prompt_toolkit REPL: welcome screen (Rich panel), REPL loop, slash command router, session load/save
-- [ ] `rag/commands/__init__.py` — command registry
-- [ ] `rag/commands/help.py` — `/help`
-- [ ] `rag/commands/clear.py` — `/clear`, `/new`
-- [ ] `rag/commands/status.py` — `/status` stub
-- [ ] `rag/commands/ingest.py` — `/ingest` stub
-- [ ] `rag/commands/remove.py` — `/remove` stub
-- [ ] `rag/commands/sync.py` — `/sync` stub
-- [ ] `rag/commands/setup.py` — `/setup` stub
-- [ ] `rag/ingestion/__init__.py` — **public API stubs**: `ingest_path()`, `remove_document()`, `sync_directory()` with type signatures from `rag.types` — not implemented yet, raises `NotImplementedError`
-- [ ] `setup_models.py` — model download with tier detection and progress bars
-- [ ] `tests/conftest.py` — shared fixtures: `tmp_db_root`, `sample_pdf`, `sample_md`, `minimal_config`
-- [ ] `models/.gitkeep`, `tests/unit/.gitkeep`, `tests/integration/.gitkeep`
+- [x] `pyproject.toml` — package definition, `motif` entry point, pinned deps
+- [x] `install.sh` — Linux/macOS bootstrap (uv + CUDA detection)
+- [x] `install.ps1` — Windows PowerShell bootstrap
+- [x] `config.template.toml` — fully commented config with T1/T2/T3 variants shown
+- [x] `rag/config.py` — config dataclasses, `detect_hardware_tier()`
+- [x] `rag/types.py` — **all shared dataclasses** (`Chunk`, `ScoredPassage`, `Citation`, `AnswerResult`, `IngestResult`, `SyncResult`)
+- [x] `rag/models/__init__.py` — package init
+- [x] `rag/models/embedder.py` — `Embedder` class ONNX wrapper
+- [x] `rag/models/reranker.py` — `Reranker` class ONNX wrapper
+- [x] `rag/session.py` — Session class: history list, `add_turn()`, `save()`, `load()`, `clear()`, `new()`, rolling window trim
+- [x] `cli.py` — prompt_toolkit REPL: welcome screen (Rich panel), REPL loop, slash command router, session load/save
+- [x] `rag/commands/__init__.py` — command registry
+- [x] `rag/commands/help.py` — `/help`
+- [x] `rag/commands/clear.py` — `/clear`, `/new`
+- [x] `rag/commands/status.py` — `/status`
+- [x] `rag/commands/ingest.py` — `/ingest`
+- [x] `rag/commands/remove.py` — `/remove`
+- [x] `rag/commands/sync.py` — `/sync`
+- [x] `rag/commands/setup.py` — `/setup`
+- [x] `rag/commands/workspace.py` — `/workspace`
+- [x] `rag/commands/exit.py` — `/exit`
+- [x] `rag/ingestion/__init__.py` — **public API**: `ingest_path()`, `remove_document()`, `sync_directory()`
+- [x] `setup_models.py` — model download with tier detection and progress bars
+- [x] `tests/conftest.py` — shared fixtures: `tmp_db_root`, `sample_pdf`, `sample_md`, `minimal_config`
+- [x] `models/.gitkeep`, `tests/unit/.gitkeep`, `tests/integration/.gitkeep`
 
 ---
 
