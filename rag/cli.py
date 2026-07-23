@@ -414,7 +414,9 @@ def _one_shot_mode(argv: list[str]) -> None:
         query = " ".join(args)
         _handle_query(query, session, config)
 
-    elif subcommand in ("ingest", "remove", "sync", "status", "setup", "help"):
+    elif subcommand in ("ingest", "remove", "sync", "status", "setup", "help", "--help", "-h"):
+        if subcommand in ("--help", "-h"):
+            subcommand = "help"
         # Route to the corresponding slash command handler
         slash = f"/{subcommand}"
         _handle_slash_command(f"{slash} {' '.join(args)}", session, config)
@@ -441,6 +443,21 @@ def main() -> None:
     Otherwise, launch the interactive REPL.
     """
     args = sys.argv[1:]
+
+    if "--help" in args or "-h" in args:
+        from rag import __version__
+        print(f"Motif v{__version__} — Local RAG AI Assistant")
+        print("\nUsage:")
+        print("  motif                     Start interactive REPL session")
+        print("  motif ask \"<query>\"       Run a single query and print the answer")
+        print("  motif ingest <path>       Ingest document files or directories")
+        print("  motif setup [--tier T1|T2|T3]  Download/verify model files")
+        print("  motif status              Display index and system status")
+        print("  motif sync [path]         Re-index updated files")
+        print("  motif remove <path>       Remove file from vector store")
+        print("  motif --version           Print Motif version")
+        print("  motif --help              Print this help overview")
+        sys.exit(0)
 
     if "--version" in args:
         from rag import __version__

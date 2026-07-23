@@ -112,13 +112,13 @@ jobs:
         run: |
           mkdir -p $HOME/mock_bin
           if [ "${{ matrix.hardware }}" == "mock_cuda" ]; then
-             echo 'echo "CUDA Version: 12.4"' > $HOME/mock_bin/nvidia-smi
+             printf '#!/bin/sh\necho "CUDA Version: 12.4"\n' > $HOME/mock_bin/nvidia-smi
              chmod +x $HOME/mock_bin/nvidia-smi
              if [ "${{ runner.os }}" == "Windows" ]; then
                echo '@echo CUDA Version: 12.4' > $HOME/mock_bin/nvidia-smi.bat
              fi
           elif [ "${{ matrix.hardware }}" == "mock_rocm" ]; then
-             echo 'echo "mock"' > $HOME/mock_bin/rocm-smi
+             printf '#!/bin/sh\necho "mock"\n' > $HOME/mock_bin/rocm-smi
              chmod +x $HOME/mock_bin/rocm-smi
           fi
           echo "$HOME/mock_bin" >> $GITHUB_PATH
@@ -127,16 +127,18 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Start-Process -NoNewWindow -FilePath "python" -ArgumentList "-m http.server 8000"
-          # Wait for server to be healthy
-          $retry = 0
-          while ($retry -lt 5) {
+          $process = Start-Process python -ArgumentList "-m", "http.server", "8000", "--bind", "127.0.0.1" -PassThru
+          $healthy = $false
+          for ($i = 0; $i -lt 10; $i++) {
             try {
-              $response = Invoke-WebRequest -Uri "http://localhost:8000/install.ps1" -UseBasicParsing -ErrorAction Stop
-              if ($response.StatusCode -eq 200) { break }
-            } catch { }
+              $resp = Invoke-WebRequest -Uri "http://127.0.0.1:8000/install.ps1" -UseBasicParsing -ErrorAction Stop
+              if ($resp.StatusCode -eq 200) { $healthy = $true; break }
+            } catch {}
             Start-Sleep -Seconds 1
-            $retry++
+          }
+          if (-not $healthy) {
+            Write-Error "Local HTTP server failed to start on port 8000"
+            exit 1
           }
 
       - name: Execute Install (Windows)
@@ -144,7 +146,7 @@ jobs:
         shell: pwsh
         run: |
           # The execution policy test: pipe from local server
-          Invoke-RestMethod "http://localhost:8000/install.ps1" | Invoke-Expression
+          Invoke-RestMethod "http://127.0.0.1:8000/install.ps1" | Invoke-Expression
           
       - name: Execute Install (Unix)
         if: runner.os != 'Windows'
@@ -192,8 +194,9 @@ jobs:
         shell: pwsh
         run: |
           $env:Path = "$HOME\.cargo\bin;$HOME\.local\bin;$env:APPDATA\uv\bin;$env:Path"
-          $TOOL_ENV = "$env:APPDATA\uv\tools\motif-rag"
-          $PYTHON_EXE = "$TOOL_ENV\Scripts\python.exe"
+          $TOOL_DIR = (uv tool dir).Trim()
+          $TOOL_ENV = Join-Path $TOOL_DIR "motif-rag"
+          $PYTHON_EXE = Join-Path $TOOL_ENV "Scripts\python.exe"
           
           if (-not (Test-Path $PYTHON_EXE)) {
              Write-Host "Could not find python directly at $PYTHON_EXE, attempting fallback"
