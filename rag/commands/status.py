@@ -76,7 +76,7 @@ def handle_status(args, session, config, console) -> None:
     table.add_row("Reranker", f"{rerank_path.name} ({rerank_str})")
     table.add_row("GPU layers", str(config.llm.n_gpu_layers))
     table.add_row("Context window", f"{config.llm.ctx_size} tokens")
-    table.add_row("Retrieval top-k", f"{config.retrieval.top_k_retrieval} → rerank → {config.retrieval.top_k_rerank}")
+    table.add_row("Retrieval top-k", f"{config.retrieval.top_k_retrieval} -> rerank -> {config.retrieval.top_k_rerank}")
     table.add_row("Query expansion", config.retrieval.query_expansion)
     table.add_row("Semantic chunking", "on" if config.chunking.use_semantic else "off")
     table.add_section()
