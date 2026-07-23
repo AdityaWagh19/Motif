@@ -449,6 +449,32 @@ def _get_models_dir() -> Path:
     return get_app_dir() / "models"
 
 
+def resolve_model_path(path_str_or_obj: str | Path) -> Path:
+    """
+    Resolve a model path dynamically across global app data dir, workspace CWD, and package root.
+    """
+    p = Path(path_str_or_obj)
+    if p.is_absolute() and p.exists():
+        return p
+
+    app_dir = get_app_dir()
+    name = p.name
+
+    candidates = [
+        app_dir / "models" / name,
+        app_dir / p,
+        Path.cwd() / p,
+        Path(__file__).parent / p,
+        Path(__file__).parent.parent / p,
+    ]
+
+    for cand in candidates:
+        if cand.exists():
+            return cand.resolve()
+
+    return (app_dir / "models" / name).resolve()
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Tier-specific defaults
 # ─────────────────────────────────────────────────────────────────────────────

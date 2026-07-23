@@ -26,7 +26,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from rag.config import RAGConfig
+from rag.config import RAGConfig, resolve_model_path
 
 if TYPE_CHECKING:
     # These imports are only for type checkers — never executed at runtime here.
@@ -69,10 +69,7 @@ class ModelManager:
         if self._embedder is None:
             from rag.models.embedder import Embedder  # lazy import
 
-            model_path = Path(config.models.embed_model)
-            if not model_path.is_absolute():
-                pkg_root = Path(__file__).parent.parent.parent
-                model_path = (pkg_root / config.models.embed_model).resolve()
+            model_path = resolve_model_path(config.models.embed_model)
 
             if not model_path.exists():
                 raise FileNotFoundError(
@@ -115,10 +112,7 @@ class ModelManager:
         if self._reranker is None:
             from rag.models.reranker import Reranker  # lazy import
 
-            model_path = Path(config.models.reranker)
-            if not model_path.is_absolute():
-                pkg_root = Path(__file__).parent.parent.parent
-                model_path = (pkg_root / config.models.reranker).resolve()
+            model_path = resolve_model_path(config.models.reranker)
 
             if not model_path.exists():
                 raise FileNotFoundError(
@@ -158,10 +152,7 @@ class ModelManager:
         if self._llm is None:
             from rag.generation.llm_client import LLMClient  # type: ignore[import]  # Phase 3
 
-            model_path = Path(config.models.llm_path)
-            if not model_path.is_absolute():
-                pkg_root = Path(__file__).parent.parent.parent
-                model_path = (pkg_root / config.models.llm_path).resolve()
+            model_path = resolve_model_path(config.models.llm_path)
 
             if not model_path.exists():
                 raise FileNotFoundError(
@@ -206,12 +197,8 @@ class ModelManager:
         """Lazy-load moondream2 captioning model."""
         from rag.models.captioner import Captioner
         if self._captioner is None:
-            # Look up captioner model path, default to models/moondream2
-            model_path = Path(getattr(config.models, "captioner", "models/moondream2"))
-            if not model_path.is_absolute():
-                pkg_root = Path(__file__).parent.parent.parent
-                model_path = (pkg_root / getattr(config.models, "captioner", "models/moondream2")).resolve()
-                
+            model_path = resolve_model_path(getattr(config.models, "captioner", "models/moondream2"))
+
             if not model_path.exists():
                 raise FileNotFoundError(
                     f"Captioning model not found: {model_path}\n"
