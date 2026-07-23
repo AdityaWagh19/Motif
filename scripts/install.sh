@@ -42,7 +42,11 @@ elif [[ "${MOTIF_REPO}" == git+* ]]; then
 else
     INSTALL_SPEC="git+${MOTIF_REPO}"
 fi
-uv tool install "${INSTALL_SPEC}" --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/cpu" --force
+if [ "$(uname)" = "Darwin" ]; then
+    uv tool install "${INSTALL_SPEC}" --force
+else
+    uv tool install "${INSTALL_SPEC}" --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/cpu" --force
+fi
 success "motif installed"
 
 # Ensure uv tool bin dir is on PATH
