@@ -86,11 +86,12 @@ class LLMClient:
         """
         try:
             from llama_cpp import Llama  # type: ignore[import]
-        except ImportError as exc:
-            raise ImportError(
-                "llama-cpp-python is not installed.\n"
-                "Run: pip install llama-cpp-python\n"
-                "Or with CUDA: CMAKE_ARGS=\"-DGGML_CUDA=on\" pip install llama-cpp-python"
+        except (ImportError, RuntimeError, OSError) as exc:
+            raise RuntimeError(
+                "Failed to load llama-cpp-python shared library (llama.dll / libllama.so).\n"
+                "This usually happens when GPU/CUDA runtime DLLs are missing or mismatched.\n"
+                "To fix: Re-install CPU wheel with:\n"
+                "  uv pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu --force-reinstall"
             ) from exc
 
         if not self._model_path.exists():
@@ -110,16 +111,21 @@ class LLMClient:
 
         use_flare = getattr(self._config.retrieval, "use_flare", False)
         
-        self._llm = Llama(  # type: ignore[attr-defined]
-            model_path=str(self._model_path),
-            n_ctx=cfg.ctx_size,
-            n_gpu_layers=cfg.n_gpu_layers,
-            n_threads=cfg.threads,
-            verbose=False,       # suppress llama.cpp debug output
-            use_mlock=False,     # don't pin memory
-            use_mmap=True,       # memory-map model file
-            logits_all=use_flare, # 7-C: Required for logprobs streaming
-        )
+        try:
+            self._llm = Llama(  # type: ignore[attr-defined]
+                model_path=str(self._model_path),
+                n_ctx=cfg.ctx_size,
+                n_gpu_layers=cfg.n_gpu_layers,
+                n_threads=cfg.threads,
+                verbose=False,       # suppress llama.cpp debug output
+                use_mlock=False,     # don't pin memory
+                use_mmap=True,       # memory-map model file
+                logits_all=use_flare, # 7-C: Required for logprobs streaming
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                f"Failed to initialize LLM ({self._model_path.name}): {exc}"
+            ) from exc
 
         # ── GPU offload verification ─────────────────────────────────────────
         # Note: llama-cpp-python v0.3.34+ no longer exposes n_gpu_layers as an attribute
