@@ -30,22 +30,14 @@ def handle_setup(args, session, config, console) -> None:
 
     tier = parsed.tier or config.resolved_tier
 
-    # Try to import setup_models. If not available, temporarily add pkg_root to sys.path
-    pkg_root = Path(__file__).parent.parent.parent
     try:
-        import setup_models
+        from rag.setup_models import main as setup_models_main
     except ImportError:
-        sys.path.insert(0, str(pkg_root))
-        try:
-            import setup_models
-        except ImportError:
-            console.print(
-                "[error]setup_models.py not found[/error].\n"
-                "Ensure you are running from the Motif root."
-            )
-            sys.path.pop(0)
-            return
-        sys.path.pop(0)
+        console.print(
+            "[error]setup_models module not found[/error].\n"
+            "Ensure motif-rag is installed properly."
+        )
+        return
 
     old_argv = sys.argv.copy()
     sys.argv = ["setup_models.py", "--tier", tier]
@@ -56,7 +48,7 @@ def handle_setup(args, session, config, console) -> None:
 
     console.print(f"[structure]Running model download for Tier {tier}…[/structure]\n")
     try:
-        setup_models.main()
+        setup_models_main()
     except Exception as exc:
         console.print(f"[error]Setup failed:[/error] {exc}")
     except KeyboardInterrupt:
