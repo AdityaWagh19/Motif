@@ -38,6 +38,7 @@ warnings.filterwarnings("ignore")
 import logging
 
 logging.getLogger("ppocr").setLevel(logging.ERROR)
+log = logging.getLogger(__name__)
 
 
 import shlex
@@ -283,6 +284,13 @@ def _interactive_mode(no_prewarm: bool = False) -> None:
     # Setup file logging
     import rag.logging_config
     rag.logging_config.setup(config)
+
+    # ── Startup Reconciliation Integrity Check (Phase 4) ────────────────────
+    try:
+        from rag.storage.reconciler import StorageReconciler
+        StorageReconciler.reconcile_all(config)
+    except Exception as exc:
+        log.warning("Storage reconciliation warning: %s", exc)
 
     # ── Pre-warm models (Phase 4) ─────────────────────────────────────────────
     if not no_prewarm:

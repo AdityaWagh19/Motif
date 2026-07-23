@@ -136,40 +136,20 @@ def _row_to_result(row: tuple) -> AnswerResult:
 class QueryCache:
     """
     SQLite-backed LRU cache for query results.
-
-    Thread-safety: single-writer SQLite (WAL mode) — safe for the single-user
-    REPL use case.
     """
 
     def __init__(self, config: RAGConfig, max_entries: int = _DEFAULT_MAX_ENTRIES) -> None:
-        """
-        Open (or create) the cache database.
-
-        Args:
-            config:      RAGConfig — reads storage.db_path.
-            max_entries: Maximum cache size before LRU eviction.
-        """
-        import os
-        db_root = config.db_root
-        self._db_path = db_root / _CACHE_DB_NAME
+        from rag.storage.db_manager import DatabaseManager
+        self._config = config
         self._max_entries = max_entries
-        self._conn: sqlite3.Connection | None = None
         self._enabled: bool = getattr(config.storage, "query_cache_enabled", False)
-        if self._enabled:
-            os.makedirs(str(db_root), exist_ok=True)
-            self._ensure_table()
+        self._conn = DatabaseManager.get_connection(config) if self._enabled else None
 
     def _connect(self) -> sqlite3.Connection:
+        from rag.storage.db_manager import DatabaseManager
         if self._conn is None:
-            self._conn = sqlite3.connect(str(self._db_path))
-            self._conn.execute("PRAGMA journal_mode = WAL;")
-            self._conn.execute("PRAGMA synchronous = NORMAL;")
+            self._conn = DatabaseManager.get_connection(self._config)
         return self._conn
-
-    def _ensure_table(self) -> None:
-        conn = self._connect()
-        conn.executescript(_CREATE_TABLE)
-        conn.commit()
 
     def get(
         self,
@@ -178,32 +158,31 @@ class QueryCache:
         type_filter: str | None = None,
         page_range: str | None = None,
     ) -> AnswerResult | None:
-        """
-        Retrieve a cached result, or None on cache miss.
-
-        Updates accessed_at on hit (LRU maintenance).
-
-        Args:
-            query:       The user's query.
-            file_filter: File filter modifier (or None).
-            type_filter: Type filter modifier (or None).
-            page_range:  Page range filter modifier (or None).
-
-        Returns:
-            AnswerResult with tier="cached" on hit, None on miss.
-        """
         if not self._enabled:
             return None
+
+        from rag.storage.db_manager import DatabaseManager
         key = _make_key(query, file_filter, type_filter, page_range)
         conn = self._connect()
         row = conn.execute(
-            "SELECT * FROM query_cache WHERE cache_key = ?", (key,)
+            "SELECT cache_key, query_text, answer_text, citations, passages_used, latency_ms, accessed_at, created_at, corpus_version FROM query_cache WHERE cache_key = ?",
+            (key,),
         ).fetchone()
 
         if row is None:
             return None
 
-        # Update accessed_at for LRU ordering.
+        # Check corpus version freshness
+        current_version = DatabaseManager.get_corpus_version(self._config)
+        cached_version = row[8] if len(row) > 8 else ""
+
+        if cached_version != current_version:
+            log.debug("Cache EXPIRED for query (corpus_version mismatch): %.60s", query)
+            conn.execute("DELETE FROM query_cache WHERE cache_key = ?", (key,))
+            conn.commit()
+            return None
+
+        # Update accessed_at for LRU ordering
         conn.execute(
             "UPDATE query_cache SET accessed_at = ? WHERE cache_key = ?",
             (time.time(), key),
@@ -211,7 +190,7 @@ class QueryCache:
         conn.commit()
 
         log.debug("Cache HIT for query: %.60s…", query)
-        return _row_to_result(row)
+        return _row_to_result(row[:8])
 
     def put(
         self,
@@ -221,26 +200,11 @@ class QueryCache:
         type_filter: str | None = None,
         page_range: str | None = None,
     ) -> None:
-        """
-        Store a query result in the cache.
-
-        Does not cache if result.text is empty or if the result indicates
-        no passages were found.
-
-        Args:
-            query:       The user's query.
-            result:      AnswerResult to store.
-            file_filter: File filter modifier (or None).
-            type_filter: Type filter modifier (or None).
-            page_range:  Page range modifier (or None).
-        """
-        if not self._enabled:
+        if not self._enabled or not result.text or result.passages_used == 0:
             return
-        if not result.text:
-            return
-        if result.passages_used == 0:
-            return   # Don't cache "no results" — the index might change.
 
+        from rag.storage.db_manager import DatabaseManager
+        current_version = DatabaseManager.get_corpus_version(self._config)
         key = _make_key(query, file_filter, type_filter, page_range)
         row = _result_to_row(key, query, result)
         conn = self._connect()
@@ -249,17 +213,27 @@ class QueryCache:
             """
             INSERT OR REPLACE INTO query_cache
             (cache_key, query_text, answer_text, citations, passages_used,
-             latency_ms, accessed_at, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             latency_ms, accessed_at, created_at, corpus_version, file_filter)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            row,
+            (row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], current_version, file_filter or ""),
         )
         conn.commit()
-
         self._evict_if_needed()
 
+    def invalidate_file(self, file_path_str: str) -> int:
+        """
+        O(1) indexed targeted invalidation for queries matching file_filter.
+        """
+        if not self._enabled:
+            return 0
+        conn = self._connect()
+        cur = conn.execute("DELETE FROM query_cache WHERE file_filter = ?", (file_path_str,))
+        conn.commit()
+        log.debug("QueryCache: invalidated %d entries for file %s", cur.rowcount, file_path_str)
+        return cur.rowcount
+
     def _evict_if_needed(self) -> None:
-        """Evict the least-recently-used entries if cache exceeds max_entries."""
         conn = self._connect()
         count = conn.execute("SELECT COUNT(*) FROM query_cache").fetchone()[0]
         if count > self._max_entries:
@@ -276,22 +250,18 @@ class QueryCache:
                 (excess,),
             )
             conn.commit()
-            log.debug("QueryCache: evicted %d LRU entries.", excess)
 
     def count(self) -> int:
-        """Return the current number of entries in the cache."""
         conn = self._connect()
         return conn.execute("SELECT COUNT(*) FROM query_cache").fetchone()[0]
 
     def clear(self) -> None:
-        """Delete all cache entries."""
+        if not self._enabled:
+            return
         conn = self._connect()
         conn.execute("DELETE FROM query_cache")
         conn.commit()
-        log.info("QueryCache: cleared all entries.")
 
     def close(self) -> None:
-        """Close the SQLite connection."""
-        if self._conn:
-            self._conn.close()
-            self._conn = None
+        # Connection lifecycle is managed by DatabaseManager
+        self._conn = None

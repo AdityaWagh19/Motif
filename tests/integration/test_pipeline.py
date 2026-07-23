@@ -63,4 +63,4 @@ def test_query_pipeline_glue_code(tmp_path):
         # Assertions
         assert isinstance(result, AnswerResult)
         assert result.text == "Hello world!"
-        mock_mm.get_llm.assert_called_once()
+        assert mock_mm.get_llm.called

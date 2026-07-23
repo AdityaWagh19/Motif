@@ -70,10 +70,7 @@ def test_cache_lru_eviction(minimal_config):
             AnswerResult(text=f"answer {i}", citations=[], passages_used=1),
         )
 
-    conn = sqlite3.connect(str(cache._db_path))
-    count = conn.execute("SELECT COUNT(*) FROM query_cache").fetchone()[0]
-    conn.close()
-
+    count = cache.count()
     assert count <= 500, f"Expected <= 500 entries, got {count}"
 
 

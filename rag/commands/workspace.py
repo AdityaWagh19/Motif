@@ -52,11 +52,14 @@ def handle_workspace(args, session, config, console) -> None:
             console.print(f"[error]Workspace '{name}' already exists.[/error]")
             return
             
+        from rag.storage.db_manager import DatabaseManager
+        DatabaseManager.close_all()
         new_path.mkdir(parents=True)
         config.storage.workspace = name
         config.save()
         
-        # Flush session state for safety
+        session.clear()
+        session.load()
         session.flush_cache()
         console.print(f"[success]Created and switched to workspace '{name}'.[/success]")
         
@@ -71,10 +74,13 @@ def handle_workspace(args, session, config, console) -> None:
             console.print(f"[error]Workspace '{name}' does not exist.[/error]")
             return
             
+        from rag.storage.db_manager import DatabaseManager
+        DatabaseManager.close_all()
         config.storage.workspace = name
         config.save()
         
-        # Flush session state
+        session.clear()
+        session.load()
         session.flush_cache()
         console.print(f"[success]Switched to workspace '{name}'.[/success]")
         

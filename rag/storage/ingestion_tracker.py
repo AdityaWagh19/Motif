@@ -59,7 +59,7 @@ def compute_file_hash(path: Path) -> str:
 # ---------------------------------------------------------------------------
 
 _CREATE_TABLE = """
-CREATE TABLE IF NOT EXISTS files (
+CREATE TABLE IF NOT EXISTS file_tracker (
     filepath     TEXT PRIMARY KEY,
     content_hash TEXT NOT NULL,
     indexed_at   TEXT NOT NULL,
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS files (
 """
 
 _UPSERT = """
-INSERT OR REPLACE INTO files (filepath, content_hash, indexed_at, chunk_count)
+INSERT OR REPLACE INTO file_tracker (filepath, content_hash, indexed_at, chunk_count)
 VALUES (?, ?, ?, ?);
 """
 
@@ -86,24 +86,12 @@ class IngestionTracker:
         content_hash — SHA-256 hex digest of the file at ingestion time
         indexed_at   — ISO 8601 UTC timestamp
         chunk_count  — number of chunks produced from this file
-
-    Usage:
-        tracker = IngestionTracker(config)
-        if not tracker.is_indexed(path) or tracker.get_hash(path) != new_hash:
-            ingest(path)
-            tracker.update(path, new_hash, chunk_count)
     """
 
     def __init__(self, config: RAGConfig) -> None:  # noqa: F821
-        db_path: Path = config.db_root / "ingestion_tracker.db"
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        log.debug("Opening IngestionTracker at %s", db_path)
-
-        self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
-        self._conn.execute("PRAGMA journal_mode=WAL;")
-        self._conn.execute("PRAGMA synchronous=NORMAL;")
-        self._conn.execute(_CREATE_TABLE)
-        self._conn.commit()
+        from rag.storage.db_manager import DatabaseManager
+        self._config = config
+        self._conn = DatabaseManager.get_connection(config)
 
     def __enter__(self) -> IngestionTracker:
         return self
@@ -119,7 +107,7 @@ class IngestionTracker:
         """Return True if this path has been indexed at least once."""
         key = str(path.resolve())
         row = self._conn.execute(
-            "SELECT 1 FROM files WHERE filepath = ?", (key,)
+            "SELECT 1 FROM file_tracker WHERE filepath = ?", (key,)
         ).fetchone()
         return row is not None
 
@@ -129,7 +117,7 @@ class IngestionTracker:
         """
         key = str(path.resolve())
         row = self._conn.execute(
-            "SELECT content_hash FROM files WHERE filepath = ?", (key,)
+            "SELECT content_hash FROM file_tracker WHERE filepath = ?", (key,)
         ).fetchone()
         return row[0] if row else None
 
@@ -141,7 +129,7 @@ class IngestionTracker:
         Used by sync_directory() to compute the diff against the filesystem.
         """
         rows = self._conn.execute(
-            "SELECT filepath, content_hash, indexed_at, chunk_count FROM files"
+            "SELECT filepath, content_hash, indexed_at, chunk_count FROM file_tracker"
         ).fetchall()
         return [
             {
@@ -174,7 +162,7 @@ class IngestionTracker:
         """Remove the tracking record for a given path. No-op if not tracked."""
         key = str(path.resolve())
         log.debug("IngestionTracker.remove filepath=%s", key)
-        self._conn.execute("DELETE FROM files WHERE filepath = ?", (key,))
+        self._conn.execute("DELETE FROM file_tracker WHERE filepath = ?", (key,))
         self._conn.commit()
 
     # ------------------------------------------------------------------

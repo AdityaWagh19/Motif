@@ -271,7 +271,6 @@ def ingest_path(
                 if console:
                     console.print("[yellow]all chunks were duplicates — skipped[/yellow]")
                 continue
-
             # ── 7-B: Filter Parent Chunks from Search Indices ────────────────
             if use_parent_docs:
                 indexable_chunks = [c for c in chunks if c.parent_id is not None]
@@ -285,15 +284,21 @@ def ingest_path(
             )
 
             # ── Store ─────────────────────────────────────────────────────────
-            chunk_store.insert_batch(chunks)  # Save BOTH parents and children to DB
-            bm25.add_batch(indexable_chunks)
             payloads = [_chunk_to_payload(c) for c in indexable_chunks]
-            vector_store.upsert_batch(
-                [c.id for c in indexable_chunks],
-                vectors,
-                payloads,
+            from rag.storage.transaction_manager import StorageTransactionManager
+            tx_manager = StorageTransactionManager(config)
+            tx_manager.execute_ingest(
+                file_path=file,
+                file_hash=file_hash,
+                chunks=chunks,
+                indexable_chunks=indexable_chunks,
+                vectors=vectors,
+                payloads=payloads,
+                chunk_store=chunk_store,
+                tracker=tracker,
+                bm25=bm25,
+                vector_store=vector_store,
             )
-            tracker.update(file, file_hash, len(indexable_chunks))
 
             files_processed += 1
             chunks_added += len(chunks)
@@ -327,9 +332,6 @@ def ingest_path(
             if console:
                 console.print(f"[red]RAPTOR error:[/red] {exc}")
 
-    # Persist BM25 index once after all files (atomic write)
-    bm25.save()
-
     # Release QdrantLocal file locks (important for Windows)
     if hasattr(vector_store, "close"):
         vector_store.close()
@@ -345,7 +347,6 @@ def ingest_path(
     )
 
 
-
 def remove_document(
     file_path: Path, 
     config: RAGConfig,
@@ -355,26 +356,14 @@ def remove_document(
     tracker=None
 ) -> int:
     """
-    Remove a document and all its chunks from the vector store, BM25 index,
-    and SQLite chunk store.
-
-    Args:
-        file_path:   Path to the source document (used to derive the source string).
-        config:      Loaded RAGConfig.
-        chunk_store: Optional ChunkStore instance to reuse.
-        bm25:        Optional BM25Index instance to reuse.
-        vector_store: Optional VectorStore instance to reuse.
-        tracker:     Optional IngestionTracker instance to reuse.
-
-    Returns:
-        Number of chunks removed (from ChunkStore).
+    Remove a document and all its chunks from vector store, BM25 index,
+    and SQLite chunk store using StorageTransactionManager.
     """
     from rag.retrieval.bm25_index import BM25Index
     from rag.retrieval.vector_store import VectorStore
     from rag.storage.chunk_store import ChunkStore
     from rag.storage.ingestion_tracker import IngestionTracker
-
-    source = str(file_path.resolve())
+    from rag.storage.transaction_manager import StorageTransactionManager
 
     owns_vector_store = vector_store is None
     
@@ -383,17 +372,14 @@ def remove_document(
     vector_store = vector_store or VectorStore(config)
     tracker = tracker or IngestionTracker(config)
 
-    # Collect IDs before deletion (BM25 delete requires them)
-    chunks = chunk_store.fetch_by_source(source)
-    chunk_ids = [c.id for c in chunks]
-
-    # Delete from all stores
-    n = chunk_store.delete_by_source(source)
-    if chunk_ids:
-        bm25.delete_by_source(source, chunk_ids)
-        bm25.save()
-    vector_store.delete_by_source(source)
-    tracker.remove(file_path)
+    tx_manager = StorageTransactionManager(config)
+    n = tx_manager.execute_remove(
+        file_path=file_path,
+        chunk_store=chunk_store,
+        tracker=tracker,
+        bm25=bm25,
+        vector_store=vector_store,
+    )
     
     if owns_vector_store and hasattr(vector_store, "close"):
         vector_store.close()
@@ -449,7 +435,45 @@ def sync_directory(
             if current_hash != indexed.get(p):
                 to_reindex.append(p)
         except OSError:
-            pass  # If we can't read the file, skip it
+            pass
+
+    # ── Relocation Detection (AUDIT-05) ──────────────────────────────
+    from rag.storage.db_manager import DatabaseManager
+    db = DatabaseManager.get_connection(config)
+
+    relocated: set[tuple[Path, Path]] = set()
+    for old_path in list(to_remove):
+        old_hash = indexed.get(old_path)
+        if not old_hash:
+            continue
+        for new_path in list(to_add):
+            try:
+                new_hash = compute_file_hash(disk_files[new_path])
+                if new_hash == old_hash:
+                    # File moved or renamed — relocate in place!
+                    relocated.add((old_path, new_path))
+                    to_remove.remove(old_path)
+                    to_add.remove(new_path)
+
+                    old_str = str(old_path.resolve())
+                    new_str = str(new_path.resolve())
+                    new_name = new_path.name
+
+                    db.execute(
+                        "UPDATE file_tracker SET filepath = ? WHERE filepath = ?",
+                        (new_str, old_str),
+                    )
+                    db.execute(
+                        "UPDATE chunks SET source = ?, filename = ? WHERE source = ?",
+                        (new_str, new_name, old_str),
+                    )
+                    db.commit()
+                    log.info("Relocated document %s -> %s", old_path.name, new_path.name)
+                    if console:
+                        console.print(f"  [cyan]relocated[/cyan] {old_path.name} → {new_path.name}")
+                    break
+            except OSError:
+                pass
 
     added = 0
     removed = 0

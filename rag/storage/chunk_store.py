@@ -154,26 +154,9 @@ class ChunkStore:
     """
 
     def __init__(self, config: RAGConfig) -> None:  # noqa: F821
-        db_path: Path = config.db_root / "chunks.db"
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        log.debug("Opening ChunkStore at %s", db_path)
-
-        self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
-        self._conn.execute("PRAGMA journal_mode=WAL;")
-        self._conn.execute("PRAGMA synchronous=NORMAL;")
-        self._conn.execute("PRAGMA foreign_keys=ON;")
-        self._conn.execute(_CREATE_TABLE)
-        
-        # 7-B Migration: add parent_id column if it doesn't exist
-        try:
-            self._conn.execute("ALTER TABLE chunks ADD COLUMN parent_id TEXT;")
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-
-        self._conn.execute(_CREATE_INDEX_SOURCE)
-        self._conn.execute(_CREATE_INDEX_SOURCE_TYPE)
-        self._conn.execute(_CREATE_INDEX_CONTENT_HASH)
-        self._conn.commit()
+        from rag.storage.db_manager import DatabaseManager
+        self._config = config
+        self._conn = DatabaseManager.get_connection(config)
 
     def __enter__(self) -> ChunkStore:
         return self

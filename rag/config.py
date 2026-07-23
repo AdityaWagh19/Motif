@@ -106,12 +106,46 @@ def migrate_if_needed(app_dir: Path | None = None) -> None:
                 if item.is_dir():
                     shutil.move(str(item), str(workspaces_dir / item.name))
         
-        # Remove empty legacy dir
-        try:
-            shutil.rmtree(legacy_dir)
-        except Exception:
-            pass
-            
+    # Consolidate legacy SQLite files per workspace into motif_store.db
+    workspaces_dir = app_dir / "workspaces"
+    if workspaces_dir.exists():
+        import sqlite3
+        from rag.storage.db_manager import _CREATE_SCHEMA
+        for ws in workspaces_dir.iterdir():
+            if ws.is_dir():
+                target_db = ws / "motif_store.db"
+                legacy_chunks = ws / "chunks.db"
+                legacy_tracker = ws / "ingestion_tracker.db"
+                legacy_qc = ws / "query_cache.sqlite"
+
+                if not target_db.exists() and (legacy_chunks.exists() or legacy_tracker.exists()):
+                    try:
+                        conn = sqlite3.connect(str(target_db))
+                        conn.executescript(_CREATE_SCHEMA)
+
+                        if legacy_chunks.exists():
+                            src = sqlite3.connect(str(legacy_chunks))
+                            rows = src.execute("SELECT * FROM chunks").fetchall()
+                            if rows:
+                                placeholders = ",".join(["?"] * len(rows[0]))
+                                conn.executemany(f"INSERT OR REPLACE INTO chunks VALUES ({placeholders})", rows)
+                            src.close()
+                            legacy_chunks.rename(ws / "chunks.db.bak")
+
+                        if legacy_tracker.exists():
+                            src = sqlite3.connect(str(legacy_tracker))
+                            rows = src.execute("SELECT * FROM files").fetchall()
+                            for r in rows:
+                                conn.execute("INSERT OR REPLACE INTO file_tracker VALUES (?, ?, ?, ?)", r)
+                            src.close()
+                            legacy_tracker.rename(ws / "ingestion_tracker.db.bak")
+
+                        conn.commit()
+                        conn.close()
+                    except Exception as e:
+                        import logging
+                        logging.getLogger("rag.config").warning("Legacy DB migration warning for %s: %s", ws.name, e)
+
     # Mark as done
     os.makedirs(str(app_dir), exist_ok=True)
     sentinel.touch()
