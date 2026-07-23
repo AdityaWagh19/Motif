@@ -126,6 +126,7 @@ def _download_file(repo_id: str, filename: str, local_name: str, size_label: str
         repo_id=repo_id,
         filename=filename,
         local_dir=str(MODELS_DIR),
+        token=False,
     )
     # Rename to local_name if different
     actual = Path(path)
@@ -190,6 +191,7 @@ def _download_snapshot(repo_id: str, local_name: str, size_label: str, dry_run: 
     snapshot_download(
         repo_id=repo_id,
         local_dir=dest,
+        token=False,
         **snapshot_kwargs
     )
     return dest
