@@ -35,7 +35,7 @@ jobs:
           else:
               matrix = []
               for os_name in ["ubuntu-24.04", "windows-2022", "macos-14", "macos-13"]:
-                  for py in ["3.10", "3.12"]:
+                  for py in ["3.11", "3.12"]:
                       for inst in ["fresh", "upgrade"]:
                           for hw in ["cpu", "mock_cuda", "mock_rocm"]:
                               # Exclusions
@@ -62,13 +62,21 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         
+      - name: Install System Dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgomp1
+
+      - name: Install System Dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install libomp
+        
       - name: Setup Cache
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/uv
             ~\AppData\Local\uv\cache
-          key: ${{ runner.os }}-uv-v2-${{ matrix.python }}-${{ hashFiles('pyproject.toml') }}
+          key: ${{ runner.os }}-uv-v3-${{ matrix.python }}-${{ hashFiles('pyproject.toml') }}
           
       - name: Runner Sanitization (Windows)
         if: runner.os == 'Windows'

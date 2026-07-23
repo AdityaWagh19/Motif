@@ -16,14 +16,10 @@ def verify():
         print("llama-cpp-python is not installed!")
         sys.exit(1)
     
-    # 1. Assert the correct wheel variant is installed
-    if expected_tier == "cuda":
-        assert "+cu" in version, f"Expected CUDA wheel, got {version}"
-    elif expected_tier == "rocm":
-        assert "+rocm" in version, f"Expected ROCm wheel, got {version}"
-    else:
-        assert "+" not in version or "+cpu" in version, f"Expected CPU wheel, got {version}"
-        
+    # 1. We no longer assert version suffix (e.g., '+cu' or '+rocm') because
+    # pre-built llama-cpp-python v0.3.x wheels from abetlen.github.io do not
+    # append hardware tags to __version__ or package metadata.
+    
     # 2. Assert the wheel can be imported (or throws the expected hardware exception)
     try:
         import llama_cpp
@@ -31,7 +27,7 @@ def verify():
     except Exception as e:
         if expected_tier in ("cuda", "rocm"):
             # A CUDA/ROCm wheel on a CPU-only runner will fail to load its compiled libraries
-            # (e.g., missing nvcuda.dll, libcuda.so, or libcudart.so).
+            # (e.g., missing libcuda.so or libcudart.so, or missing DLLs).
             # This proves the wheel is the GPU variant, which is what we want to test in CI.
             print(f"Caught expected import error for GPU wheel on CPU runner:\n{e}")
         else:

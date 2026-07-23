@@ -56,10 +56,14 @@ Write-Ok "motif installed"
 # Add uv tool bin dir to PATH for this session
 & uv tool update-shell 2>$null
 
-# ── Step 3: GPU / accelerator detection ──────────────────────────────────────
-$UvToolDir = & uv tool dir
-$MotifEnv = Join-Path $UvToolDir "motif-rag"
+$UvToolDir = uv tool dir 2>$null
+if ($UvToolDir) {
+    $MotifEnv = Join-Path $UvToolDir "motif-rag"
+} else {
+    $MotifEnv = $null
+}
 
+# ── Step 3: GPU / accelerator detection ──────────────────────────────────────
 if ([string]::IsNullOrWhiteSpace($MotifEnv) -or -not (Test-Path $MotifEnv)) {
     Write-Fail "Could not determine Motif tool environment. Installation aborted."
 }

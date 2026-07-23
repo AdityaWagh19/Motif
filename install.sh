@@ -42,7 +42,7 @@ success "motif installed"
 uv tool update-shell 2>/dev/null || true
 
 # ── Step 3: GPU / accelerator detection ──────────────────────────────────────
-MOTIF_ENV=$(uv tool dir motif-rag 2>/dev/null || echo "")
+MOTIF_ENV="$(uv tool dir 2>/dev/null)/motif-rag"
 
 # ── 3a. NVIDIA CUDA ───────────────────────────────────────────────────────────
 CUDA_VERSION=""
