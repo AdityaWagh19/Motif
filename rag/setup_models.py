@@ -284,7 +284,7 @@ def main() -> None:
         args.tier = detect_hardware_tier()
         console.print(f"[dim]Auto-detected tier:[/dim] [bold]{args.tier}[/bold]")
 
-    os.makedirs(MODELS_DIR, exist_ok=True)
+    os.makedirs(str(MODELS_DIR), exist_ok=True)
 
     if args.verify:
         _verify(args.tier, args.captioning)
