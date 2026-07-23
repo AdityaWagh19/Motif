@@ -46,12 +46,14 @@ The system detects available hardware and platform backends (NVIDIA CUDA via `nv
 
 | Property | Value |
 |---|---|
-| GPU | None (or integrated / Mac <8 GB) |
+| Platform Configurations | • Any CPU-only system (x86_64 / arm64)<br>• Intel Macs (x86_64 macOS)<br>• Integrated GPUs (Intel UHD/Iris, AMD APUs)<br>• NVIDIA / AMD GPUs with < 3.8 GB VRAM<br>• Apple Silicon Macs with < 8 GB RAM |
+| Backend | CPU (OpenMP / Accelerate) |
 | System RAM | 8 GB |
 | VRAM | 0 GB |
 | LLM | Phi-3.5-mini-instruct Q4_K_M (2.2 GB) |
-| GPU layers | 0 |
-| Disk footprint | **2.7 GB** |
+| GPU layers | 0 / 32 |
+| Context Window | 2048 tokens |
+| Base Disk footprint | **2.7 GB** |
 | Query-time RAM | ~5.5 GB |
 | Target faithfulness | ~78% |
 | Target latency (P95) | ~11s (no HyDE) |
@@ -62,12 +64,14 @@ The system detects available hardware and platform backends (NVIDIA CUDA via `nv
 
 | Property | Value |
 |---|---|
-| GPU | GTX 1650 (or equivalent, ≥3.5 GB VRAM) / Apple Silicon 8–15 GB / AMD ROCm |
+| Platform Configurations | • NVIDIA GPUs with 3.8–6.0 GB VRAM (GTX 1650, GTX 1060, RTX 3050 4GB)<br>• Apple Silicon M1/M2/M3 with 8–15 GB Unified RAM<br>• AMD Radeon GPUs with 3.8–6.0 GB VRAM (Linux ROCm) |
+| Backend | CUDA / Metal / ROCm |
 | System RAM | 8 GB |
-| VRAM | 4 GB |
+| VRAM | 3.8–6.0 GB VRAM / 8–15 GB Unified RAM |
 | LLM | Qwen2.5-7B-Instruct Q4_K_M (4.2 GB) |
 | GPU layers | 20 of 28 (partial offload) |
-| Disk footprint | **4.7 GB** |
+| Context Window | 3072 tokens |
+| Base Disk footprint | **4.7 GB** |
 | Query-time VRAM | ~3.14 GB |
 | Query-time RAM | ~4.8 GB |
 | Target faithfulness | ~85% |
@@ -77,12 +81,14 @@ The system detects available hardware and platform backends (NVIDIA CUDA via `nv
 
 | Property | Value |
 |---|---|
-| GPU | RTX 3050 (or equivalent, ≥5.5 GB VRAM) / Apple Silicon 16+ GB / AMD ROCm |
+| Platform Configurations | • NVIDIA GPUs with ≥ 6.0 GB VRAM (RTX 3060/4060/3080/4090, Workstation GPUs)<br>• Apple Silicon M-Series with ≥ 16 GB Unified RAM (M1/M2/M3 Pro/Max/Ultra)<br>• AMD Radeon GPUs with ≥ 6.0 GB VRAM (Linux ROCm, RX 6700+, RX 7800+) |
+| Backend | CUDA / Metal / ROCm |
 | System RAM | 8+ GB |
-| VRAM | 6–8 GB |
+| VRAM | ≥ 6.0 GB VRAM / ≥ 16 GB Unified RAM |
 | LLM | Qwen2.5-7B-Instruct Q4_K_M (4.2 GB) |
 | GPU layers | 28 of 28 (full offload) |
-| Disk footprint | **5.0 GB** (base; ~5.9 GB with optional moondream2) |
+| Context Window | 4096 tokens |
+| Base Disk footprint | **5.0 GB** (base; ~5.9 GB with optional moondream2) |
 | Query-time VRAM | ~4.46 GB |
 | Query-time RAM | ~3.9 GB |
 | Target faithfulness | ~87% |

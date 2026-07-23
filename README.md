@@ -12,13 +12,13 @@ The system is built around three hardware tiers, each with a configuration tuned
 
 ---
 
-## Hardware Requirements
+## Hardware Requirements & Platform Matrix
 
-| Tier | Hardware / Platform | RAM | VRAM | LLM | Disk Footprint | Faithfulness |
-|---|---|---|---|---|---|---|
-| T1 | CPU-only / Mac <8 GB | 8 GB | — | Phi-3.5-mini Q4_K_M (0 GPU layers) | 2.7 GB | ~78% |
-| T2 | GTX 1650 / Apple Silicon (8–15 GB) / AMD ROCm | 8 GB | 4 GB | Qwen2.5-7B Q4_K_M (20 GPU layers) | 4.7 GB | ~85% |
-| T3 | RTX 3050 / Apple Silicon (16+ GB) / AMD ROCm | 8 GB | 6–8 GB | Qwen2.5-7B Q4_K_M (28 GPU layers) | 5.0 GB | ~87% |
+| Tier | Acceleration Backend | Hardware / Platform Configurations | System RAM | Dedicated VRAM / Unified RAM | LLM Model | GPU Layers Offloaded | Context Window | Base Disk Footprint | Faithfulness Target |
+|---|---|---|---|---|---|---|---|---|---|
+| **T1** | CPU (OpenMP / Accelerate) | • Any CPU-only system (x86_64 / arm64)<br>• Intel Macs (x86_64 macOS)<br>• Integrated GPUs (Intel UHD/Iris, AMD APUs)<br>• NVIDIA / AMD GPUs with < 3.8 GB VRAM<br>• Apple Silicon Macs with < 8 GB RAM | 8 GB | — | Phi-3.5-mini Q4_K_M | 0 / 32 | 2048 tokens | 2.7 GB | ~78% |
+| **T2** | CUDA / Metal / ROCm | • NVIDIA GPUs with 3.8–6.0 GB VRAM (GTX 1650, GTX 1060, RTX 3050 4GB)<br>• Apple Silicon M1/M2/M3 with 8–15 GB Unified RAM<br>• AMD Radeon GPUs with 3.8–6.0 GB VRAM (Linux ROCm) | 8 GB | 3.8–6.0 GB VRAM / 8–15 GB Unified | Qwen2.5-7B Q4_K_M | 20 / 28 | 3072 tokens | 4.7 GB | ~85% |
+| **T3** | CUDA / Metal / ROCm | • NVIDIA GPUs with ≥ 6.0 GB VRAM (RTX 3060/4060/3080/4090, Workstation GPUs)<br>• Apple Silicon M-Series with ≥ 16 GB Unified RAM (M1/M2/M3 Pro/Max/Ultra)<br>• AMD Radeon GPUs with ≥ 6.0 GB VRAM (Linux ROCm, RX 6700+, RX 7800+) | 8+ GB | ≥ 6.0 GB VRAM / ≥ 16 GB Unified | Qwen2.5-7B Q4_K_M | 28 / 28 (Full) | 4096 tokens | 5.0 GB (*+900 MB for optional moondream2*) | ~87% |
 
 The hardware tier and acceleration backend (NVIDIA CUDA via `nvidia-smi`, Apple Silicon Metal via `sysctl`, AMD ROCm via `rocm-smi`, or CPU fallback) are detected automatically at startup. Disk footprint covers base model weight files on disk; the corpus vector index scales separately with document volume.
 
