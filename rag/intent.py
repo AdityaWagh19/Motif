@@ -8,10 +8,8 @@ import logging
 from enum import Enum
 from typing import TYPE_CHECKING
 
-import numpy as np
-
 if TYPE_CHECKING:
-    from rag.models.embedder import Embedder
+    pass
 
 log = logging.getLogger(__name__)
 

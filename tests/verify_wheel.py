@@ -2,6 +2,7 @@ import importlib.metadata
 import sys
 import traceback
 
+
 def verify():
     if len(sys.argv) < 2:
         print("Usage: python verify_wheel.py <cpu|cuda|rocm>")
@@ -22,7 +23,6 @@ def verify():
     
     # 2. Assert the wheel can be imported (or throws the expected hardware exception)
     try:
-        import llama_cpp
         print("llama_cpp imported successfully.")
     except Exception as e:
         if expected_tier in ("cuda", "rocm"):

@@ -120,6 +120,7 @@ def _render_welcome(config: RAGConfig, session: Session) -> None:
     info_lines.append(cat_sleep)
     
     import time
+
     from rich.live import Live
     with Live(Panel("\n".join(info_lines), border_style="structure", padding=(1, 2)), console=console, refresh_per_second=10, transient=False) as live:
         time.sleep(0.6)

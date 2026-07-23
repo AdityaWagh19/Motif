@@ -8,7 +8,6 @@ fast, lightweight k-means algorithm in NumPy.
 from __future__ import annotations
 
 import logging
-import math
 import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -17,6 +16,7 @@ import numpy as np
 
 if TYPE_CHECKING:
     from rich.console import Console
+
     from rag.config import RAGConfig
 
 log = logging.getLogger(__name__)
@@ -79,11 +79,11 @@ def build_raptor_summaries(
     3. Prompts the LLM to summarize each cluster.
     4. Ingests the new summary chunks back into the indices.
     """
+    from rag.ingestion import _chunk_to_payload
     from rag.models.model_manager import get_model_manager
     from rag.retrieval.bm25_index import BM25Index
     from rag.retrieval.vector_store import VectorStore
     from rag.storage.chunk_store import ChunkStore
-    from rag.ingestion import _chunk_to_payload
     from rag.types import Chunk
 
     if chunk_store is None:

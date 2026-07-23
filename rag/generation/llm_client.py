@@ -26,7 +26,7 @@ import gc
 import logging
 from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, overload
 
 if TYPE_CHECKING:
     from rag.config import RAGConfig
@@ -153,6 +153,26 @@ class LLMClient:
 
     # ── Inference ─────────────────────────────────────────────────────────────
 
+    @overload
+    def stream(
+        self,
+        prompt: str,
+        max_tokens: int,
+        temperature: float = 0.1,
+        stop: list[str] | None = None,
+        return_logprobs: Literal[False] = False,
+    ) -> Generator[str, None, None]: ...
+
+    @overload
+    def stream(
+        self,
+        prompt: str,
+        max_tokens: int,
+        temperature: float = 0.1,
+        stop: list[str] | None = None,
+        return_logprobs: Literal[True] = ...,
+    ) -> Generator[tuple[str, float], None, None]: ...
+
     def stream(
         self,
         prompt: str,
@@ -243,4 +263,4 @@ class LLMClient:
         Returns:
             Full response string.
         """
-        return "".join(self.stream(prompt, max_tokens, temperature, stop))
+        return "".join(self.stream(prompt, max_tokens, temperature, stop, return_logprobs=False))
