@@ -2,10 +2,10 @@ name: Test Installation
 on:
   pull_request:
     paths:
-      - 'install.ps1'
-      - 'install.sh'
+      - 'scripts/install.ps1'
+      - 'scripts/install.sh'
       - 'pyproject.toml'
-      - 'setup_models.py'
+      - 'scripts/setup_models.py'
       - '.github/workflows/test-install.yml'
   push:
     branches:
@@ -129,7 +129,7 @@ jobs:
           $healthy = $false
           for ($i = 0; $i -lt 10; $i++) {
             try {
-              $resp = Invoke-WebRequest -Uri "http://127.0.0.1:8000/install.ps1" -UseBasicParsing -ErrorAction Stop
+              $resp = Invoke-WebRequest -Uri "http://127.0.0.1:8000/scripts/install.ps1" -UseBasicParsing -ErrorAction Stop
               if ($resp.StatusCode -eq 200) { $healthy = $true; break }
             } catch {}
             Start-Sleep -Seconds 1
@@ -144,14 +144,14 @@ jobs:
         shell: pwsh
         run: |
           # The execution policy test: pipe from local server
-          Invoke-RestMethod "http://127.0.0.1:8000/install.ps1" | Invoke-Expression
+          Invoke-RestMethod "http://127.0.0.1:8000/scripts/install.ps1" | Invoke-Expression
           
       - name: Execute Install (Unix)
         if: runner.os != 'Windows'
         shell: bash
         run: |
           # For Unix, we test direct execution of the bash script
-          bash install.sh
+          bash scripts/install.sh
           
       - name: Verify CLI Entrypoint (Unix)
         if: runner.os != 'Windows'

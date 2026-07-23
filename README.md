@@ -28,12 +28,12 @@ The hardware tier and acceleration backend (NVIDIA CUDA via `nvidia-smi`, Apple 
 
 **Linux / macOS:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AdityaWagh19/Motif/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/AdityaWagh19/Motif/main/scripts/install.sh | bash
 ```
 
 **Windows (PowerShell):**
 ```powershell
-irm https://raw.githubusercontent.com/AdityaWagh19/Motif/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/AdityaWagh19/Motif/main/scripts/install.ps1 | iex
 ```
 
 The installer bootstraps `uv`, installs Motif into an isolated environment, detects CUDA and installs the appropriate `llama-cpp-python` wheel automatically, and places `motif` on your PATH. No manual virtual environment or pip invocation required.
@@ -177,7 +177,7 @@ Full architecture, data flow diagrams, and interface contracts are documented in
 
 ## Configuration
 
-Copy `config.template.toml` to `config.toml` in the project root (or let Motif generate it automatically in global app storage). Key settings:
+Motif automatically generates `config.toml` in the global app storage. Key settings:
 
 ```toml
 [hardware]

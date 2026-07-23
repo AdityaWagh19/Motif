@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Motif installer — Linux and macOS
-# Usage: curl -fsSL https://raw.githubusercontent.com/AdityaWagh19/Motif/main/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/AdityaWagh19/Motif/main/scripts/install.sh | bash
 set -euo pipefail
 
 MOTIF_REPO="https://github.com/AdityaWagh19/Motif"

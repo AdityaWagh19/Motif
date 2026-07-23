@@ -1,5 +1,5 @@
 # Motif installer — Windows PowerShell
-# Usage: irm https://raw.githubusercontent.com/AdityaWagh19/Motif/main/install.ps1 | iex
+# Usage: irm https://raw.githubusercontent.com/AdityaWagh19/Motif/main/scripts/install.ps1 | iex
 #Requires -Version 5.1
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
