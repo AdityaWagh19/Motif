@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import logging
 import uuid as _uuid_module
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -36,7 +36,7 @@ COLLECTION_NAME_SUFFIX: str = "motif_chunks"
 VECTOR_SIZE: int = 768
 
 
-_client_registry: dict[str, tuple[object, int]] = {}
+_client_registry: dict[str, tuple[Any, int]] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -75,9 +75,9 @@ class VectorStore:
         if db_path_str in _client_registry:
             client, ref_count = _client_registry[db_path_str]
             _client_registry[db_path_str] = (client, ref_count + 1)
-            self._client = client
+            self._client: Any = client
         else:
-            self._client = QdrantClient(path=db_path_str)
+            self._client: Any = QdrantClient(path=db_path_str)
             _client_registry[db_path_str] = (self._client, 1)
 
         self._ensure_collection()
