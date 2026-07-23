@@ -58,6 +58,17 @@ Write-Ok "motif installed"
 Remove-Item Alias:motif -ErrorAction SilentlyContinue
 Remove-Item Function:motif -ErrorAction SilentlyContinue
 
+if ($PROFILE -and (Test-Path $PROFILE)) {
+    try {
+        $pContent = Get-Content $PROFILE -ErrorAction SilentlyContinue
+        if ($pContent -match "motif.*\.venv") {
+            $pCleaned = $pContent | Where-Object { $_ -notmatch "motif.*\.venv" }
+            Set-Content -Path $PROFILE -Value $pCleaned -Force
+            Write-Info "Cleaned stale motif alias from PowerShell profile."
+        }
+    } catch { }
+}
+
 # Ensure ~/.local/bin and ~/.cargo/bin are prepended to PATH in the active PowerShell session
 $LocalBin = "$env:USERPROFILE\.local\bin"
 $CargoBin = "$env:USERPROFILE\.cargo\bin"
