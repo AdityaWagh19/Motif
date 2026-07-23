@@ -497,6 +497,13 @@ def main() -> None:
         print("  motif --help              Print this help overview")
         sys.exit(0)
 
+    if sys.platform == "win32":
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+            sys.stderr.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+
     if "--version" in args:
         from rag import __version__
         print(f"Motif v{__version__}")
