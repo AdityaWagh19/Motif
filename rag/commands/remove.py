@@ -1,6 +1,7 @@
 """rag/commands/remove.py — /remove command."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 
@@ -42,7 +43,7 @@ def handle_remove(args, session, config, console) -> None:
     docs = tracker.list_all()
     tracker.close()
     
-    exact_match = Path(query).expanduser().resolve()
+    exact_match = Path(os.path.expanduser(query)).resolve()
     if any(d["filepath"] == str(exact_match) for d in docs):
         target_path = exact_match
     else:

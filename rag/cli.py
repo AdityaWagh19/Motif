@@ -58,7 +58,7 @@ if TYPE_CHECKING:
 def setup_cli_logging() -> None:
     """Redirect ALL logs to ~/.motif/logs/motif.log. No output reaches the terminal."""
     try:
-        log_dir = Path.home() / ".motif" / "logs"
+        log_dir = Path(os.path.expanduser("~")) / ".motif" / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / "motif.log"
 
