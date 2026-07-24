@@ -156,7 +156,7 @@ class ChunkStore:
     def __init__(self, config: RAGConfig) -> None:  # noqa: F821
         from rag.storage.db_manager import DatabaseManager
         self._config = config
-        self._conn = DatabaseManager.get_connection(config)
+        self._conn: sqlite3.Connection | None = DatabaseManager.get_connection(config)
 
     def __enter__(self) -> ChunkStore:
         return self

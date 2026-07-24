@@ -53,11 +53,16 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
 from rich.panel import Panel
 
+from typing import TYPE_CHECKING
+
 from rag import __version__
-from rag.commands import get_command
+from rag.commands import SLASH_COMMANDS, get_command
 from rag.config import RAGConfig, load_config
 from rag.session import Session
 from rag.theme import console
+
+if TYPE_CHECKING:
+    from rag.pipeline import QueryPipeline
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Welcome Screen
