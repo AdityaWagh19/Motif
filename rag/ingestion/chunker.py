@@ -53,28 +53,22 @@ class ParentChunkerConfig:
 
 
 # ---------------------------------------------------------------------------
-# SentenceChunker
+# SentenceChunker (now Semantic/Structural Chunker)
 # ---------------------------------------------------------------------------
 
 class SentenceChunker:
     """
-    Splits text on sentence boundaries into overlapping fixed-size chunks.
+    Splits text on structural markdown boundaries, falling back to recursive character splitting.
 
-    Target: ~512 tokens per chunk (≈682 words).
-    Overlap: ~64 tokens from the end of the previous chunk (≈85 words).
+    Target: ~512 tokens per chunk.
+    Overlap: ~64 tokens from the end of the previous chunk.
 
-    The overlap ensures that a fact split across a chunk boundary can still
-    be retrieved by either chunk.
-
-    Usage:
-        chunker = SentenceChunker()
-        chunks = chunker.chunk_pages(pages, source="/path/to/doc.pdf",
-                                     filename="doc.pdf", source_type="pdf")
+    Replaces the legacy naive sentence splitter.
     """
 
     def __init__(self, config: ChunkerConfig = ChunkerConfig()) -> None:
-        self._target_words: int = max(1, int(config.target_tokens / _WORDS_PER_TOKEN))
-        self._overlap_words: int = max(0, int(config.overlap_tokens / _WORDS_PER_TOKEN))
+        self._target_chars: int = int(config.target_tokens * 4)  # rough char approx
+        self._overlap_chars: int = int(config.overlap_tokens * 4)
 
     # ------------------------------------------------------------------
     # Public API
@@ -88,84 +82,65 @@ class SentenceChunker:
         source_type: str,
     ) -> list[Chunk]:
         """
-        Chunk a single ParsedPage into Chunk objects.
-
-        Algorithm:
-        1. Split page text into sentences on [.!?] followed by whitespace.
-        2. Accumulate sentences until word count ≥ target_words.
-        3. Emit a chunk; the next chunk starts with the last overlap_words
-           words from the just-emitted chunk (sliding window overlap).
-        4. Assign a fresh UUID to each chunk.
-        5. Set token_count = word count (approximation).
-
-        Args:
-            page:        Parsed page/section to chunk.
-            source:      Absolute file path string (stored in Chunk.source).
-            filename:    Bare filename (e.g. "report.pdf").
-            source_type: MIME-like type string ("pdf", "md", "txt", …).
-
-        Returns:
-            List of Chunk objects. Returns [] if page.text is empty.
+        Chunk a single ParsedPage into Chunk objects using RecursiveCharacterTextSplitter.
         """
+        from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
+
         text = page.text.strip()
         if not text:
             return []
 
-        sentences = [s.strip() for s in _SENTENCE_SPLIT_RE.split(text) if s.strip()]
-        if not sentences:
-            return []
+        # 1. Split by Markdown Headers if present
+        headers_to_split_on = [
+            ("#", "Header 1"),
+            ("##", "Header 2"),
+            ("###", "Header 3"),
+        ]
+        markdown_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
+        try:
+            md_docs = markdown_splitter.split_text(text)
+        except Exception:
+            # Fallback if markdown splitter fails for some reason
+            from langchain_core.documents import Document
+            md_docs = [Document(page_content=text)]
+
+        # 2. Sub-chunk using RecursiveCharacterTextSplitter
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=self._target_chars,
+            chunk_overlap=self._overlap_chars,
+            separators=["\n\n", "\n", ". ", " ", ""]
+        )
 
         chunks: list[Chunk] = []
-        current_sentences: list[str] = []
-        current_word_count: int = 0
 
-        def _emit_chunk(sents: list[str]) -> Chunk:
-            chunk_text = " ".join(sents)
-            return Chunk(
-                id=str(uuid.uuid4()),
-                text=chunk_text,
-                source=source,
-                filename=filename,
-                source_type=source_type,
-                page=page.page,
-                section=page.section,
-                has_table=page.has_table,
-                has_image=page.has_image,
-                is_ocr=page.is_ocr,
-                start_time=page.start_time,
-                end_time=page.end_time,
-                token_count=len(chunk_text.split()),  # word-count approximation
-                indexed_at=datetime.now(UTC).isoformat(),
-            )
+        for doc in md_docs:
+            sub_chunks = text_splitter.split_text(doc.page_content)
+            for sub_text in sub_chunks:
+                # Reconstruct metadata (Header path)
+                header_path = " > ".join(v for k, v in doc.metadata.items() if k.startswith("Header"))
+                section_val = header_path if header_path else page.section
+                
+                chunk_text = sub_text
+                # Inject hierarchical metadata into text for better embedding
+                if header_path:
+                    chunk_text = f"Document: {filename}. Path: {header_path}.\n{sub_text}"
 
-        for sentence in sentences:
-            words = sentence.split()
-            word_count = len(words)
-
-            # If adding this sentence would exceed the target AND we already
-            # have content — emit the current chunk first.
-            if current_word_count + word_count > self._target_words and current_sentences:
-                chunks.append(_emit_chunk(current_sentences))
-
-                # Build overlap: take the last overlap_words words from the
-                # chunk we just emitted, then start fresh with this sentence.
-                all_prev_words = " ".join(current_sentences).split()
-                overlap_words = all_prev_words[-self._overlap_words:] if self._overlap_words else []
-
-                if overlap_words:
-                    overlap_text = " ".join(overlap_words)
-                    current_sentences = [overlap_text, sentence]
-                    current_word_count = len(overlap_words) + word_count
-                else:
-                    current_sentences = [sentence]
-                    current_word_count = word_count
-            else:
-                current_sentences.append(sentence)
-                current_word_count += word_count
-
-        # Flush the final partial chunk (always non-empty here).
-        if current_sentences:
-            chunks.append(_emit_chunk(current_sentences))
+                chunks.append(Chunk(
+                    id=str(uuid.uuid4()),
+                    text=chunk_text,
+                    source=source,
+                    filename=filename,
+                    source_type=source_type,
+                    page=page.page,
+                    section=section_val,
+                    has_table=page.has_table,
+                    has_image=page.has_image,
+                    is_ocr=page.is_ocr,
+                    start_time=page.start_time,
+                    end_time=page.end_time,
+                    token_count=len(chunk_text.split()),  # word-count approx
+                    indexed_at=datetime.now(UTC).isoformat(),
+                ))
 
         return chunks
 
@@ -178,10 +153,12 @@ class SentenceChunker:
     ) -> list[Chunk]:
         """
         Chunk all pages from a parsed document.
-
-        Returns a flat list of Chunk objects in page order.
         """
         all_chunks: list[Chunk] = []
+        # In a real global markdown splitter, we'd join all pages first, but 
+        # to preserve page metadata (is_ocr, has_image, page_num), we chunk per page.
+        # The Header path might reset per page if no header exists on that page,
+        # but this is a solid structural improvement over naive regex.
         for page in pages:
             all_chunks.extend(self.chunk(page, source, filename, source_type))
         return all_chunks

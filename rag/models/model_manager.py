@@ -217,34 +217,31 @@ class ModelManager:
     # ------------------------------------------------------------------
 
     def get_whisper(self, config: RAGConfig):
-        """Lazy-load pywhispercpp model."""
+        """Lazy-load whisperx models (transcription and diarization)."""
         if self._whisper is None:
             try:
-                from pywhispercpp.model import Model
+                import whisperx
             except ImportError as exc:
-                raise RuntimeError("pywhispercpp is not installed") from exc
+                raise RuntimeError("whisperx is not installed") from exc
 
-            from rag.config import _get_models_dir
-            model_path = Path(config.models.whisper)
-            if not model_path.is_absolute():
-                model_path = _get_models_dir() / model_path.name
+            # whisperx downloads models via huggingface hub if not present.
+            # In a fully offline setup, we rely on HF_HOME being populated.
+            log.info("Loading WhisperX model (base)...")
+            device = "cuda" if config.hardware.backend in ("cuda", "rocm") else "cpu"
+            import torch
+            if device == "cuda" and not torch.cuda.is_available():
+                log.warning("Config requests CUDA but Torch is not compiled with CUDA. Falling back to CPU.")
+                device = "cpu"
                 
-            if not model_path.exists():
-                raise FileNotFoundError(
-                    f"Whisper model not found: {model_path}\n"
-                    f"Run `motif setup` to download it."
-                )
+            compute_type = "float16" if device == "cuda" else "int8"
+            
+            try:
+                model = whisperx.load_model("base", device, compute_type=compute_type)
+                self._whisper = {"model": model, "device": device, "compute_type": compute_type}
+            except Exception as e:
+                log.error(f"Failed to load WhisperX model: {e}")
+                raise
                 
-            log.info("Loading Whisper model from %s", model_path)
-            from rag.ingestion.parsers.audio import suppress_c_stderr
-            with suppress_c_stderr():
-                self._whisper = Model(
-                    str(model_path), 
-                    n_threads=config.llm.threads, 
-                    print_realtime=False, 
-                    print_progress=False, 
-                    print_timestamps=False
-                )
         return self._whisper
         
     def unload_whisper(self) -> None:

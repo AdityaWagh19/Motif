@@ -16,10 +16,12 @@ import io
 import logging
 import re
 import sys
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from rag.ingestion.parsers.base import BaseParser, ParsedPage
+from rag.ingestion.parsers.image import ImageParser
 
 if TYPE_CHECKING:
     from rag.config import RAGConfig
@@ -72,14 +74,16 @@ class PDFParser(BaseParser):
 
         try:
             import fitz  # type: ignore[import]
+            import pymupdf4llm
         except ImportError as exc:
             raise RuntimeError(
-                "pymupdf is not installed. Run: pip install pymupdf"
+                "pymupdf or pymupdf4llm is not installed. Run: uv pip install pymupdf pymupdf4llm"
             ) from exc
 
         pages: list[ParsedPage] = []
 
         try:
+            md_pages = pymupdf4llm.to_markdown(str(path), page_chunks=True)
             doc = fitz.open(str(path))  # type: ignore[import]
         except Exception as exc:
             raise RuntimeError(f"Failed to open PDF {path}: {exc}") from exc
@@ -90,8 +94,9 @@ class PDFParser(BaseParser):
         sys.stderr = io.StringIO()
 
         try:
-            for page_num, page in enumerate(doc, start=1):  # type: ignore[call-overload]
-                text: str = page.get_text("text").strip()  # type: ignore[union-attr]
+            for page_num, md_page in enumerate(md_pages, start=1):
+                text: str = md_page.get("text", "").strip()
+                page = doc[page_num - 1]
 
                 if not text:
                     if self._config and self._config.resolved_tier in ("T2", "T3"):
@@ -117,10 +122,38 @@ class PDFParser(BaseParser):
                 except Exception:
                     has_table = False
 
+                has_image = False
+                image_texts = []
                 try:
-                    has_image = len(page.get_images()) > 0  # type: ignore[union-attr]
-                except Exception:
-                    has_image = False
+                    images = page.get_images(full=True)
+                    if images:
+                        has_image = True
+                        if self._config and self._config.resolved_tier in ("T2", "T3"):
+                            image_parser = ImageParser(self._config)
+                            with tempfile.TemporaryDirectory() as tmpdir:
+                                for img_idx, img in enumerate(images):
+                                    try:
+                                        xref = img[0]
+                                        base_image = doc.extract_image(xref)  # type: ignore[union-attr]
+                                        if not base_image:
+                                            continue
+                                            
+                                        image_bytes = base_image["image"]
+                                        image_ext = base_image["ext"]
+                                        img_path = Path(tmpdir) / f"img_{img_idx}.{image_ext}"
+                                        img_path.write_bytes(image_bytes)
+                                        
+                                        img_parsed_pages = image_parser.parse(img_path)
+                                        for ip in img_parsed_pages:
+                                            if ip.text:
+                                                image_texts.append(ip.text)
+                                    except Exception as e:
+                                        log.warning("Failed to parse embedded image %d on page %d: %s", img_idx, page_num, e)
+                except Exception as e:
+                    log.warning("Failed to extract images from PDF page %d: %s", page_num, e)
+
+                if image_texts:
+                    text += "\n\n" + "\n\n".join(f"[Embedded Image {idx+1}]: {t}" for idx, t in enumerate(image_texts))
 
                 pages.append(
                     ParsedPage(

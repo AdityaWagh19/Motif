@@ -52,7 +52,7 @@ from rag.models.model_manager import get_model_manager
 from rag.reranking.cross_encoder import rerank
 from rag.retrieval.bm25_index import BM25Index
 from rag.retrieval.expander import QueryExpander
-from rag.retrieval.fusion import rrf_fuse, rrf_to_scored_passages
+from rag.retrieval.fusion import normalized_weighted_sum, fused_to_scored_passages
 from rag.retrieval.vector_store import VectorStore
 from rag.storage.chunk_store import ChunkStore
 from rag.types import AnswerResult
@@ -226,9 +226,9 @@ class QueryPipeline:
             )
             bm25_results = self._bm25.search(effective_query, top_k=top_k_retrieval)
 
-            # RRF fusion
-            fused = rrf_fuse([dense_results, bm25_results], top_k=top_k_retrieval)
-            candidates = rrf_to_scored_passages(fused, self._chunk_store)
+            # Normalized Weighted Summation fusion (Dense 0.7, BM25 0.3)
+            fused = normalized_weighted_sum([dense_results, bm25_results], weights=[0.7, 0.3], top_k=top_k_retrieval)
+            candidates = fused_to_scored_passages(fused, self._chunk_store)
 
         t_retrieval_ms = (time.monotonic() - t_retrieval_start) * 1000
 
@@ -326,8 +326,8 @@ class QueryPipeline:
                         q_vec, e_query = self._expander.expand(flare_query, cfg, embedder)
                         d_res = self._vector_store.search_dense(q_vec, top_k=top_k_retrieval, filter_=filter_dict if filter_dict else None)
                         b_res = self._bm25.search(e_query, top_k=top_k_retrieval)
-                        fused = rrf_fuse([d_res, b_res], top_k=top_k_retrieval)
-                        c = rrf_to_scored_passages(fused, self._chunk_store)
+                        fused = normalized_weighted_sum([d_res, b_res], weights=[0.7, 0.3], top_k=top_k_retrieval)
+                        c = fused_to_scored_passages(fused, self._chunk_store)
                         r = rerank(flare_query, c, cfg, top_k=top_k_rerank, threshold=threshold)
                         if getattr(cfg.retrieval, "use_parent_docs", False):
                             for p in r:

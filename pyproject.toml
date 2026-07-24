@@ -40,9 +40,12 @@ dependencies = [
     # Tokenizer (used only for token counting; not for inference)
     "tokenizers>=0.19",
     "transformers>=4.40",
+    "tiktoken>=0.7.0",
     # Document parsers
     "pymupdf>=1.24",
+    "pymupdf4llm>=0.0.1",
     "markdown-it-py>=3.0",
+    "langchain-text-splitters>=0.2.0",
     # DOCX parser
     "python-docx>=1.1",
     # Model download
@@ -75,7 +78,7 @@ eval = [
 
 # Audio ingestion
 audio = [
-    "pywhispercpp>=1.0",
+    "whisperx>=3.1.1",
 ]
 
 # Semantic chunking

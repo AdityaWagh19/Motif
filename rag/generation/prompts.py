@@ -155,7 +155,18 @@ def format_context(passages: list[ScoredPassage]) -> str:
         if chunk.section:
             loc_parts.append(chunk.section)
         loc = f" ({', '.join(loc_parts)})" if loc_parts else ""
-        lines.append(f"[{i}] Source: {chunk.filename}{loc}")
+        
+        # Determine modality header
+        if chunk.source_type == "audio":
+            start_str = f"{chunk.start_time:.1f}s" if chunk.start_time is not None else "0.0s"
+            modality = f"[Audio Transcript from {start_str}]"
+        elif chunk.source_type == "pdf" and (chunk.has_image or chunk.is_ocr):
+            page_str = f"Page {chunk.page}" if chunk.page is not None else "Image"
+            modality = f"[Visual Inference from {page_str}]"
+        else:
+            modality = "[Document Context]"
+            
+        lines.append(f"[{i}] {modality} Source: {chunk.filename}{loc}")
         lines.append(chunk.text.strip())
         lines.append("")
 

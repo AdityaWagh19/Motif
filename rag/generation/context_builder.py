@@ -11,7 +11,8 @@ Reference: Liu et al. (2023) "Lost in the Middle: How Language Models Use Long C
 
 Public API:
     ContextBuilder.build(passages, query, history, config) → (prompt, used_passages)
-    _anti_middle_order(passages) → List[ScoredPassage]   (exported for testing)
+    ContextBuilder.build(passages, query, history, config) → (prompt, used_passages)
+    _chronological_order(passages) → List[ScoredPassage]   (exported for testing)
 """
 from __future__ import annotations
 
@@ -28,46 +29,28 @@ log = logging.getLogger(__name__)
 _WORDS_PER_TOKEN = 0.75
 
 
-def _anti_middle_order(passages: list[ScoredPassage]) -> list[ScoredPassage]:
+def _chronological_order(passages: list[ScoredPassage]) -> list[ScoredPassage]:
     """
-    Reorder passages so the most relevant content is at the extremes.
-
-    LLMs attend more strongly to the beginning and end of their context window.
-    This ordering ensures the two most relevant passages are not buried in the
-    middle.
-
-    Algorithm for N passages (sorted descending by score as [P1, P2, ..., PN]):
-        Position 0   → P1  (highest score)
-        Position N-1 → P2  (second highest score)
-        Position 1   → P3  (third highest)
-        Position 2   → P4  (fourth highest)
-        ... etc.
-
-    For N ≤ 2, the original order is returned unchanged (already optimal).
+    Group passages by source document and order them chronologically.
+    
+    Chronological ordering allows the LLM to follow step-by-step instructions
+    and logical progression naturally, which is better for real-world tasks than
+    anti-middle ordering.
 
     Args:
         passages: List of ScoredPassage (any order accepted).
 
     Returns:
-        Reordered list. Length equals input length.
+        Reordered list sorted by source filename, then page/char offset/timestamp.
     """
-    if len(passages) <= 2:
-        return passages[:]
-
-    sorted_desc = sorted(passages, key=lambda p: p.score, reverse=True)
-    result: list[ScoredPassage] = [None] * len(sorted_desc)  # type: ignore[list-item]
-
-    # Best passage goes first, second-best goes last
-    result[0] = sorted_desc[0]
-    result[-1] = sorted_desc[1]
-
-    # Fill middle positions with remaining passages (index 2 onward)
-    middle_idx = 1
-    for i in range(2, len(sorted_desc)):
-        result[middle_idx] = sorted_desc[i]
-        middle_idx += 1
-
-    return result
+    def sort_key(p: ScoredPassage):
+        return (
+            p.chunk.source,
+            p.chunk.page or 0,
+            p.chunk.char_start or 0,
+            p.chunk.start_time or 0.0
+        )
+    return sorted(passages, key=sort_key)
 
 
 def _merge_adjacent_chunks(passages: list[ScoredPassage]) -> list[ScoredPassage]:
@@ -173,23 +156,41 @@ class ContextBuilder:
         if not passages:
             return "", []
 
+        import tiktoken
+        try:
+            tokenizer = tiktoken.get_encoding("cl100k_base")
+        except Exception as e:
+            log.error("Failed to load tiktoken encoding, falling back to basic word count: %s", e)
+            # Fallback for offline mode if tiktoken can't download
+            tokenizer = None
+
         # ── Token budget ──────────────────────────────────────────────────────
-        # word count ≈ tokens × 0.75, so tokens ≈ words / 0.75
-        # We work in words throughout to avoid any tokenizer dependency.
-        budget_words = int(config.generation.context_max_tokens * _WORDS_PER_TOKEN)
-        history_words = sum(len(t["content"].split()) for t in history)
-        overhead_words = 200  # RAG_PROMPT boilerplate + query
-        available_words = max(100, budget_words - history_words - overhead_words)
+        max_context = config.generation.context_max_tokens
+        hard_limit = config.llm.ctx_size - config.llm.max_tokens - 50
+        budget_tokens = min(max_context, hard_limit)
+
+        if tokenizer:
+            history_tokens = sum(len(tokenizer.encode(t.get("content", ""))) for t in history)
+            overhead_tokens = len(tokenizer.encode(query)) + 200  # Prompt template overhead
+        else:
+            history_tokens = sum(len(t.get("content", "").split()) for t in history) * 1.3
+            overhead_tokens = len(query.split()) * 1.3 + 200
+            
+        available_tokens = max(50, budget_tokens - history_tokens - overhead_tokens)
 
         selected: list[ScoredPassage] = []
-        used_words = 0
+        used_tokens = 0
 
         # passages is already sorted score-descending by the reranker
         for p in passages:
-            words = len(p.chunk.text.split())
-            if used_words + words <= available_words:
+            if tokenizer:
+                tokens = len(tokenizer.encode(p.chunk.text)) + 20 # Header overhead
+            else:
+                tokens = len(p.chunk.text.split()) * 1.3 + 20
+
+            if used_tokens + tokens <= available_tokens:
                 selected.append(p)
-                used_words += words
+                used_tokens += tokens
             else:
                 # Budget exhausted — stop adding
                 break
@@ -199,16 +200,16 @@ class ContextBuilder:
             selected = [passages[0]]
             log.warning(
                 "Context budget too small for any passage. "
-                "Including passage 1 anyway (budget=%d words).",
-                available_words,
+                "Including passage 1 anyway (budget=%d tokens).",
+                available_tokens,
             )
 
         log.debug(
-            "ContextBuilder: %d/%d passages selected (%d words, budget %d)",
+            "ContextBuilder: %d/%d passages selected (%d tokens, budget %d)",
             len(selected),
             len(passages),
-            used_words,
-            available_words,
+            used_tokens,
+            available_tokens,
         )
 
         # ── Adjacent chunk merging ────────────────────────────────────────────
@@ -220,35 +221,10 @@ class ContextBuilder:
         selected.sort(key=lambda p: p.score, reverse=True)
         
         # ── Dynamic token budget enforcement (HIGH-02) ──────────────────────
-        # Guard against prompt overflow: trim passages if estimated char length
-        # exceeds context window minus answer budget (~4 chars/token).
-        budget_chars = (config.llm.ctx_size - config.llm.max_tokens - 50) * 4
-        base_chars = len(query) + sum(len(t.get("content", "")) for t in history) + 400
-        
-        trimmed_selected = []
-        current_chars = base_chars
-        for p in selected:
-            p_len = len(p.chunk.text) + 60
-            if current_chars + p_len > budget_chars and len(trimmed_selected) >= 1:
-                break
-            trimmed_selected.append(p)
-            current_chars += p_len
-            
-        trim_iterations = len(selected) - len(trimmed_selected)
-        selected = trimmed_selected
+        # Handled in the single exact token loop above using min(max_context, hard_limit).
 
-        if trim_iterations > 0:
-            log.warning(
-                "Context trimmed from %d to %d passages to fit within token budget "
-                "(ctx_size=%d, max_tokens=%d).",
-                len(selected) + trim_iterations,
-                len(selected),
-                config.llm.ctx_size,
-                config.llm.max_tokens,
-            )
-
-        # ── Anti-middle ordering ────────────────────────────────────────────
-        ordered = _anti_middle_order(selected)
+        # ── Chronological ordering ────────────────────────────────────────────
+        ordered = _chronological_order(selected)
 
         # ── Prompt assembly ───────────────────────────────────────────────
         prompt = build_prompt(query, ordered, history)

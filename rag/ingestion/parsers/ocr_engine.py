@@ -25,6 +25,6 @@ def get_ocr():
             ) from exc
 
         log.info("Initialising PaddleOCR...")
-        _ocr_instance = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
+        _ocr_instance = PaddleOCR(use_angle_cls=True, lang="en")
         
     return _ocr_instance

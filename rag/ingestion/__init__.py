@@ -213,80 +213,45 @@ def ingest_path(
     errors: list[str] = []
 
     total = len(files)
-    try:
-        for idx, file in enumerate(files, start=1):
-            source = str(file.resolve())
-            source_type = _EXT_TO_SOURCE_TYPE.get(file.suffix.lower(), "txt")
+    
+    import threading
+    import queue
+    from concurrent.futures import ThreadPoolExecutor
 
-            if console:
-                console.print(
-                    f"[dim][{idx}/{total}][/dim] {file.name}",
-                    end="  ",
-                )
-
+    # Queue for decoupling CPU-bound parsing from GPU-bound embedding
+    embed_queue: queue.Queue = queue.Queue()
+    
+    def embed_and_store_worker():
+        nonlocal files_processed, chunks_added
+        while True:
+            item = embed_queue.get()
+            if item is None:
+                embed_queue.task_done()
+                break
+                
+            file, file_hash, chunks, indexable_chunks = item
+            
             try:
-                file_hash = compute_file_hash(file)
+                def _format_for_embedding(c) -> str:
+                    ext = getattr(c, "source_type", "").lower()
+                    prefix = ""
+                    if ext == "audio":
+                        prefix = "[MODALITY: AUDIO RECORDING] "
+                    elif ext == "image":
+                        prefix = "[MODALITY: IMAGE / DIAGRAM] "
+                    elif ext == "pdf":
+                        prefix = "[MODALITY: PDF DOCUMENT] "
+                    elif ext in ("doc", "docx"):
+                        prefix = "[MODALITY: WORD DOCUMENT] "
+                    return prefix + c.text
 
-                # ── Deduplication check ──────────────────────────────────────────
-                if tracker.is_indexed(file):
-                    if tracker.get_hash(file) == file_hash:
-                        # Unchanged — skip
-                        if console:
-                            console.print("[dim]skipped (unchanged)[/dim]")
-                        files_skipped += 1
-                        continue
-                    else:
-                        # Modified — remove old version first
-                        if console:
-                            console.print("[yellow]changed — re-indexing…[/yellow]", end="  ")
-                        remove_document(
-                            file, 
-                            config, 
-                            chunk_store=chunk_store, 
-                            bm25=bm25, 
-                            vector_store=vector_store, 
-                            tracker=tracker
-                        )
-
-                # ── Parse ────────────────────────────────────────────────────────
-                parser = get_parser(file, config)
-                pages = parser.parse(file)
-                if not pages:
-                    log.warning("No pages extracted from %s — skipping.", file.name)
-                    if console:
-                        console.print("[yellow]no content — skipped[/yellow]")
-                    continue
-
-                # ── Chunk ────────────────────────────────────────────────────────
-                chunks = chunker.chunk_pages(
-                    pages,
-                    source=source,
-                    filename=file.name,
-                    source_type=source_type,
-                )
-
-                # ── Deduplicate (within-document) ────────────────────────────────
-                chunks = deduplicator.filter(chunks)
-                deduplicator.reset()  # reset between documents
-
-                if not chunks:
-                    log.warning("All chunks deduplicated for %s — skipping.", file.name)
-                    if console:
-                        console.print("[yellow]all chunks were duplicates — skipped[/yellow]")
-                    continue
-                # Filter Parent Chunks from Search Indices if parent docs enabled
-                if use_parent_docs:
-                    indexable_chunks = [c for c in chunks if c.parent_id is not None]
-                else:
-                    indexable_chunks = chunks
-
-                # ── Embed ────────────────────────────────────────────────────────
+                # ── Embed (GPU-bound) ────────────────────────────────────────────
                 vectors = embedder.encode_batch(
-                    [c.text for c in indexable_chunks],
+                    [_format_for_embedding(c) for c in indexable_chunks],
                     prefix="search_document: ",
                 )
 
-                # ── Store ─────────────────────────────────────────────────────────
+                # ── Store (I/O-bound) ─────────────────────────────────────────────
                 payloads = [_chunk_to_payload(c) for c in indexable_chunks]
                 tx_manager.execute_ingest(
                     file_path=file,
@@ -305,16 +270,100 @@ def ingest_path(
                 chunks_added += len(chunks)
 
                 if console:
-                    console.print(
-                        f"[green]OK[/green] {len(chunks)} chunk(s)"
-                    )
-
+                    console.print(f"[green]OK[/green] {file.name} ({len(chunks)} chunks)")
             except Exception as exc:
-                user_err = f"Could not process {file.name}: {exc}"
-                log.exception("Ingestion error for %s", file)
+                user_err = f"Could not embed/store {file.name}: {exc}"
+                log.exception("Ingestion store error for %s", file)
                 errors.append(user_err)
                 if console:
-                    console.print(f"[red]failed:[/red] {exc}")
+                    console.print(f"[red]failed:[/red] {file.name} - {exc}")
+            finally:
+                embed_queue.task_done()
+
+    # Start the single GPU/Storage worker thread
+    worker_thread = threading.Thread(target=embed_and_store_worker, daemon=True)
+    worker_thread.start()
+
+    def process_file_cpu(idx: int, file: Path):
+        nonlocal files_skipped
+        source = str(file.resolve())
+        source_type = _EXT_TO_SOURCE_TYPE.get(file.suffix.lower(), "txt")
+
+        try:
+            file_hash = compute_file_hash(file)
+
+            # ── Deduplication check ──────────────────────────────────────────
+            if tracker.is_indexed(file):
+                if tracker.get_hash(file) == file_hash:
+                    if console:
+                        console.print(f"[dim][{idx}/{total}][/dim] {file.name} [dim]skipped (unchanged)[/dim]")
+                    files_skipped += 1
+                    return
+                else:
+                    if console:
+                        console.print(f"[dim][{idx}/{total}][/dim] {file.name} [yellow]changed — re-indexing…[/yellow]")
+                    remove_document(
+                        file, 
+                        config, 
+                        chunk_store=chunk_store, 
+                        bm25=bm25, 
+                        vector_store=vector_store, 
+                        tracker=tracker
+                    )
+            else:
+                if console:
+                    console.print(f"[dim][{idx}/{total}][/dim] {file.name} [dim]parsing...[/dim]")
+
+            # ── Parse (CPU-bound) ────────────────────────────────────────────
+            parser = get_parser(file, config)
+            pages = parser.parse(file)
+            if not pages:
+                log.warning("No pages extracted from %s — skipping.", file.name)
+                return
+
+            # ── Chunk (CPU-bound) ────────────────────────────────────────────
+            chunks = chunker.chunk_pages(
+                pages,
+                source=source,
+                filename=file.name,
+                source_type=source_type,
+            )
+
+            # ── Deduplicate (within-document) ────────────────────────────────
+            # Create a fresh deduplicator for this thread
+            from rag.ingestion.deduplicator import Deduplicator
+            local_dedup = Deduplicator()
+            chunks = local_dedup.filter(chunks)
+
+            if not chunks:
+                log.warning("All chunks deduplicated for %s — skipping.", file.name)
+                return
+                
+            if use_parent_docs:
+                indexable_chunks = [c for c in chunks if c.parent_id is not None]
+            else:
+                indexable_chunks = chunks
+
+            # Send to GPU/Storage worker
+            embed_queue.put((file, file_hash, chunks, indexable_chunks))
+
+        except Exception as exc:
+            user_err = f"Could not parse {file.name}: {exc}"
+            log.exception("Ingestion parse error for %s", file)
+            errors.append(user_err)
+            if console:
+                console.print(f"[red]failed:[/red] {file.name} - {exc}")
+
+    try:
+        # Use ThreadPoolExecutor for concurrent parsing
+        max_workers = getattr(config.chunking, "num_workers", 4)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for idx, file in enumerate(files, start=1):
+                executor.submit(process_file_cpu, idx, file)
+        
+        # Wait for all background embeddings to finish
+        embed_queue.put(None)
+        worker_thread.join()
 
         # ── Hierarchical Indexing ──────────────────────────
         if getattr(config.retrieval, "use_raptor", False) and files_processed > 0:

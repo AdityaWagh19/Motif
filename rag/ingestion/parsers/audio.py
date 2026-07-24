@@ -6,7 +6,6 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -17,28 +16,10 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-@contextmanager
-def suppress_c_stderr():
-    """Context manager to suppress C-level stderr (e.g., from whisper.cpp)."""
-    try:
-        null_fd = os.open(os.devnull, os.O_RDWR)
-        save_fd = os.dup(sys.stderr.fileno())
-        os.dup2(null_fd, sys.stderr.fileno())
-        yield
-    finally:
-        try:
-            os.dup2(save_fd, sys.stderr.fileno())
-            os.close(null_fd)
-            os.close(save_fd)
-        except Exception:
-            pass
-
-TARGET_WORDS = 350  # ≈ 512 tokens at 0.75 words/token ratio
-
 class AudioParser(BaseParser):
     """
-    Parser for audio files using pywhispercpp (whisper.cpp bindings).
-    Groups transcripts into ~512 token chunks.
+    Parser for audio files using whisperx.
+    Groups transcripts by speaker turns (diarization).
     """
     
     SUPPORTED_EXTENSIONS = [".mp3", ".wav", ".m4a", ".flac", ".ogg"]
@@ -48,97 +29,104 @@ class AudioParser(BaseParser):
 
     def parse(self, path: Path) -> list[ParsedPage]:
         """
-        Transcribe audio file using whisper.cpp.
+        Transcribe audio file using whisperx.
 
-        Returns one ParsedPage per whisper segment group (~30-60 seconds each).
-        Each ParsedPage carries start_time and end_time from whisper timestamps.
+        Returns one ParsedPage per speaker turn.
+        Each ParsedPage carries start_time and end_time.
         """
         if not path.exists():
             raise FileNotFoundError(f"Audio file not found: {path}")
 
-        model_path = self._get_whisper_model_path()
-        segments = self._transcribe(path, model_path)
+        segments = self._transcribe(path)
 
         if not segments:
             return []
 
-        # Group segments into ~512-token chunks by time window
+        # Group segments by speaker turn
         return self._group_segments(segments)
 
-    def _get_whisper_model_path(self) -> Path:
+    def _transcribe(self, audio_path: Path) -> list[dict]:
         """
-        Resolve the Whisper model path.
-
-        Relative paths are resolved against the project root (where pyproject.toml
-        lives), NOT the process CWD. This ensures audio ingestion works regardless
-        of which directory the user runs `motif` from.
-        """
-        cfg = self._config
-        whisper_model = cfg.models.whisper
-        path = Path(whisper_model)
-        if not path.is_absolute():
-            from rag.config import _get_models_dir
-            path = _get_models_dir() / path.name
-
-        if not path.exists():
-            raise FileNotFoundError(
-                f"Whisper model not found: {path}\n"
-                f"Run `motif setup` to download it.\n"
-                f"(Configured whisper path: {whisper_model!r})"
-            )
-        return path
-
-    def _transcribe(self, audio_path: Path, model_path: Path) -> list[dict]:
-        """
-        Run whisper.cpp transcription. Returns list of segment dicts:
-        {"text": str, "start": float, "end": float}
+        Run whisperx transcription, alignment, and diarization.
         """
         from rag.models.model_manager import get_model_manager
-        model = get_model_manager().get_whisper(self._config)
+        import whisperx
+        
+        whisper_data = get_model_manager().get_whisper(self._config)
+        model = whisper_data["model"]
+        device = whisper_data["device"]
             
         log.info("Transcribing %s", audio_path.name)
-        with suppress_c_stderr():
-            segments = model.transcribe(str(audio_path))
+        audio = whisperx.load_audio(str(audio_path))
+        result = model.transcribe(audio, batch_size=16)
         
-        return [
-            {
-                "text": seg.text.strip(),
-                "start": seg.t0 / 100.0,   # pywhispercpp times in centiseconds
-                "end": seg.t1 / 100.0,
-            }
-            for seg in segments
-            if seg.text.strip()
-        ]
+        # Align
+        try:
+            model_a, metadata = whisperx.load_align_model(language_code=result["language"], device=device)
+            result = whisperx.align(result["segments"], model_a, metadata, audio, device, return_char_alignments=False)
+        except Exception as e:
+            log.warning("WhisperX alignment failed: %s", e)
+            
+        # Diarize
+        hf_token = os.environ.get("HF_TOKEN")
+        if hf_token:
+            try:
+                from whisperx.diarize import DiarizationPipeline
+                diarize_model = DiarizationPipeline(use_auth_token=hf_token, device=device)
+                diarize_segments = diarize_model(audio)
+                result = whisperx.assign_word_speakers(diarize_segments, result)
+            except Exception as e:
+                log.warning("WhisperX diarization failed: %s", e)
+        else:
+            log.info("Skipping WhisperX diarization (HF_TOKEN not found in environment)")
+
+        return result.get("segments", [])
 
     def _group_segments(self, segments: list[dict]) -> list[ParsedPage]:
         """
-        Group whisper segments into chunks of approximately TARGET_WORDS words.
-        Each group becomes one ParsedPage with start_time/end_time set.
+        Group whisper segments into chunks by speaker turn.
+        If diarization is missing or a single speaker speaks for a very long time,
+        chunks will also be bounded by a ~350 word limit.
         """
+        TARGET_WORDS = 350
         pages = []
+        if not segments:
+            return pages
+
+        current_speaker = segments[0].get("speaker", "UNKNOWN")
         current_texts = []
         current_word_count = 0
         chunk_start_time = segments[0]["start"]
 
         for i, seg in enumerate(segments):
+            speaker = seg.get("speaker", "UNKNOWN")
             words = seg["text"].split()
-            if current_word_count + len(words) > TARGET_WORDS and current_texts:
+            
+            if (speaker != current_speaker or current_word_count + len(words) > TARGET_WORDS) and current_texts:
+                # Speaker shift or length limit -> emit chunk
+                text = " ".join(current_texts)
+                if current_speaker != "UNKNOWN":
+                    text = f"[Speaker {current_speaker}]: {text}"
                 pages.append(ParsedPage(
-                    text=" ".join(current_texts),
+                    text=text,
                     start_time=chunk_start_time,
                     end_time=segments[i - 1]["end"],
                     is_ocr=False,
                 ))
                 current_texts = [seg["text"]]
                 current_word_count = len(words)
+                current_speaker = speaker
                 chunk_start_time = seg["start"]
             else:
                 current_texts.append(seg["text"])
                 current_word_count += len(words)
-
+                
         if current_texts:
+            text = " ".join(current_texts)
+            if current_speaker != "UNKNOWN":
+                text = f"[Speaker {current_speaker}]: {text}"
             pages.append(ParsedPage(
-                text=" ".join(current_texts),
+                text=text,
                 start_time=chunk_start_time,
                 end_time=segments[-1]["end"],
                 is_ocr=False,

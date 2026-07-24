@@ -72,19 +72,23 @@ class ImageParser(BaseParser):
         from rag.ingestion.parsers.ocr_engine import get_ocr
         ocr = get_ocr()
             
-        result = ocr.ocr(str(path), cls=True)
-        if not result or not result[0]:
-            return ""
-            
-        lines = []
-        for line in result[0]:
-            text_confidence = line[1]
-            text = text_confidence[0]
-            confidence = text_confidence[1]
-            if confidence >= 0.6:  # drop low-confidence OCR lines
-                lines.append(text)
+        try:
+            result = ocr.ocr(str(path))
+            if not result or not result[0]:
+                return ""
                 
-        return " ".join(lines)
+            lines = []
+            for line in result[0]:
+                text_confidence = line[1]
+                text = text_confidence[0]
+                confidence = text_confidence[1]
+                if confidence >= 0.6:  # drop low-confidence OCR lines
+                    lines.append(text)
+                    
+            return " ".join(lines)
+        except (Exception, NotImplementedError) as e:
+            log.warning("PaddleOCR execution failed: %s", e)
+            return ""
 
     def _run_caption(self, path: Path) -> str:
         """Run moondream2 to generate an image description."""
