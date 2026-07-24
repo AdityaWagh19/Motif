@@ -1,20 +1,9 @@
 """
-rag/logging_config.py — Persistent file logging for Motif.
+rag/logging_config.py — Persistent File Logging for Motif.
 
-Sets up a rotating file handler that writes to ~/.ragdb/motif.log.
-Called once at startup in rag/cli.py.
-
-Format:
-    2026-07-18 16:00:01 INFO     rag.pipeline — Query complete: 4120 ms ...
-    2026-07-18 16:00:01 WARNING  rag.retrieval.expander — HyDE failed: ...
-
-Log levels:
-    - File: DEBUG (captures all pipeline internals for diagnosis)
-    - Console: WARNING (only user-relevant warnings appear in the terminal)
-
-Rotation policy:
-    - maxBytes=5_000_000 (5 MB per file)
-    - backupCount=3      (up to ~15 MB total log history)
+Configures a rotating file handler that writes to ~/.motif/logs/motif.log.
+All internal technical logs, tracebacks, and warnings are captured here.
+NO log messages reach the terminal via Python's logging system.
 """
 from __future__ import annotations
 
@@ -28,24 +17,18 @@ if TYPE_CHECKING:
 
 _LOG_FILENAME = "motif.log"
 _FILE_LOG_LEVEL = logging.DEBUG
-_CONSOLE_LOG_LEVEL = logging.WARNING
 _MAX_BYTES = 5_000_000
 _BACKUP_COUNT = 3
 _DATE_FMT = "%Y-%m-%d %H:%M:%S"
 _FILE_FMT = "%(asctime)s %(levelname)-8s %(name)s — %(message)s"
-_CONSOLE_FMT = "%(levelname)s %(name)s — %(message)s"
 
-# Avoid adding handlers multiple times if logging_config.setup() is called
-# more than once (e.g., during tests).
 _configured = False
 
 
 def setup(config: RAGConfig) -> None:
     """
     Configure the root logger with a rotating file handler.
-
-    Must be called once at startup before any log messages are emitted.
-    Idempotent — safe to call multiple times.
+    All terminal console handlers are purged to prevent developer log leakages.
 
     Args:
         config: RAGConfig — reads storage.db_path for the log file location.
@@ -60,7 +43,11 @@ def setup(config: RAGConfig) -> None:
     log_path = log_dir / _LOG_FILENAME
 
     root = logging.getLogger()
-    root.setLevel(logging.DEBUG)   # let handlers filter
+    root.setLevel(logging.DEBUG)
+
+    # ── Remove all existing handlers (console/stream handlers) ───────────────
+    for handler in root.handlers[:]:
+        root.removeHandler(handler)
 
     # ── Rotating file handler ─────────────────────────────────────────────────
     file_handler = logging.handlers.RotatingFileHandler(
@@ -74,26 +61,6 @@ def setup(config: RAGConfig) -> None:
         logging.Formatter(_FILE_FMT, datefmt=_DATE_FMT)
     )
     root.addHandler(file_handler)
-
-    # ── Console handler (warnings only — don't pollute the REPL output) ───────
-    class RichConsoleHandler(logging.Handler):
-        def emit(self, record):
-            try:
-                from rag.theme import console
-                msg = self.format(record)
-                if record.levelno >= logging.ERROR:
-                    console.print(f"[error]ERROR[/error] [dim]{record.name}[/dim] {msg}")
-                elif record.levelno >= logging.WARNING:
-                    console.print(f"[warning]WARNING[/warning] [dim]{record.name}[/dim] {msg}")
-                else:
-                    console.print(msg)
-            except Exception:
-                self.handleError(record)
-
-    console_handler = RichConsoleHandler()
-    console_handler.setLevel(_CONSOLE_LOG_LEVEL)
-    console_handler.setFormatter(logging.Formatter("%(message)s"))
-    root.addHandler(console_handler)
 
     _configured = True
     logging.getLogger(__name__).debug(

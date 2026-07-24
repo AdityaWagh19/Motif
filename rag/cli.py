@@ -8,17 +8,13 @@ Modes:
     Interactive (default):  `motif`
         Launches a prompt_toolkit REPL. Models stay loaded between queries.
         Plain text → query pipeline. Slash commands → command handlers.
-        Session history persisted to ~/.ragdb/history.json on exit.
+        Session history persisted to storage on exit.
 
     One-shot (scripting):   `motif ask "query"` / `motif ingest ./docs`
         Executes a single command and exits. No REPL, no session.
-
-Thread pool env vars are set at module import time BEFORE numpy/onnxruntime/
-numexpr are imported. Setting them after import has no effect.
 """
 from __future__ import annotations
 
-# ── Thread pool limits — MUST be set before numpy/onnxruntime/numexpr import ─
 import os
 
 from rag.config import load_config, migrate_if_needed
@@ -32,19 +28,18 @@ os.environ.setdefault("OMP_NUM_THREADS", _threads)
 os.environ.setdefault("MKL_NUM_THREADS", _threads)
 os.environ.setdefault("OPENBLAS_NUM_THREADS", _threads)
 # ─────────────────────────────────────────────────────────────────────────────
-import warnings
-
-warnings.filterwarnings("ignore")
 import logging
 import shlex
 import sys
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+warnings.filterwarnings("ignore")
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import NestedCompleter, PathCompleter, WordCompleter
 from prompt_toolkit.formatted_text import HTML
-from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
 from rich.panel import Panel
@@ -52,6 +47,7 @@ from rich.panel import Panel
 from rag import __version__
 from rag.commands import SLASH_COMMANDS, get_command
 from rag.config import RAGConfig, load_config
+from rag.errors import humanize_error
 from rag.session import Session
 from rag.theme import console
 
@@ -70,15 +66,11 @@ def setup_cli_logging() -> None:
         file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
 
         root_logger = logging.getLogger()
-        # ── Remove ALL existing handlers (StreamHandlers, etc.) so nothing
-        # leaks to stdout/stderr. Only the file handler remains.
         for h in root_logger.handlers[:]:
             root_logger.removeHandler(h)
         root_logger.setLevel(logging.INFO)
         root_logger.addHandler(file_handler)
     except Exception:
-        # If file logging fails entirely, attach a NullHandler so
-        # log calls don't propagate to the default stderr handler.
         logging.getLogger().addHandler(logging.NullHandler())
 
     for noisy in ["ppocr", "rag.retrieval.calibrate", "qdrant_client", "onnxruntime", "urllib3", "httpx", "httpcore"]:
@@ -97,14 +89,21 @@ def _render_welcome(config: RAGConfig, session: Session) -> None:
     """Render the startup welcome panel with clean system info and session state."""
 
     accel_name = getattr(config.hardware, "backend", "cpu").upper()
-    accel_label = f"GPU ({accel_name})" if accel_name != "CPU" else "CPU"
+    accel_label = f"GPU Accelerated ({accel_name})" if accel_name != "CPU" else "CPU Mode"
     llm_stem = Path(config.models.llm_path).stem
-    llm_label = "Qwen2.5 7B" if "qwen" in llm_stem.lower() else llm_stem.split("-")[0]
-    cwd = Path.cwd()
+    if "qwen" in llm_stem.lower():
+        llm_label = "Qwen2.5 7B"
+    elif "llama" in llm_stem.lower():
+        llm_label = "Llama 3.1 8B"
+    elif "mistral" in llm_stem.lower():
+        llm_label = "Mistral 7B"
+    else:
+        llm_label = llm_stem.split("-")[0]
 
-    # Try to get index stats (returns None if no index yet)
+    data_dir = config.db_root
+
     chunk_count, doc_count = _get_index_stats(config)
-    index_str = f"{doc_count:,} documents ({chunk_count:,} chunks)" if chunk_count is not None and doc_count else "0 documents (run /ingest)"
+    index_str = f"{doc_count:,} documents ({chunk_count:,} passages)" if chunk_count is not None and doc_count else "0 documents (run /ingest)"
 
     logo_art = (
         "[accent_bold]  ███╗   ███╗ ██████╗ ████████╗██╗███████╗[/accent_bold]\n"
@@ -118,28 +117,17 @@ def _render_welcome(config: RAGConfig, session: Session) -> None:
     info_lines: list[str] = [
         logo_art,
         "",
-        f"  [accent_bold]Motif[/accent_bold] [structure]v{__version__}[/structure]  [structure]|[/structure]  Offline Local RAG AI Assistant",
-        f"  Model   [bold]{llm_label}[/bold]  [structure]|[/structure]  Mode: {accel_label}",
+        f"  [accent_bold]Motif[/accent_bold] [subtle]v{__version__}[/subtle]  [subtle]|[/subtle]  Offline Local RAG AI Assistant",
+        f"  Model   [bold]{llm_label}[/bold]  [subtle]|[/subtle]  Mode: {accel_label}",
         f"  Index   [bold]{index_str}[/bold]",
-        f"  Dir     [structure]{cwd}[/structure]",
+        f"  Data    [subtle]{data_dir}[/subtle]",
     ]
 
-    # Session history state
     if session.turn_count > 0 and session.last_query:
         truncated = (session.last_query[:50] + "…") if len(session.last_query) > 50 else session.last_query
-        info_lines.append(f"  Session [accent_bold]{session.turn_count}[/accent_bold] turns [structure](Last: \"{truncated}\")[/structure]")
+        info_lines.append(f"  Session [accent_bold]{session.turn_count}[/accent_bold] turns [subtle](Last: \"{truncated}\")[/subtle]")
 
-    cat_sleep = (
-        "\n"
-        "[accent]          ████          ████          [/accent]\n"
-        "[accent]        ██████████████████████        [/accent]\n"
-        "[accent]  ▀▀▀▀  ████████▀▀▀▀▀▀████████  ▀▀▀▀  [/accent]\n"
-        "[accent]  ▀▀▀▀  ██████████▄▄██████████  ▀▀▀▀  [/accent]\n"
-        "[accent]        ██████████████████████▄▄████  [/accent]  [dim]zzz...[/dim]\n"
-        "[accent]        ████  ████  ████  ████        [/accent]"
-    )
-
-    cat_awake = (
+    cat_art = (
         "\n"
         "[accent]          ████          ████          [/accent]\n"
         "[accent]        ██████████████████████        [/accent]\n"
@@ -149,16 +137,8 @@ def _render_welcome(config: RAGConfig, session: Session) -> None:
         "[accent]        ████  ████  ████  ████        [/accent]"
     )
     
-    info_lines.append(cat_sleep)
-    
-    import time
-
-    from rich.live import Live
-    with Live(Panel("\n".join(info_lines), border_style="structure", padding=(1, 2)), console=console, refresh_per_second=10, transient=False) as live:
-        time.sleep(0.4)
-        info_lines[-1] = cat_awake
-        live.update(Panel("\n".join(info_lines), border_style="structure", padding=(1, 2)))
-        
+    info_lines.append(cat_art)
+    console.print(Panel("\n".join(info_lines), border_style="structure", padding=(1, 2)))
     console.print()
 
 
@@ -179,13 +159,17 @@ def _get_index_stats(config: RAGConfig) -> tuple[int | None, int | None]:
 def _handle_slash_command(raw: str, session: Session, config: RAGConfig) -> None:
     """
     Parse and dispatch a slash command.
-
-    Format:  /command [arg1 arg2 ...]
-    Unknown commands print a friendly error and suggest /help.
     """
-    parts = shlex.split(raw.strip(), posix=False)
-    command_name = parts[0].lower()   # e.g. "/ingest"
-    args = [arg.strip('"\'') for arg in parts[1:]]  # e.g. ["./docs", "-r"]
+    try:
+        parts = shlex.split(raw.strip(), posix=False)
+    except Exception:
+        parts = raw.strip().split()
+
+    if not parts:
+        return
+
+    command_name = parts[0].lower()
+    args = [arg.strip('"\'') for arg in parts[1:]]
 
     handler = get_command(command_name)
     if handler is None:
@@ -203,8 +187,8 @@ def _handle_slash_command(raw: str, session: Session, config: RAGConfig) -> None
     except KeyboardInterrupt:
         console.print("\n[subtle]^C [Command cancelled][/subtle]")
     except Exception as exc:
-        log.exception("Slash command exception during execution of %s: %s", command_name, exc)
-        console.print(f"[error]✖ Command error:[/error] {exc}")
+        log.debug("Slash command exception during %s: %s", command_name, exc, exc_info=True)
+        console.print(f"[error]Could not run command:[/error] {humanize_error(exc)}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -214,33 +198,16 @@ def _handle_slash_command(raw: str, session: Session, config: RAGConfig) -> None
 def _handle_query(raw: str, session: Session, config: RAGConfig, pipeline: QueryPipeline | None = None) -> None:
     """
     Parse inline modifiers from the query string and run the RAG pipeline.
-
-    Inline modifier syntax (appended to the query):
-        /file FILENAME    — restrict retrieval to this file
-        /type TYPE        — restrict to document type (pdf, md, audio, image)
-        /pages MIN-MAX    — restrict to page range
-        /hyde             — enable HyDE query expansion (opt-in, adds ~2-5 s)
-        /no-sources       — suppress citations in output
-
-    Example:
-        What does section 3 say? /file thesis.pdf /pages 20-40
-        Explain attention mechanism /hyde
     """
-    # Parse inline modifiers
     query, modifiers = _parse_query_modifiers(raw)
 
     if not query.strip():
         return
 
-    # Check if pipeline is available (Phase 1+)
     try:
         from rag.pipeline import QueryPipeline
-    except ImportError:
-        console.print(
-            "[warning]Pipeline not yet implemented.[/warning] "
-            "Complete Phase 1 to enable query functionality.\n"
-            "Run [accent_bold]/ingest PATH[/accent_bold] once the pipeline is ready."
-        )
+    except ImportError as exc:
+        console.print(f"[error]Query service unavailable:[/error] {humanize_error(exc)}")
         return
 
     close_pipeline_on_finish = False
@@ -251,7 +218,7 @@ def _handle_query(raw: str, session: Session, config: RAGConfig, pipeline: Query
     try:
         history_context = session.get_history_for_context(
             token_budget=config.generation.context_max_tokens,
-            passage_tokens=0,   # pipeline will report actual passage tokens
+            passage_tokens=0,
         )
 
         answer = pipeline.answer(
@@ -260,17 +227,17 @@ def _handle_query(raw: str, session: Session, config: RAGConfig, pipeline: Query
             file_filter=modifiers.get("file"),
             type_filter=modifiers.get("type"),
             page_range=modifiers.get("pages"),
-            use_hyde=bool(modifiers.get("hyde", False)),   # opt-in HyDE
+            use_hyde=bool(modifiers.get("hyde", False)),
             show_sources=not modifiers.get("no-sources", False),
         )
         session.add_turn(query, answer.text)
+        console.print()  # Visual spacing between turn and next prompt
 
     except KeyboardInterrupt:
-        console.print()
-        console.print("[subtle]^C [Query cancelled][/subtle]")
+        console.print("\n[subtle]^C [Query cancelled][/subtle]")
     except Exception as exc:
         log.debug("Query error for input '%s': %s", raw, exc, exc_info=True)
-        console.print(f"[error]✖ Notice:[/error] {exc}")
+        console.print(f"[error]Could not answer query:[/error] {humanize_error(exc)}")
     finally:
         if close_pipeline_on_finish and hasattr(pipeline, "close"):
             pipeline.close()
@@ -278,16 +245,13 @@ def _handle_query(raw: str, session: Session, config: RAGConfig, pipeline: Query
 
 def _parse_query_modifiers(raw: str) -> tuple[str, dict]:
     """
-    Split inline /modifier flags from the end of a query string.
-
-    Returns:
-        (query_text, modifiers_dict)
-
-    Example:
-        "What is X? /file report.pdf /hyde"
-        → ("What is X?", {"file": "report.pdf", "hyde": True})
+    Split inline /modifier flags from the end of a query string using shlex.
     """
-    tokens = raw.strip().split()
+    try:
+        tokens = shlex.split(raw.strip(), posix=False)
+    except Exception:
+        tokens = raw.strip().split()
+
     query_tokens: list[str] = []
     modifiers: dict = {}
     i = 0
@@ -295,9 +259,9 @@ def _parse_query_modifiers(raw: str) -> tuple[str, dict]:
         token = tokens[i]
         if token.startswith("/") and token != "/":
             key = token.lstrip("/")
-            # Check if next token is a value (not another modifier or end)
             if i + 1 < len(tokens) and not tokens[i + 1].startswith("/"):
-                modifiers[key] = tokens[i + 1]
+                val = tokens[i + 1].strip("\"'")
+                modifiers[key] = val
                 i += 2
             else:
                 modifiers[key] = True
@@ -316,41 +280,33 @@ def _parse_query_modifiers(raw: str) -> tuple[str, dict]:
 def _interactive_mode(no_prewarm: bool = False) -> None:
     """Launch the interactive prompt_toolkit REPL."""
 
-    # Load config and session
     config = load_config()
     session = Session(config)
     session.load()
 
-    # Ensure db_root exists
     os.makedirs(str(config.db_root), exist_ok=True)
 
-    # Setup file logging
     import rag.logging_config
     rag.logging_config.setup(config)
 
-    # ── Startup Reconciliation Integrity Check (Phase 4) ────────────────────
     try:
         from rag.storage.reconciler import StorageReconciler
         StorageReconciler.reconcile_all(config)
     except Exception as exc:
-        log.warning("Storage reconciliation warning: %s", exc)
+        log.debug("Storage reconciliation notice: %s", exc)
 
-    # ── Pre-warm models (Phase 4) ─────────────────────────────────────────────
     if not no_prewarm:
         try:
             from rag.warmup import prewarm_models
             prewarm_models(config, console=console)
         except Exception as exc:
-            console.print(f"[warning]Pre-warm skipped:[/warning] {exc}")
+            log.debug("Pre-warm notice: %s", exc)
 
-    # Auto-calibrate threshold (will fast-path return if already done or index empty)
     from rag.retrieval.calibrate import calibrate_threshold
     calibrate_threshold(config, n_probes=10)
 
-    # Welcome screen
     _render_welcome(config, session)
 
-    # Smart Autocomplete
     def get_workspaces():
         ws_dir = config.db_root.parent
         if ws_dir.exists():
@@ -378,27 +334,27 @@ def _interactive_mode(no_prewarm: bool = False) -> None:
         "quit": None,
     })
 
-    # Key bindings: Ctrl+C at prompt exits gracefully
     bindings = KeyBindings()
 
     @bindings.add("c-c")
     def _ctrl_c(event):
         raise KeyboardInterrupt()
 
-    def get_bottom_toolbar():
-        workspace = config.db_root.name
-        backend = getattr(config.hardware, "backend", "cpu").upper()
-        mode_label = "GPU Accelerated" if backend != "CPU" else "CPU Mode"
-        llm_stem = Path(config.models.llm_path).stem
-        if "qwen" in llm_stem.lower():
-            model_label = "Qwen2.5 7B"
-        elif "llama" in llm_stem.lower():
-            model_label = "Llama 3.1 8B"
-        elif "mistral" in llm_stem.lower():
-            model_label = "Mistral 7B"
-        else:
-            model_label = llm_stem.split("-")[0]
+    # Pre-cache toolbar label strings outside toolbar render closure
+    workspace = config.db_root.name
+    backend = getattr(config.hardware, "backend", "cpu").upper()
+    mode_label = "GPU Accelerated" if backend != "CPU" else "CPU Mode"
+    llm_stem = Path(config.models.llm_path).stem
+    if "qwen" in llm_stem.lower():
+        model_label = "Qwen2.5 7B"
+    elif "llama" in llm_stem.lower():
+        model_label = "Llama 3.1 8B"
+    elif "mistral" in llm_stem.lower():
+        model_label = "Mistral 7B"
+    else:
+        model_label = llm_stem.split("-")[0]
 
+    def get_bottom_toolbar():
         return HTML(
             f' <style fg="#6b7280">Workspace:</style> <style fg="#FF2E93">{workspace}</style>  <style fg="#6b7280">|</style>  '
             f'<style fg="#6b7280">Model:</style> <style fg="#FF2E93">{model_label}</style>  <style fg="#6b7280">|</style>  '
@@ -421,25 +377,21 @@ def _interactive_mode(no_prewarm: bool = False) -> None:
         style=custom_style,
     )
 
-    # ── Persistent QueryPipeline (Phase 1 / CRIT-02) ─────────────────────────
     from rag.pipeline import QueryPipeline
     pipeline = QueryPipeline(config)
     current_workspace = config.storage.workspace
 
-    # ── REPL loop ─────────────────────────────────────────────────────────────
     try:
         while True:
             try:
                 raw = prompt_session.prompt(HTML('<b><style fg="#FF2E93">motif ❯</style></b> '))
             except KeyboardInterrupt:
-                # Ctrl+C at the prompt — save history and exit
-                console.print("\n[structure]Saving session…[/structure]")
                 session.save()
-                console.print("[structure]Goodbye.[/structure]")
+                console.print("\n[subtle]Goodbye.[/subtle]")
                 break
             except EOFError:
-                # Ctrl+D
                 session.save()
+                console.print("\n[subtle]Goodbye.[/subtle]")
                 break
 
             raw = raw.strip()
@@ -449,14 +401,13 @@ def _interactive_mode(no_prewarm: bool = False) -> None:
 
             if raw.lower() in ("exit", "quit"):
                 session.save()
-                console.print("[structure]Session saved. Goodbye.[/structure]")
+                console.print("[subtle]Goodbye.[/subtle]")
                 break
 
             if raw.startswith("/"):
                 _handle_slash_command(raw, session, config)
-                # Check if workspace was switched (UX-06)
                 if config.storage.workspace != current_workspace:
-                    log.info("Workspace changed from %s to %s — reloading QueryPipeline", current_workspace, config.storage.workspace)
+                    log.info("Workspace changed from %s to %s", current_workspace, config.storage.workspace)
                     if hasattr(pipeline, "close"):
                         pipeline.close()
                     pipeline = QueryPipeline(config)
@@ -474,11 +425,7 @@ def _interactive_mode(no_prewarm: bool = False) -> None:
 
 def _one_shot_mode(argv: list[str]) -> None:
     """
-    Handle one-shot subcommands for scripting:
-        motif ask "query"
-        motif ingest ./docs
-        motif setup [--tier T2]
-        motif status
+    Handle one-shot subcommands for scripting.
     """
     config = load_config()
     session = Session(config)
@@ -491,19 +438,24 @@ def _one_shot_mode(argv: list[str]) -> None:
             console.print("[error]Usage:[/error] motif ask \"your question\"")
             sys.exit(1)
         query = " ".join(args)
-        _handle_query(query, session, config)
+        from rag.pipeline import QueryPipeline
+        pipeline = QueryPipeline(config)
+        try:
+            _handle_query(query, session, config, pipeline=pipeline)
+        finally:
+            if hasattr(pipeline, "close"):
+                pipeline.close()
 
     elif subcommand in ("ingest", "remove", "sync", "status", "setup", "help", "--help", "-h"):
         if subcommand in ("--help", "-h"):
             subcommand = "help"
-        # Route to the corresponding slash command handler
         slash = f"/{subcommand}"
         _handle_slash_command(f"{slash} {' '.join(args)}", session, config)
 
     else:
         console.print(f"[error]Unknown subcommand:[/error] {subcommand}")
-        console.print("Run [accent_bold]motif[/accent_bold] (no arguments) to start the interactive session.")
-        console.print("Run [accent_bold]motif /help[/accent_bold] to see all commands.")
+        console.print("Run [accent_bold]motif[/accent_bold] (no arguments) to start interactive mode.")
+        console.print("Run [accent_bold]motif /help[/accent_bold] to view commands.")
         sys.exit(1)
 
 
@@ -514,28 +466,21 @@ def _one_shot_mode(argv: list[str]) -> None:
 def main() -> None:
     """
     Main entry point registered in pyproject.toml.
-
-    Flags:
-        --no-prewarm   Skip model pre-loading (first query will have cold-start latency).
-
-    If additional arguments are provided, run in one-shot mode.
-    Otherwise, launch the interactive REPL.
     """
     args = sys.argv[1:]
 
     if "--help" in args or "-h" in args:
         from rag import __version__
-        print(f"Motif v{__version__} — Local RAG AI Assistant")
-        print("\nUsage:")
-        print("  motif                     Start interactive REPL session")
-        print("  motif ask \"<query>\"       Run a single query and print the answer")
-        print("  motif ingest <path>       Ingest document files or directories")
-        print("  motif setup [--tier T1|T2|T3]  Download/verify model files")
-        print("  motif status              Display index and system status")
-        print("  motif sync [path]         Re-index updated files")
-        print("  motif remove <path>       Remove file from vector store")
-        print("  motif --version           Print Motif version")
-        print("  motif --help              Print this help overview")
+        console.print(f"\n[accent_bold]Motif[/accent_bold] [subtle]v{__version__}[/subtle] — Offline Local RAG AI Assistant\n")
+        console.print("[accent_bold]Usage:[/accent_bold]")
+        console.print("  [bold]motif[/bold]                     Start interactive REPL session")
+        console.print("  [bold]motif ask \"<query>\"[/bold]       Run a single query and print answer")
+        console.print("  [bold]motif ingest <path>[/bold]       Ingest files or directories")
+        console.print("  [bold]motif setup [--tier T2][/bold]    Verify/download AI models")
+        console.print("  [bold]motif status[/bold]              Display system & index status")
+        console.print("  [bold]motif sync [path][/bold]         Re-index updated files")
+        console.print("  [bold]motif remove <path>[/bold]       Remove file from vector store")
+        console.print("  [bold]motif --version[/bold]           Print version information\n")
         sys.exit(0)
 
     if sys.platform == "win32":
@@ -549,7 +494,7 @@ def main() -> None:
 
     if "--version" in args:
         from rag import __version__
-        print(f"Motif v{__version__}")
+        console.print(f"Motif v{__version__}")
         sys.exit(0)
 
     verbose = "--verbose" in args
@@ -558,11 +503,9 @@ def main() -> None:
         logging.getLogger().setLevel(logging.DEBUG)
     args = [a for a in args if a != "--verbose"]
 
-    # Handle --no-prewarm flag before routing
     no_prewarm = "--no-prewarm" in args
     args = [a for a in args if a != "--no-prewarm"]
 
-    # Handle --hyde flag for one-shot mode (appends /hyde modifier)
     use_hyde = "--hyde" in args
     args = [a for a in args if a != "--hyde"]
 

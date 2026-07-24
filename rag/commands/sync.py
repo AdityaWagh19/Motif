@@ -1,4 +1,4 @@
-"""rag/commands/sync.py — /sync command. (Phase 2 implementation pending)"""
+"""rag/commands/sync.py — /sync command."""
 from __future__ import annotations
 
 import argparse
@@ -13,8 +13,6 @@ def handle_sync(args, session, config, console) -> None:
       - New files are ingested.
       - Deleted files are removed from the index.
       - Changed files (content hash differs) are re-indexed.
-
-    Phase 0: stub — wired to rag.ingestion.sync_directory() in Phase 2.
     """
     parser = argparse.ArgumentParser(prog="/sync", add_help=False)
     parser.add_argument("directory", nargs="?")
@@ -33,7 +31,7 @@ def handle_sync(args, session, config, console) -> None:
         
         try:
             path_str = prompt(
-                HTML("<ansiblue>?</ansiblue> Enter directory to sync: "),
+                HTML("<style fg='#FF2E93'>?</style> Enter directory to sync: "),
                 completer=PathCompleter(expanduser=True, only_directories=True)
             ).strip()
         except (KeyboardInterrupt, EOFError):
@@ -57,7 +55,5 @@ def handle_sync(args, session, config, console) -> None:
         )
     except ImportError:
         console.print(
-            f"[warning]Sync not yet implemented[/warning] (Phase 2).\n"
-            f"Target: [structure]{target}[/structure]  "
-            f"Recursive: {'yes' if parsed.recursive else 'no'}"
+            f"[warning]Directory synchronization is not yet available in this build.[/warning]"
         )

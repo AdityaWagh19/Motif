@@ -44,7 +44,7 @@ def handle_ingest(args, session, config, console) -> None:
         
         try:
             path_str = prompt(
-                HTML("<ansiblue>?</ansiblue> Enter path to ingest: "),
+                HTML("<style fg='#FF2E93'>?</style> Path to ingest: "),
                 completer=PathCompleter(expanduser=True)
             ).strip()
         except (KeyboardInterrupt, EOFError):
@@ -61,7 +61,7 @@ def handle_ingest(args, session, config, console) -> None:
 
     from rag.ingestion import ingest_path
 
-    console.print(f"\n[accent_bold]Ingesting[/accent_bold] {target}  recursive={parsed.recursive}\n")
+    console.print(f"\n[accent_bold]Ingesting[/accent_bold] {target}  [dim](recursive={parsed.recursive})[/dim]\n")
 
     result = ingest_path(
         target,
@@ -70,11 +70,13 @@ def handle_ingest(args, session, config, console) -> None:
         console=console,
     )
 
+    file_label = f"{result.files_processed} file{'s' if result.files_processed != 1 else ''}"
+    passage_label = f"{result.chunks_added:,} passage{'s' if result.chunks_added != 1 else ''}"
     console.print(
-        f"\n[success]Done.[/success] "
-        f"Files: [accent_bold]{result.files_processed}[/accent_bold]  "
-        f"Chunks added: [accent_bold]{result.chunks_added:,}[/accent_bold]  "
-        f"Skipped (unchanged): [accent_bold]{result.files_skipped}[/accent_bold]"
+        f"\n[success]Done[/success]  ·  "
+        f"[bold]{file_label} indexed[/bold]  ·  "
+        f"[accent]{passage_label} added[/accent]  ·  "
+        f"[dim]{result.files_skipped} unchanged[/dim]"
     )
     if result.errors:
         console.print(f"[warning]Errors ({len(result.errors)}):[/warning]")

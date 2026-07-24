@@ -1,4 +1,4 @@
-"""rag/commands/remove.py — /remove command. (Phase 2 implementation pending)"""
+"""rag/commands/remove.py — /remove command."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -8,9 +8,9 @@ def handle_remove(args, session, config, console) -> None:
     """
     /remove PATH
 
-    Remove a document and all its indexed chunks from the knowledge base.
+    Remove a document and all its indexed data from the knowledge base.
     The document file itself is not deleted from disk.
-    Supports substring matching if the exact path isn't found.
+    Supports substring matching if the exact path isn't specified.
     """
     from rich import box
     from rich.table import Table
@@ -23,16 +23,16 @@ def handle_remove(args, session, config, console) -> None:
         tracker.close()
         
         if not docs:
-            console.print("[structure]No documents are currently indexed.[/structure]")
+            console.print("[subtle]No documents are currently indexed.[/subtle]")
             return
             
         table = Table(box=box.SIMPLE, show_header=True)
-        table.add_column("Indexed Document", style="cyan")
+        table.add_column("Indexed Document", style="bold")
         for doc in docs:
             table.add_row(doc["filepath"])
         
         console.print(table)
-        console.print("\n[structure]Usage: /remove <substring of path>[/structure]")
+        console.print("\n[subtle]Usage: /remove <filename or path>[/subtle]")
         return
 
     query = args[0]
@@ -60,10 +60,8 @@ def handle_remove(args, session, config, console) -> None:
 
     try:
         from rag.ingestion import remove_document
-        removed = remove_document(target_path, config=config)
-        console.print(f"[success]Removed[/success] {removed} chunks for [structure]{target_path.name}[/structure].")
-    except ImportError:
-        console.print(
-            f"[warning]Remove not yet implemented[/warning] (Phase 2).\n"
-            f"Target: [structure]{target_path}[/structure]"
-        )
+        remove_document(target_path, config=config)
+        console.print(f"[success]Removed[/success] [bold]{target_path.name}[/bold] from the knowledge base.")
+    except Exception as exc:
+        from rag.errors import humanize_error
+        console.print(f"[error]Could not remove document:[/error] {humanize_error(exc)}")

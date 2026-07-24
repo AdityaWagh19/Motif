@@ -2,12 +2,12 @@
 rag/theme.py — Centralized UI Theme for Motif
 
 Defines the semantic color palette and pre-configures a rich Console.
-Colors map to a modern, minimalist premium aesthetic using Motif Indigo.
+Colors map to a modern, minimalist premium aesthetic using Motif Pink (#FF2E93).
 """
 from rich.console import Console
 from rich.theme import Theme
 
-# Hex color definitions (Motif Monochrome/Cyan Palette)
+# Hex color definitions (Motif Primary Palette)
 MOTIF_PRIMARY = "#FF2E93"   # Neon Pink
 SUCCESS_GREEN = "#22c55e"   # Green
 STRUCTURAL_GRAY = "#6b7280"
@@ -18,16 +18,17 @@ ERROR_RED = "#ef4444"
 motif_theme = Theme({
     "accent": MOTIF_PRIMARY,
     "accent_bold": f"bold {MOTIF_PRIMARY}",
-    "brand_gold": f"bold {MOTIF_PRIMARY}",
-    "brand_cyan": f"bold {MOTIF_PRIMARY}",
     "brand_green": f"bold {SUCCESS_GREEN}",
     "structure": STRUCTURAL_GRAY,
+    "subtle": STRUCTURAL_GRAY,
     "success": SUCCESS_GREEN,
     "warning": WARNING_YELLOW,
     "error": ERROR_RED,
     "muted": "dim default",
-    "subtle": STRUCTURAL_GRAY,
-    "excerpt": f"dim {STRUCTURAL_GRAY}",
+    "muted_italic": "dim italic default",
+    "separator": f"dim {STRUCTURAL_GRAY}",
+    "citation": "dim default",
+    "excerpt": f"dim italic {STRUCTURAL_GRAY}",
 
     # Markdown specific overrides to remove rainbow colors
     "markdown.code": "default on #2a2a2a",

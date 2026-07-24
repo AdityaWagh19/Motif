@@ -138,8 +138,14 @@ class QueryPipeline:
         from rag.intent import Intent
         intent = self._intent_classifier.classify(query)
         if intent == Intent.GREETING_FAST:
+            import random
+            greetings = [
+                "Hello! How can I help you with your documents today?",
+                "Hi there! Ask me anything about your files.",
+                "Greetings! Ready to search your workspace."
+            ]
             result = AnswerResult(
-                text="Hello! Ask me anything about your documents.",
+                text=random.choice(greetings),
                 citations=[],
                 passages_used=0,
                 latency_ms=(time.monotonic() - t_start) * 1000,
@@ -183,47 +189,50 @@ class QueryPipeline:
                 t_start
             )
 
-        # ── 1. Rewrite query ─────────────────────────────────────────────────────────
-        try:
-            llm = get_model_manager().get_llm(cfg)
-            from rag.generation.query_rewriter import rewrite_query
-            search_query = rewrite_query(query, llm)
-        except Exception as exc:
-            log.warning("LLM not available for query rewrite (%s).", exc)
-            search_query = query
+        # ── 1. Rewrite & Retrieve under spinner (instant visual feedback) ──────
+        import random
+        thinking_phrases = [
+            "Thinking...",
+            "Reading documents...",
+            "Searching knowledge base...",
+            "Analyzing prompt...",
+        ]
+        phrase = random.choice(thinking_phrases)
 
-        # ── 1b. Expand query → embedding ──────────────────────────────────────────────
-        query_vector, effective_query = self._expander.expand(search_query, cfg, embedder)
-
-        # ── 2. Retrieve ────────────────────────────────────────────────────────
         t_retrieval_start = time.monotonic()
         top_k_retrieval: int = cfg.retrieval.top_k_retrieval
         filter_dict = self._build_filter(file_filter, type_filter, page_range)
 
-        dense_results = self._vector_store.search_dense(
-            query_vector,
-            top_k=top_k_retrieval,
-            filter_=filter_dict if filter_dict else None,
-        )
-        bm25_results = self._bm25.search(effective_query, top_k=top_k_retrieval)
+        with console.status(f"[accent]{phrase}[/accent]", spinner="dots"):
+            # Query rewrite
+            try:
+                llm = get_model_manager().get_llm(cfg)
+                from rag.generation.query_rewriter import rewrite_query
+                search_query = rewrite_query(query, llm)
+            except Exception as exc:
+                log.debug("LLM not available for query rewrite (%s).", exc)
+                search_query = query
 
-        log.debug(
-            "Retrieval: %d dense, %d BM25 candidates",
-            len(dense_results),
-            len(bm25_results),
-        )
+            # Expand & retrieve
+            query_vector, effective_query = self._expander.expand(search_query, cfg, embedder)
+            dense_results = self._vector_store.search_dense(
+                query_vector,
+                top_k=top_k_retrieval,
+                filter_=filter_dict if filter_dict else None,
+            )
+            bm25_results = self._bm25.search(effective_query, top_k=top_k_retrieval)
 
-        # ── 3. RRF fusion ──────────────────────────────────────────────────────
-        fused = rrf_fuse([dense_results, bm25_results], top_k=top_k_retrieval)
-        candidates = rrf_to_scored_passages(fused, self._chunk_store)
+            # RRF fusion
+            fused = rrf_fuse([dense_results, bm25_results], top_k=top_k_retrieval)
+            candidates = rrf_to_scored_passages(fused, self._chunk_store)
 
         t_retrieval_ms = (time.monotonic() - t_retrieval_start) * 1000
 
         if not candidates:
-            from rag.generation.prompts import CHITCHAT_PROMPT
+            from rag.generation.prompts import FALLBACK_PROMPT_NO_DOCS
             return self._handle_llm_direct(
                 query, 
-                CHITCHAT_PROMPT, 
+                FALLBACK_PROMPT_NO_DOCS, 
                 cfg, 
                 console, 
                 t_start, 
@@ -253,22 +262,16 @@ class QueryPipeline:
                 threshold=threshold,
             )
         except FileNotFoundError as exc:
-            # Reranker model not downloaded — fall back to RRF scores
-            log.warning("Reranker not available (%s) — using RRF scores.", exc)
-            console.print(
-                "[warning]Reranker model not found.[/warning] "
-                "Falling back to retrieval scores.\n"
-                "Run [bold]motif setup[/bold] to download the reranker."
-            )
-            # Use top candidates from RRF directly
+            # Reranker model not downloaded — fall back silently to RRF scores
+            log.info("Reranker model not installed (%s) — using RRF scores.", exc)
             reranked = candidates[:top_k_rerank]
 
         if not reranked:
-            log.debug("No passages met the absolute relevance floor. Routing to fallback prompt.")
-            from rag.generation.prompts import CHITCHAT_PROMPT
+            log.debug("No passages met the relevance floor. Routing to fallback prompt.")
+            from rag.generation.prompts import FALLBACK_PROMPT_NO_DOCS
             return self._handle_llm_direct(
                 query, 
-                CHITCHAT_PROMPT, 
+                FALLBACK_PROMPT_NO_DOCS, 
                 cfg, 
                 console, 
                 t_start, 
@@ -406,9 +409,9 @@ class QueryPipeline:
 
         if show_sources and citations:
             console.print()
-            console.print("[structure]Sources:[/structure]")
+            console.rule("[dim]Sources[/dim]", align="left", style="dim")
             for c in citations:
-                console.print(f"  [structure]{c.format()}[/structure]")
+                console.print(f"  [citation]{c.format()}[/citation]")
 
         t_total_ms = (time.monotonic() - t_start) * 1000
 
@@ -457,21 +460,7 @@ class QueryPipeline:
         console.print()
         full_answer = ""
         
-        from rich.live import Live
-        from rich.markdown import Markdown
-        
         try:
-            import random
-            thinking_phrases = [
-                "Thinking...", "Analyzing...", "Understanding...", "Decoding...",
-                "Processing...", "Synthesizing...", "Evaluating...", "Investigating...",
-                "Computing...", "Reasoning...", "Pondering...", "Scanning...",
-                "Formulating...", "Correlating...", "Inferring...", "Exploring...",
-                "Reviewing...", "Interpreting...", "Comprehending...", "Extrapolating...",
-                "Parsing...", "Structuring...", "Resolving...", "Assembling...", "Distilling..."
-            ]
-            phrase = random.choice(thinking_phrases)
-
             stream_gen = llm.stream(prompt, max_tokens=cfg.llm.max_tokens, temperature=cfg.llm.temperature)
 
             first_token_data = None

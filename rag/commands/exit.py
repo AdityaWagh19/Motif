@@ -9,5 +9,5 @@ def handle_exit(args, session, config, console) -> None:
     /exit or /quit — Save session and exit the application.
     """
     session.save()
-    console.print("[structure]Session saved. Goodbye.[/structure]")
+    console.print("[subtle]Goodbye.[/subtle]")
     sys.exit(0)

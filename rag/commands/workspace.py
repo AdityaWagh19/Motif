@@ -26,19 +26,22 @@ def handle_workspace(args, session, config, console) -> None:
 
     if subcmd == "list":
         if not base_dir.exists():
-            console.print("No workspaces found.")
+            console.print("[subtle]No workspaces found.[/subtle]")
             return
             
         workspaces = sorted([d.name for d in base_dir.iterdir() if d.is_dir() and d.name != "models"])
         
         table = Table(box=box.SIMPLE, show_header=True)
-        table.add_column("Workspace", style="cyan")
-        table.add_column("Active", style="green")
+        table.add_column("Workspace", style="bold")
+        table.add_column("Active", style="success", justify="center")
         
         for w in workspaces:
-            active = "*" if w == config.storage.workspace else ""
-            table.add_row(w, active)
+            is_active = (w == config.storage.workspace)
+            name_str = f"[accent_bold]{w}[/accent_bold]" if is_active else w
+            active_str = "✓" if is_active else ""
+            table.add_row(name_str, active_str)
             
+        console.print()
         console.print(table)
         
     elif subcmd == "new":
@@ -83,16 +86,16 @@ def handle_workspace(args, session, config, console) -> None:
         session.load()
         session.flush_cache()
 
-        chunk_count, doc_count = 0, 0
+        doc_count = 0
         try:
             from rag.storage.chunk_store import ChunkStore
             with ChunkStore(config) as store:
-                chunk_count = store.count()
                 doc_count = store.count_documents()
         except Exception:
             pass
 
-        console.print(f"[success]✓ Switched to workspace '{name}' ({doc_count} docs, {chunk_count:,} chunks).[/success]")
+        doc_label = f"{doc_count} document{'s' if doc_count != 1 else ''}"
+        console.print(f"[success]Switched to '{name}'[/success]  ·  [dim]{doc_label}[/dim]")
         
     elif subcmd == "delete":
         if len(args) < 2:
@@ -101,7 +104,7 @@ def handle_workspace(args, session, config, console) -> None:
         name = args[1]
         
         if name == config.storage.workspace:
-            console.print("[error]Cannot delete active workspace.[/error] Switch first.")
+            console.print("[error]Cannot delete active workspace.[/error] Switch to another workspace first.")
             return
             
         if name == "default":
@@ -116,19 +119,20 @@ def handle_workspace(args, session, config, console) -> None:
         from prompt_toolkit import prompt
         from prompt_toolkit.formatted_text import HTML
         try:
-            confirm = prompt(HTML(f"<ansired>?</ansired> Are you sure you want to delete workspace '<b>{name}</b>' and all its data? [y/N]: ")).strip().lower()
+            confirm = prompt(HTML(f"<style fg='#FF2E93'>?</style> Are you sure you want to delete workspace '<b>{name}</b>'? [y/N]: ")).strip().lower()
         except (KeyboardInterrupt, EOFError):
             return
 
         if confirm not in ("y", "yes"):
-            console.print("[structure]Deletion cancelled.[/structure]")
+            console.print("[subtle]Deletion cancelled.[/subtle]")
             return
 
         try:
             shutil.rmtree(target)
             console.print(f"[success]Deleted workspace '{name}'.[/success]")
         except Exception as exc:
-            console.print(f"[error]Failed to delete workspace '{name}':[/error] {exc}")
+            from rag.errors import humanize_error
+            console.print(f"[error]Could not delete workspace '{name}':[/error] {humanize_error(exc)}")
         
     else:
         console.print(f"[error]Unknown subcommand: {subcmd}[/error]")

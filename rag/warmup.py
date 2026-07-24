@@ -2,14 +2,8 @@
 rag/warmup.py — Pre-load all models at startup with progress reporting.
 
 Called once from cli.py before the REPL begins.
-Converts the 50 s first-query cold-start penalty into a transparent
+Converts the first-query cold-start penalty into a transparent
 startup phase with a Rich spinner progress bar.
-
-Usage:
-    from rag.warmup import prewarm_models
-    prewarm_models(config, console=console)
-
-Returns a dict of {model_name: load_time_ms} for logging.
 """
 from __future__ import annotations
 
@@ -34,10 +28,6 @@ def prewarm_models(config: RAGConfig, console: Console | None = None) -> dict:
       2. Reranker (MiniLM-L12-v2 / bge-reranker-base ONNX) — used after retrieval
       3. LLM (Phi-3.5-mini or Qwen2.5-7B GGUF) — used for generation
 
-    On T1, the embedder is unloaded after ingestion to free RAM.
-    This pre-warm does NOT change that behaviour — it just makes the
-    initial load visible to the user rather than silent.
-
     Args:
         config:  Loaded RAGConfig with resolved_tier set.
         console: Rich Console for spinner output. None → silent.
@@ -45,14 +35,12 @@ def prewarm_models(config: RAGConfig, console: Console | None = None) -> dict:
     Returns:
         Dict of {model_name: load_time_ms}.
     """
-    from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
-
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+    from rag.errors import humanize_error
     from rag.models.model_manager import get_model_manager
 
     manager = get_model_manager()
     timings: dict = {}
-
-    llm_filename = config.models.llm_path.split("/")[-1]
 
     steps = [
         ("embedder", "Loading search engine...", lambda: manager.get_embedder(config)),
@@ -83,21 +71,16 @@ def prewarm_models(config: RAGConfig, console: Console | None = None) -> dict:
             except Exception as exc:
                 elapsed_ms = round((time.monotonic() - t0) * 1000)
                 timings[name] = elapsed_ms
-                warnings.append(f"{name.capitalize()} load notice: {exc}")
-                log.error("Pre-warm error for %s: %s", name, exc)
+                warnings.append(f"{name.capitalize()} load notice: {humanize_error(exc)}")
+                log.error("Pre-warm error for %s: %s", name, exc, exc_info=True)
             finally:
                 progress.stop_task(task)
 
     total_ms = sum(timings.values())
     log.info("Pre-warm complete in %d ms: %s", total_ms, timings)
 
-    if console:
-        if warnings:
-            for w in warnings:
-                console.print(f"  [warning]•[/warning] {w}")
-        else:
-            console.print("[success]✓ AI engine initialized and ready.[/success]")
-
-    return timings
+    if console and warnings:
+        for w in warnings:
+            console.print(f"  [warning]•[/warning] {w}")
 
     return timings

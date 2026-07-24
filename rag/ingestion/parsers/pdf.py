@@ -12,8 +12,10 @@ Dependency graph position:
 """
 from __future__ import annotations
 
+import io
 import logging
 import re
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -25,28 +27,18 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 # Heading detection: lines that look like section titles.
-# Criteria: line ≤ 80 chars, no trailing sentence punctuation, 2–10 words.
 _MIN_HEADING_LEN = 5
 _MAX_HEADING_LEN = 80
 _MIN_HEADING_WORDS = 2
 _MAX_HEADING_WORDS = 10
 _TRAILING_PUNCT = (".", ",", ":", ";", "!", "?")
 
-# All-caps numbered section pattern: "1. INTRODUCTION" or "1.2 Methods"
 _NUMBERED_HEADING_RE = re.compile(r"^\d+(\.\d+)*\s+[A-Z]")
 
 
 def _detect_section(text: str) -> str | None:
     """
     Heuristic section title detection for PDF pages.
-
-    Scans lines from the top of the page text. Returns the first line that
-    looks like a section heading:
-      - Length between 5 and 80 characters
-      - Does NOT end in sentence-terminating punctuation
-      - Between 2 and 10 words
-
-    Returns None if no heading-like line is found.
     """
     for line in text.splitlines():
         line = line.strip()
@@ -63,10 +55,6 @@ def _detect_section(text: str) -> str | None:
 class PDFParser(BaseParser):
     """
     PyMuPDF-based parser for PDF files.
-
-    Produces one ParsedPage per text-bearing PDF page. Scanned pages (empty
-    text layer) are skipped — they will be processed by the OCR pipeline in
-    Phase 5.
     """
 
     SUPPORTED_EXTENSIONS = [".pdf"]
@@ -78,17 +66,6 @@ class PDFParser(BaseParser):
     def parse(self, path: Path) -> list[ParsedPage]:
         """
         Parse a PDF and return one ParsedPage per non-empty page.
-
-        Args:
-            path: Path to the .pdf file.
-
-        Returns:
-            List of ParsedPage objects, one per page with extractable text.
-            Empty (scanned) pages are omitted.
-
-        Raises:
-            FileNotFoundError: If path does not exist.
-            RuntimeError:      If fitz cannot open or parse the file.
         """
         if not path.exists():
             raise FileNotFoundError(f"PDF not found: {path}")
@@ -107,12 +84,16 @@ class PDFParser(BaseParser):
         except Exception as exc:
             raise RuntimeError(f"Failed to open PDF {path}: {exc}") from exc
 
+        old_stdout = sys.stdout
+        old_stderr = sys.stderr
+        sys.stdout = io.StringIO()
+        sys.stderr = io.StringIO()
+
         try:
             for page_num, page in enumerate(doc, start=1):  # type: ignore[call-overload]
                 text: str = page.get_text("text").strip()  # type: ignore[union-attr]
 
                 if not text:
-                    # Scanned page — no text layer. Phase 5 OCR fallback.
                     if self._config and self._config.resolved_tier in ("T2", "T3"):
                         ocr_text = self._ocr_page(page, path)
                         if ocr_text:
@@ -131,7 +112,6 @@ class PDFParser(BaseParser):
                         )
                         continue
 
-                # Detect structural metadata
                 try:
                     has_table = len(page.find_tables().tables) > 0  # type: ignore[union-attr]
                 except Exception:
@@ -153,7 +133,12 @@ class PDFParser(BaseParser):
                     )
                 )
         finally:
-            doc.close()  # type: ignore[union-attr]
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
+            try:
+                doc.close()  # type: ignore[union-attr]
+            except Exception:
+                pass
 
         if not pages:
             log.warning(
@@ -171,22 +156,17 @@ class PDFParser(BaseParser):
 
         import fitz  # type: ignore[import]
         
-        mat = fitz.Matrix(2.0, 2.0)  # 2x resolution for better OCR
+        mat = fitz.Matrix(2.0, 2.0)
         pix = fitz_page.get_pixmap(matrix=mat)
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-            pix.save(tmp.name)
             tmp_path = tmp.name
-            
+            pix.save(tmp_path)
+
         try:
-            from rag.ingestion.parsers.ocr_engine import get_ocr
-            ocr = get_ocr()
-                
-            result = ocr.ocr(tmp_path, cls=True)
-            if not result or not result[0]:
-                return ""
-            return " ".join(line[1][0] for line in result[0] if line[1][1] >= 0.6)
-        except Exception as e:
-            log.warning("OCR failed on page: %s", e)
-            return ""
+            if self._ocr is None:
+                from rag.ingestion.parsers.ocr import OCRPipeline
+                self._ocr = OCRPipeline(self._config)
+            return self._ocr.process_image(Path(tmp_path))
         finally:
-            os.unlink(tmp_path)
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
