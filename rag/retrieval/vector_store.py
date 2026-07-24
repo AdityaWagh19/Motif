@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 COLLECTION_NAME_SUFFIX: str = "motif_chunks"
-VECTOR_SIZE: int = 768
+VECTOR_SIZE: int = 256  # Truncated from 768 using Matryoshka representation
 
 
 _client_registry: dict[str, tuple[Any, int]] = {}
@@ -152,11 +152,13 @@ class VectorStore:
         """Insert or update a single vector with its metadata payload."""
         from qdrant_client.models import PointStruct  # type: ignore[import]
 
+        vector = vector[:VECTOR_SIZE]
+
         self._client.upsert(
             collection_name=self._collection_name,
             points=[
                 PointStruct(
-                    id=_str_to_uuid_int(chunk_id),
+                    id=chunk_id,
                     vector=vector.tolist(),
                     payload={**payload, "chunk_id": chunk_id},
                 )
@@ -182,6 +184,8 @@ class VectorStore:
         if not chunk_ids:
             return
 
+        vectors = vectors[:, :VECTOR_SIZE]
+
         BATCH_SIZE = 100
         for i in range(0, len(chunk_ids), BATCH_SIZE):
             batch_ids = chunk_ids[i:i + BATCH_SIZE]
@@ -190,7 +194,7 @@ class VectorStore:
 
             points = [
                 PointStruct(
-                    id=_str_to_uuid_int(cid),
+                    id=cid,
                     vector=vec.tolist(),
                     payload={**payload, "chunk_id": cid},
                 )
@@ -265,6 +269,8 @@ class VectorStore:
         """
         qdrant_filter = _build_filter(filter_) if filter_ else None
         
+        query_vector = query_vector[:VECTOR_SIZE]
+        
         limit = top_k if top_k is not None else 20
 
         if hasattr(self._client, "query_points"):
@@ -295,14 +301,6 @@ class VectorStore:
 # Private helpers
 # ---------------------------------------------------------------------------
 
-def _str_to_uuid_int(s: str) -> int:
-    """
-    Convert a UUID string to an integer for use as a Qdrant point ID.
-
-    Qdrant point IDs must be either unsigned 64-bit integers or UUID strings.
-    We use the integer representation for consistency.
-    """
-    return _uuid_module.UUID(s).int
 
 
 def _build_filter(filter_dict: dict) -> object | None:

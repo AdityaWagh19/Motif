@@ -216,6 +216,8 @@ class LLMClient:
             messages=messages,
             max_tokens=max_tokens,
             temperature=temperature,
+            top_p=0.9,
+            repeat_penalty=1.1,
             stop=stop_seqs,
             stream=True,
             logprobs=True if return_logprobs else None,
@@ -264,3 +266,48 @@ class LLMClient:
             Full response string.
         """
         return "".join(self.stream(prompt, max_tokens, temperature, stop, return_logprobs=False))
+
+    async def generate_async(
+        self,
+        prompt: str,
+        max_tokens: int,
+        temperature: float = 0.1,
+        stop: list[str] | None = None,
+    ) -> str:
+        import asyncio
+        return await asyncio.to_thread(self.generate, prompt, max_tokens, temperature, stop)
+
+    async def stream_async(
+        self,
+        prompt: str,
+        max_tokens: int,
+        temperature: float = 0.1,
+        stop: list[str] | None = None,
+        return_logprobs: bool = False,
+    ):
+        import asyncio
+        import threading
+
+        loop = asyncio.get_running_loop()
+        queue = asyncio.Queue(maxsize=20)
+
+        def _sync_worker():
+            try:
+                for item in self.stream(prompt, max_tokens, temperature, stop, return_logprobs):
+                    asyncio.run_coroutine_threadsafe(queue.put(("item", item)), loop).result()
+            except Exception as e:
+                asyncio.run_coroutine_threadsafe(queue.put(("error", e)), loop).result()
+            finally:
+                asyncio.run_coroutine_threadsafe(queue.put(("done", None)), loop).result()
+
+        thread = threading.Thread(target=_sync_worker, daemon=True)
+        thread.start()
+
+        while True:
+            msg_type, payload = await queue.get()
+            if msg_type == "done":
+                break
+            elif msg_type == "error":
+                raise payload
+            else:
+                yield payload

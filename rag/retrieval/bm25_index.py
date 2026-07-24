@@ -118,8 +118,26 @@ class BM25Index:
 
     @staticmethod
     def _tokenize(text: str) -> list[str]:
-        """Tokenise text: lowercase, whitespace split. Consistent with query tokenization."""
-        return text.lower().split()
+        """Tokenise text: lowercase, whitespace split, strip punctuation, and apply lightweight stemming."""
+        tokens = text.lower().split()
+        stemmed = []
+        for t in tokens:
+            t = t.strip(".,;:!?\"'()[]{}")
+            if not t:
+                continue
+            if len(t) > 4:
+                if t.endswith("ing"):
+                    t = t[:-3]
+                elif t.endswith("ly"):
+                    t = t[:-2]
+                elif t.endswith("es"):
+                    t = t[:-2]
+                elif t.endswith("s") and not t.endswith("ss"):
+                    t = t[:-1]
+                elif t.endswith("ed"):
+                    t = t[:-2]
+            stemmed.append(t)
+        return stemmed
 
     # ------------------------------------------------------------------
     # Persistence
@@ -137,6 +155,7 @@ class BM25Index:
         if not self._dirty:
             return
 
+        self._rebuild_bm25()
         self._index_path.parent.mkdir(parents=True, exist_ok=True)
         data = {
             "corpus_tokens": self._corpus_tokens,
@@ -179,7 +198,6 @@ class BM25Index:
         self._corpus_tokens.append(tokens)
         self._chunk_ids.append(chunk.id)
         self._dirty = True
-        self._rebuild_bm25()
 
     def add_batch(self, chunks: list[Chunk], save: bool = True) -> None:
         """
@@ -210,7 +228,6 @@ class BM25Index:
             self._chunk_ids.append(chunk.id)
 
         self._dirty = True
-        self._rebuild_bm25()
         if save:
             self.save()
 
@@ -229,8 +246,6 @@ class BM25Index:
         del self._corpus_tokens[idx]
         del self._chunk_ids[idx]
         self._dirty = True
-        if _rebuild:
-            self._rebuild_bm25()
         return True
 
     def delete_by_source(self, source: str, chunk_ids: list[str]) -> int:
@@ -258,7 +273,6 @@ class BM25Index:
         removed = original_count - len(self._chunk_ids)
         if removed > 0:
             self._dirty = True
-            self._rebuild_bm25()
             log.debug(
                 "BM25Index.delete_by_source source=%s removed=%d", source, removed
             )
@@ -361,6 +375,10 @@ class BM25Index:
 
     def _search_rank_bm25(self, query: str, top_k: int = 20) -> list[tuple[str, float]]:
         """rank_bm25 backend search implementation."""
+        if self._dirty:
+            self._rebuild_bm25()
+            self._dirty = False
+
         if self._bm25 is None or not self._chunk_ids:
             return []
 

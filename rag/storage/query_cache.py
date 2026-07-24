@@ -41,19 +41,6 @@ _DEFAULT_MAX_ENTRIES = 500
 # DB filename within db_root.
 _CACHE_DB_NAME = "query_cache.sqlite"
 
-_CREATE_TABLE = """
-CREATE TABLE IF NOT EXISTS query_cache (
-    cache_key   TEXT PRIMARY KEY,
-    query_text  TEXT NOT NULL,
-    answer_text TEXT NOT NULL,
-    citations   TEXT NOT NULL,   -- JSON array of citation dicts
-    passages_used INTEGER NOT NULL,
-    latency_ms  REAL,
-    accessed_at REAL NOT NULL,   -- Unix timestamp of last access (for LRU)
-    created_at  REAL NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_qc_accessed ON query_cache (accessed_at);
-"""
 
 
 def _make_key(
@@ -140,16 +127,6 @@ class QueryCache:
         from rag.storage.db_manager import DatabaseManager
         if self._conn is None:
             self._conn = DatabaseManager.get_connection(self._config)
-            self._conn.executescript(_CREATE_TABLE)
-            # Schema migration guard for older tables without corpus_version/file_filter
-            try:
-                self._conn.execute("ALTER TABLE query_cache ADD COLUMN corpus_version TEXT DEFAULT ''")
-            except sqlite3.OperationalError:
-                pass
-            try:
-                self._conn.execute("ALTER TABLE query_cache ADD COLUMN file_filter TEXT DEFAULT ''")
-            except sqlite3.OperationalError:
-                pass
         return self._conn
 
     def get(
@@ -167,7 +144,7 @@ class QueryCache:
         conn = self._connect()
         try:
             row = conn.execute(
-                "SELECT cache_key, query_text, answer_text, citations, passages_used, latency_ms, accessed_at, created_at, corpus_version FROM query_cache WHERE cache_key = ?",
+                "SELECT cache_key, query_text, answer_text, citations, passages_used, latency_ms, accessed_at, created_at, corpus_version, used_sources FROM query_cache WHERE cache_key = ?",
                 (key,),
             ).fetchone()
         except sqlite3.OperationalError:
@@ -179,15 +156,7 @@ class QueryCache:
         if row is None:
             return None
 
-        # Check corpus version freshness
-        current_version = DatabaseManager.get_corpus_version(self._config)
-        cached_version = row[8] if len(row) > 8 else ""
 
-        if cached_version != current_version:
-            log.debug("Cache EXPIRED for query (corpus_version mismatch): %.60s", query)
-            conn.execute("DELETE FROM query_cache WHERE cache_key = ?", (key,))
-            conn.commit()
-            return None
 
         # Update accessed_at for LRU ordering
         conn.execute(
@@ -216,26 +185,28 @@ class QueryCache:
         row = _result_to_row(key, query, result)
         conn = self._connect()
 
+        used_sources = "|" + "|".join(sorted(set(c.filepath for c in result.citations if c.filepath))) + "|"
+
         conn.execute(
             """
             INSERT OR REPLACE INTO query_cache
             (cache_key, query_text, answer_text, citations, passages_used,
-             latency_ms, accessed_at, created_at, corpus_version, file_filter)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             latency_ms, accessed_at, created_at, corpus_version, file_filter, used_sources)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], current_version, file_filter or ""),
+            (row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], current_version, file_filter or "", used_sources),
         )
         conn.commit()
         self._evict_if_needed()
 
     def invalidate_file(self, file_path_str: str) -> int:
         """
-        O(1) indexed targeted invalidation for queries matching file_filter.
+        O(1) indexed targeted invalidation for queries matching file_filter or used_sources.
         """
         if not self._enabled:
             return 0
         conn = self._connect()
-        cur = conn.execute("DELETE FROM query_cache WHERE file_filter = ?", (file_path_str,))
+        cur = conn.execute("DELETE FROM query_cache WHERE file_filter = ? OR used_sources LIKE ?", (file_path_str, f"%|{file_path_str}|%"))
         conn.commit()
         log.debug("QueryCache: invalidated %d entries for file %s", cur.rowcount, file_path_str)
         return cur.rowcount

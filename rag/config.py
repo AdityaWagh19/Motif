@@ -485,14 +485,14 @@ _TIER_DEFAULTS: dict[str, dict] = {
         "models": {"llm_path": "models/Phi-3.5-mini-instruct-Q4_K_M.gguf", "reranker": "models/MiniLM-L12-v2"},
     },
     "T2": {
-        "llm": {"n_gpu_layers": 20, "ctx_size": 3072, "max_tokens": 150, "threads": 6},
+        "llm": {"n_gpu_layers": 20, "ctx_size": 3072, "max_tokens": 300, "threads": 6},
         "retrieval": {"top_k_retrieval": 25, "top_k_rerank": 5, "query_expansion": "none"},
         "chunking": {"use_semantic": True},
         "generation": {"context_max_tokens": 2048},
         "models": {"llm_path": "models/Qwen2.5-7B-Instruct-Q4_K_M.gguf", "reranker": "models/MiniLM-L12-v2"},
     },
     "T3": {
-        "llm": {"n_gpu_layers": 28, "ctx_size": 4096, "max_tokens": 150, "threads": 8},
+        "llm": {"n_gpu_layers": 28, "ctx_size": 4096, "max_tokens": 300, "threads": 8},
         "retrieval": {"top_k_retrieval": 30, "top_k_rerank": 5, "query_expansion": "none"},
         "chunking": {"use_semantic": True},
         "generation": {"context_max_tokens": 3072},

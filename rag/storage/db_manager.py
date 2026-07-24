@@ -83,7 +83,8 @@ CREATE TABLE IF NOT EXISTS query_cache (
     passages_used  INTEGER NOT NULL,
     latency_ms     REAL,
     accessed_at    REAL NOT NULL,
-    created_at     REAL NOT NULL
+    created_at     REAL NOT NULL,
+    used_sources   TEXT DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_qc_accessed ON query_cache(accessed_at);

@@ -60,6 +60,8 @@ _SUPPORTED_EXTENSIONS = frozenset([
     ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff",
     # Audio (transcription via Whisper)
     ".mp3", ".wav", ".m4a", ".flac", ".ogg",
+    # Data & Web
+    ".csv", ".tsv", ".html", ".htm",
 ])
 
 # Source-type string derived from file extension.
@@ -83,6 +85,11 @@ _EXT_TO_SOURCE_TYPE: dict = {
     ".m4a":      "audio",
     ".flac":     "audio",
     ".ogg":      "audio",
+    # Data & Web
+    ".csv":      "csv",
+    ".tsv":      "csv",
+    ".html":     "html",
+    ".htm":      "html",
 }
 
 

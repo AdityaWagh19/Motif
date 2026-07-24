@@ -67,8 +67,8 @@ class SentenceChunker:
     """
 
     def __init__(self, config: ChunkerConfig = ChunkerConfig()) -> None:
-        self._target_chars: int = int(config.target_tokens * 4)  # rough char approx
-        self._overlap_chars: int = int(config.overlap_tokens * 4)
+        self._target_chars: int = config.target_tokens * 4  # rough char approx
+        self._overlap_chars: int = config.overlap_tokens * 4
 
     # ------------------------------------------------------------------
     # Public API
@@ -112,10 +112,20 @@ class SentenceChunker:
         )
 
         chunks: list[Chunk] = []
+        search_start = 0
 
         for doc in md_docs:
             sub_chunks = text_splitter.split_text(doc.page_content)
             for sub_text in sub_chunks:
+                # Find character offsets in the original page text
+                char_start = text.find(sub_text, search_start)
+                if char_start == -1:
+                    char_start = search_start
+                char_end = char_start + len(sub_text)
+                
+                # Advance search_start, accounting for overlap
+                search_start = max(0, char_start + len(sub_text) - self._overlap_chars - 50)
+
                 # Reconstruct metadata (Header path)
                 header_path = " > ".join(v for k, v in doc.metadata.items() if k.startswith("Header"))
                 section_val = header_path if header_path else page.section
@@ -125,12 +135,15 @@ class SentenceChunker:
                 if header_path:
                     chunk_text = f"Document: {filename}. Path: {header_path}.\n{sub_text}"
 
+                import hashlib
                 chunks.append(Chunk(
                     id=str(uuid.uuid4()),
                     text=chunk_text,
                     source=source,
                     filename=filename,
                     source_type=source_type,
+                    char_start=char_start,
+                    char_end=char_end,
                     page=page.page,
                     section=section_val,
                     has_table=page.has_table,
@@ -139,6 +152,7 @@ class SentenceChunker:
                     start_time=page.start_time,
                     end_time=page.end_time,
                     token_count=len(chunk_text.split()),  # word-count approx
+                    content_hash=hashlib.sha256(chunk_text.encode("utf-8")).hexdigest(),
                     indexed_at=datetime.now(UTC).isoformat(),
                 ))
 

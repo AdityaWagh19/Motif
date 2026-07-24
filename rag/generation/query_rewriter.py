@@ -20,7 +20,17 @@ Convert this into a concise keyword search phrase, max 8 words. Return only the 
 Query: {query}
 Phrase:"""
 
-def rewrite_query(query: str, llm: LLMClient) -> str:
+_REWRITE_WITH_HISTORY_PROMPT = """\
+Given the following conversation history, resolve any pronouns or vague references in the current query.
+Convert it into a concise keyword search phrase (max 8 words) that stands on its own. Return only the phrase, nothing else.
+
+Chat History:
+{history}
+
+Current Query: {query}
+Phrase:"""
+
+def rewrite_query(query: str, llm: LLMClient, chat_history: list[dict[str, str]] | None = None) -> str:
     """
     Rewrite a user query into a concise keyword search phrase.
     
@@ -32,10 +42,17 @@ def rewrite_query(query: str, llm: LLMClient) -> str:
         query: Raw user query
         llm:   Loaded LLMClient instance
         
+        chat_history: Optional list of previous turns.
+        
     Returns:
         A concise keyword search string.
     """
-    prompt = _REWRITE_PROMPT.format(query=query)
+    if chat_history:
+        # format history for prompt
+        history_str = "\n".join([f"{t.get('role', 'user')}: {t.get('content', '')}" for t in chat_history])
+        prompt = _REWRITE_WITH_HISTORY_PROMPT.format(history=history_str, query=query)
+    else:
+        prompt = _REWRITE_PROMPT.format(query=query)
     
     try:
         rewritten = llm.generate(

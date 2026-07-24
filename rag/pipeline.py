@@ -210,7 +210,7 @@ class QueryPipeline:
                 try:
                     llm = get_model_manager().get_llm(cfg)
                     from rag.generation.query_rewriter import rewrite_query
-                    search_query = rewrite_query(query, llm)
+                    search_query = rewrite_query(query, llm, history)
                 except Exception as exc:
                     log.debug("LLM not available for query rewrite (%s).", exc)
                     search_query = query
@@ -447,6 +447,33 @@ class QueryPipeline:
             )
 
         return result
+
+    async def answer_async(
+        self,
+        query: str,
+        history: list[dict] | None = None,
+        file_filter: str | None = None,
+        type_filter: str | None = None,
+        page_range: str | None = None,
+        use_hyde: bool = False,
+        show_sources: bool = True,
+    ):
+        """
+        Asynchronous wrapper for the answer method.
+        """
+        import asyncio
+        if history is None:
+            history = []
+        return await asyncio.to_thread(
+            self.answer,
+            query,
+            history,
+            file_filter,
+            type_filter,
+            page_range,
+            use_hyde,
+            show_sources,
+        )
 
     # ── Private helpers ────────────────────────────────────────────────────────
 

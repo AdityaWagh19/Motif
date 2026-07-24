@@ -55,6 +55,7 @@ class FlareController:
         Stream tokens. Intercepts low-confidence tokens to run retrieval.
         """
         active_prompt = self.prompt
+        flare_triggers = 0
         
         while self.tokens_yielded < self.max_tokens:
             stream_gen = self.llm.stream(
@@ -75,9 +76,12 @@ class FlareController:
                 
                 # Check confidence (skip very short tokens like space or punctuation)
                 if len(token.strip()) > 1 and logprob < self.threshold:
-                    log.debug("FLARE: Low confidence token '%s' (%.2f). Pausing.", token, logprob)
-                    interrupted = True
-                    break
+                    if flare_triggers >= 3 or len(active_prompt) > 12000:
+                        log.debug("FLARE: Low confidence, but max triggers/prompt length reached. Forcing generation.")
+                    else:
+                        log.debug("FLARE: Low confidence token '%s' (%.2f). Pausing.", token, logprob)
+                        interrupted = True
+                        break
                     
                 self.generated_text += token
                 self._sentence_buffer += token
@@ -93,6 +97,7 @@ class FlareController:
                 break
                 
             # --- Retrieval Triggered ---
+            flare_triggers += 1
             # Use the current sentence buffer (even if incomplete) + the low-confidence token as query
             search_query = self._sentence_buffer.strip()
             if not search_query:

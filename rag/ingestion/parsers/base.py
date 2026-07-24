@@ -45,8 +45,9 @@ class ParsedPage:
     end_time: float | None = None    # Audio only (seconds)
 
     def __post_init__(self) -> None:
-        # Normalise whitespace at construction time so every caller gets clean text
-        self.text = self.text.strip()
+        import unicodedata
+        # Normalise whitespace and unicode (ligatures, accents) at construction time
+        self.text = unicodedata.normalize("NFKC", self.text.strip())
 
 
 # ---------------------------------------------------------------------------
@@ -97,7 +98,8 @@ class BaseParser(ABC):
 SUPPORTED_EXTENSIONS: list[str] = [
     ".pdf", ".md", ".txt", ".markdown", ".docx",
     ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff",
-    ".mp3", ".wav", ".m4a", ".flac", ".ogg"
+    ".mp3", ".wav", ".m4a", ".flac", ".ogg",
+    ".html", ".htm", ".csv", ".tsv"
 ]
 
 
@@ -116,6 +118,8 @@ def get_parser(path: Path, config: RAGConfig | None = None) -> BaseParser:
     from rag.ingestion.parsers.image import ImageParser
     from rag.ingestion.parsers.markdown import MarkdownParser
     from rag.ingestion.parsers.pdf import PDFParser
+    from rag.ingestion.parsers.html import HTMLParser
+    from rag.ingestion.parsers.csv import CSVParser
 
     ext = path.suffix.lower()
 
@@ -123,6 +127,10 @@ def get_parser(path: Path, config: RAGConfig | None = None) -> BaseParser:
         return PDFParser(config)
     if ext == ".docx":
         return DOCXParser()
+    if ext in HTMLParser.SUPPORTED_EXTENSIONS:
+        return HTMLParser(config)
+    if ext in CSVParser.SUPPORTED_EXTENSIONS:
+        return CSVParser(config)
     if ext in MarkdownParser.SUPPORTED_EXTENSIONS:
         return MarkdownParser()
     if ext in ImageParser.SUPPORTED_EXTENSIONS:
@@ -136,5 +144,5 @@ def get_parser(path: Path, config: RAGConfig | None = None) -> BaseParser:
 
     raise ValueError(
         f"No parser available for file type '{ext}'. "
-        f"Supported: .pdf, .docx, .md, .txt, .png, .jpg, .mp3, .wav, .m4a"
+        f"Supported: .pdf, .docx, .md, .txt, .png, .jpg, .mp3, .wav, .m4a, .html, .csv"
     )

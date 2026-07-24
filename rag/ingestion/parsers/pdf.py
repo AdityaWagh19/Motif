@@ -17,6 +17,7 @@ import logging
 import re
 import sys
 import tempfile
+import contextlib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -88,16 +89,33 @@ class PDFParser(BaseParser):
         except Exception as exc:
             raise RuntimeError(f"Failed to open PDF {path}: {exc}") from exc
 
-        old_stdout = sys.stdout
-        old_stderr = sys.stderr
-        sys.stdout = io.StringIO()
-        sys.stderr = io.StringIO()
-
         try:
-            for page_num, md_page in enumerate(md_pages, start=1):
-                text: str = md_page.get("text", "").strip()
-                page = doc[page_num - 1]
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                raw_pages_data = []
+                for page_num, md_page in enumerate(md_pages, start=1):
+                    raw_pages_data.append((page_num, md_page.get("text", "").strip(), doc[page_num - 1]))
 
+            # --- Boilerplate Removal ---
+            if len(raw_pages_data) > 2:
+                from collections import Counter
+                first_lines = [t.split('\n')[0].strip() for _, t, _ in raw_pages_data if t]
+                last_lines = [t.split('\n')[-1].strip() for _, t, _ in raw_pages_data if t]
+                
+                common_headers = {k for k, v in Counter(first_lines).items() if v > len(raw_pages_data) * 0.5 and len(k) > 2}
+                common_footers = {k for k, v in Counter(last_lines).items() if v > len(raw_pages_data) * 0.5 and len(k) > 2}
+                
+                for i in range(len(raw_pages_data)):
+                    p_num, t, p_obj = raw_pages_data[i]
+                    if t:
+                        lines = t.split('\n')
+                        if lines and lines[0].strip() in common_headers:
+                            lines = lines[1:]
+                        if lines and lines[-1].strip() in common_footers:
+                            lines = lines[:-1]
+                        raw_pages_data[i] = (p_num, '\n'.join(lines).strip(), p_obj)
+            # --------------------------
+
+            for page_num, text, page in raw_pages_data:
                 if not text:
                     if self._config and self._config.resolved_tier in ("T2", "T3"):
                         ocr_text = self._ocr_page(page, path)
@@ -166,8 +184,6 @@ class PDFParser(BaseParser):
                     )
                 )
         finally:
-            sys.stdout = old_stdout
-            sys.stderr = old_stderr
             try:
                 doc.close()  # type: ignore[union-attr]
             except Exception:
