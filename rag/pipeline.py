@@ -82,6 +82,13 @@ class QueryPipeline:
         # Cache is lazily initialised on first query if enabled.
         self._cache: object = None  # Optional[QueryCache]
 
+    def close(self) -> None:
+        """Release all storage handles held by this pipeline instance."""
+        try:
+            self._vector_store.close()
+        except Exception:
+            pass
+
     # ── Public API ─────────────────────────────────────────────────────────────
 
     def answer(

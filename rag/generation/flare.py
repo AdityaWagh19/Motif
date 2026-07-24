@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Callable, Generator
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ class FlareController:
     """
     def __init__(
         self,
-        llm: object,
+        llm: Any,
         base_prompt: str,
         retrieve_fn: Callable[[str], str],
         confidence_threshold: float = -1.0,

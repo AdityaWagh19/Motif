@@ -275,10 +275,6 @@ class VectorStore:
         """Return the total number of vectors in the collection."""
         return self._client.count(collection_name=self._collection_name).count
 
-    def close(self) -> None:
-        """Close the underlying QdrantClient to release file locks."""
-        if hasattr(self, "_client") and hasattr(self._client, "close"):
-            self._client.close()
 
 
 # ---------------------------------------------------------------------------

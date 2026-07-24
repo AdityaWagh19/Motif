@@ -69,7 +69,7 @@ class DOCXParser(BaseParser):
 
             if tag == "p":
                 para = Paragraph(element, doc)
-                style_name = para.style.name if para.style else ""
+                style_name = (para.style.name or "") if para.style else ""
                 text = para.text.strip()
 
                 if style_name.startswith("Heading"):

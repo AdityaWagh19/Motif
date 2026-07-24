@@ -89,7 +89,7 @@ def build_raptor_summaries(
     if chunk_store is None:
         chunk_store = ChunkStore(config)
         
-    rows = chunk_store._conn.execute(
+    rows = chunk_store.conn.execute(
         "SELECT id, text, source, filename FROM chunks WHERE parent_id IS NULL AND source_type != 'raptor'"
     ).fetchall()
     
