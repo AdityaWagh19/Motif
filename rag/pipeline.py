@@ -461,6 +461,7 @@ class QueryPipeline:
         full_answer = ""
         
         try:
+            phrase = "Thinking..."
             stream_gen = llm.stream(prompt, max_tokens=cfg.llm.max_tokens, temperature=cfg.llm.temperature)
 
             first_token_data = None
