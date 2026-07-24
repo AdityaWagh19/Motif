@@ -60,20 +60,26 @@ if TYPE_CHECKING:
 
 
 def setup_cli_logging() -> None:
-    """Redirect internal technical logs & tracebacks to ~/.motif/logs/motif.log."""
+    """Redirect ALL logs to ~/.motif/logs/motif.log. No output reaches the terminal."""
     try:
         log_dir = Path.home() / ".motif" / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / "motif.log"
 
-        handler = logging.FileHandler(log_file, encoding="utf-8")
-        handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
 
         root_logger = logging.getLogger()
+        # ── Remove ALL existing handlers (StreamHandlers, etc.) so nothing
+        # leaks to stdout/stderr. Only the file handler remains.
+        for h in root_logger.handlers[:]:
+            root_logger.removeHandler(h)
         root_logger.setLevel(logging.INFO)
-        root_logger.addHandler(handler)
+        root_logger.addHandler(file_handler)
     except Exception:
-        pass
+        # If file logging fails entirely, attach a NullHandler so
+        # log calls don't propagate to the default stderr handler.
+        logging.getLogger().addHandler(logging.NullHandler())
 
     for noisy in ["ppocr", "rag.retrieval.calibrate", "qdrant_client", "onnxruntime", "urllib3", "httpx", "httpcore"]:
         logging.getLogger(noisy).setLevel(logging.ERROR)
@@ -263,7 +269,7 @@ def _handle_query(raw: str, session: Session, config: RAGConfig, pipeline: Query
         console.print()
         console.print("[subtle]^C [Query cancelled][/subtle]")
     except Exception as exc:
-        log.exception("Query error for input '%s': %s", raw, exc)
+        log.debug("Query error for input '%s': %s", raw, exc, exc_info=True)
         console.print(f"[error]✖ Notice:[/error] {exc}")
     finally:
         if close_pipeline_on_finish and hasattr(pipeline, "close"):
@@ -381,14 +387,22 @@ def _interactive_mode(no_prewarm: bool = False) -> None:
 
     def get_bottom_toolbar():
         workspace = config.db_root.name
-        tier = config.resolved_tier
         backend = getattr(config.hardware, "backend", "cpu").upper()
-        model = Path(config.models.llm_path).stem
-        
+        mode_label = "GPU Accelerated" if backend != "CPU" else "CPU Mode"
+        llm_stem = Path(config.models.llm_path).stem
+        if "qwen" in llm_stem.lower():
+            model_label = "Qwen2.5 7B"
+        elif "llama" in llm_stem.lower():
+            model_label = "Llama 3.1 8B"
+        elif "mistral" in llm_stem.lower():
+            model_label = "Mistral 7B"
+        else:
+            model_label = llm_stem.split("-")[0]
+
         return HTML(
             f' <style fg="#6b7280">Workspace:</style> <style fg="#FF2E93">{workspace}</style>  <style fg="#6b7280">|</style>  '
-            f'<style fg="#6b7280">Model:</style> <style fg="#FF2E93">{model}</style>  <style fg="#6b7280">|</style>  '
-            f'<style fg="#6b7280">HW:</style> <style fg="#FF2E93">{tier}</style> <style fg="#6b7280">({backend})</style> '
+            f'<style fg="#6b7280">Model:</style> <style fg="#FF2E93">{model_label}</style>  <style fg="#6b7280">|</style>  '
+            f'<style fg="#6b7280">Mode:</style> <style fg="#FF2E93">{mode_label}</style> '
         )
 
     custom_style = Style.from_dict({

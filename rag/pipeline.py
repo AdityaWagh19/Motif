@@ -307,58 +307,13 @@ class QueryPipeline:
         full_answer = ""
         ttft_ms = 0.0
         
-        from rich.live import Live
-        from rich.markdown import Markdown
-        
-        try:
-            # refresh_per_second throttles terminal updates to prevent flickering
-            with Live(Markdown(""), console=console, refresh_per_second=15, transient=False) as live:
-                
-                use_flare = getattr(cfg.retrieval, "use_flare", False)
-                if use_flare:
-                    from rag.generation.flare import FlareController
-                    
-                    def _flare_retrieve(flare_query: str) -> str:
-                        try:
-                            q_vec, e_query = self._expander.expand(flare_query, cfg, embedder)
-                            d_res = self._vector_store.search_dense(q_vec, top_k=top_k_retrieval, filter_=filter_dict if filter_dict else None)
-                            b_res = self._bm25.search(e_query, top_k=top_k_retrieval)
-                            fused = rrf_fuse([d_res, b_res], top_k=top_k_retrieval)
-                            c = rrf_to_scored_passages(fused, self._chunk_store)
-                            r = rerank(flare_query, c, cfg, top_k=top_k_rerank, threshold=threshold)
-                            if getattr(cfg.retrieval, "use_parent_docs", False):
-                                for p in r:
-                                    if p.chunk.parent_id:
-                                        parent_chunk = self._chunk_store.fetch_parent(p.chunk)
-                                        if parent_chunk:
-                                            p.chunk = parent_chunk
-                            return "\n\n".join(f"---\n{p.chunk.text}" for p in r)
-                        except Exception as e:
-                            log.warning("FLARE retrieval failed: %s", e)
-                            return ""
-                            
-                    controller = FlareController(
-                        llm=llm,
-                        base_prompt=prompt,
-                        retrieve_fn=_flare_retrieve,
-                        max_tokens=cfg.llm.max_tokens,
-                        temperature=cfg.llm.temperature,
-                    )
-            import random
-            thinking_phrases = [
-                "Thinking...", "Analyzing...", "Understanding...", "Decoding...", 
-                "Processing...", "Synthesizing...", "Evaluating...", "Investigating...",
-                "Computing...", "Reasoning...", "Pondering...", "Scanning...",
-                "Formulating...", "Correlating...", "Inferring...", "Exploring...",
-                "Reviewing...", "Interpreting...", "Comprehending...", "Extrapolating...",
-                "Parsing...", "Structuring...", "Resolving...", "Assembling...", "Distilling..."
-            ]
-            phrase = random.choice(thinking_phrases)
+        from rich.text import Text
 
+        try:
             use_flare = getattr(cfg.retrieval, "use_flare", False)
             if use_flare:
                 from rag.generation.flare import FlareController
-                
+
                 def _flare_retrieve(flare_query: str) -> str:
                     try:
                         q_vec, e_query = self._expander.expand(flare_query, cfg, embedder)
@@ -377,7 +332,7 @@ class QueryPipeline:
                     except Exception as e:
                         log.warning("FLARE retrieval failed: %s", e)
                         return ""
-                        
+
                 controller = FlareController(
                     llm=llm,
                     base_prompt=prompt,
@@ -393,29 +348,45 @@ class QueryPipeline:
                     temperature=cfg.llm.temperature,
                 )
 
+            import random
+            thinking_phrases = [
+                "Thinking...", "Analyzing...", "Understanding...", "Decoding...",
+                "Processing...", "Synthesizing...", "Evaluating...", "Investigating...",
+                "Computing...", "Reasoning...", "Pondering...", "Scanning...",
+                "Formulating...", "Correlating...", "Inferring...", "Exploring...",
+                "Reviewing...", "Interpreting...", "Comprehending...", "Extrapolating...",
+                "Parsing...", "Structuring...", "Resolving...", "Assembling...", "Distilling..."
+            ]
+            phrase = random.choice(thinking_phrases)
+
+            # ── Wait for first token under spinner (measures TTFT) ───────────
             first_token_data = None
             try:
                 with console.status(f"[accent]{phrase}[/accent]", spinner="dots"):
                     first_token_data = next(stream_gen)
             except StopIteration:
                 pass
-                
-            with Live(Markdown(""), console=console, refresh_per_second=15, transient=False) as live:
-                if first_token_data is not None:
-                    ttft_ms = (time.monotonic() - t_gen_start) * 1000
-                    token_text = first_token_data[0] if isinstance(first_token_data, tuple) else first_token_data
-                    full_answer += token_text
-                    live.update(Markdown(full_answer))
-                    
-                for token_data in stream_gen:
-                    token_text = token_data[0] if isinstance(token_data, tuple) else token_data
-                    full_answer += token_text
-                    live.update(Markdown(full_answer))
+
+            # ── Stream tokens directly to console — no Markdown re-parse per token ─
+            # Streaming plain text is near-instant; we render Markdown ONCE at the end.
+            if first_token_data is not None:
+                ttft_ms = (time.monotonic() - t_gen_start) * 1000
+                token_text = first_token_data[0] if isinstance(first_token_data, tuple) else first_token_data
+                full_answer += token_text
+                console.print(token_text, end="", highlight=False)
+
+            for token_data in stream_gen:
+                token_text = token_data[0] if isinstance(token_data, tuple) else token_data
+                full_answer += token_text
+                console.print(token_text, end="", highlight=False)
+
+            console.print()  # newline after final token
+
         except KeyboardInterrupt:
             full_answer += "\n\n*[Cancelled]*"
             console.print("\n[subtle]^C [Generation cancelled][/subtle]")
         except Exception as e:
-            log.exception("Error during generation: %s", e)
+            log.debug("Error during generation: %s", e, exc_info=True)
             console.print(f"[error]✖ Generation notice:[/error] {e}")
 
         t_gen_ms = (time.monotonic() - t_gen_start) * 1000
@@ -492,7 +463,7 @@ class QueryPipeline:
         try:
             import random
             thinking_phrases = [
-                "Thinking...", "Analyzing...", "Understanding...", "Decoding...", 
+                "Thinking...", "Analyzing...", "Understanding...", "Decoding...",
                 "Processing...", "Synthesizing...", "Evaluating...", "Investigating...",
                 "Computing...", "Reasoning...", "Pondering...", "Scanning...",
                 "Formulating...", "Correlating...", "Inferring...", "Exploring...",
@@ -500,27 +471,31 @@ class QueryPipeline:
                 "Parsing...", "Structuring...", "Resolving...", "Assembling...", "Distilling..."
             ]
             phrase = random.choice(thinking_phrases)
-            
+
             stream_gen = llm.stream(prompt, max_tokens=cfg.llm.max_tokens, temperature=cfg.llm.temperature)
-            
+
             first_token_data = None
             try:
                 with console.status(f"[accent]{phrase}[/accent]", spinner="dots"):
                     first_token_data = next(stream_gen)
             except StopIteration:
                 pass
-                
-            with Live(Markdown(""), console=console, refresh_per_second=15, transient=False) as live:
-                if first_token_data is not None:
-                    token_text = first_token_data[0] if isinstance(first_token_data, tuple) else first_token_data
-                    full_answer += token_text
-                    live.update(Markdown(full_answer))
-                    
-                for token_data in stream_gen:
-                    token_text = token_data[0] if isinstance(token_data, tuple) else token_data
-                    full_answer += token_text
-                    live.update(Markdown(full_answer))
+
+            # Stream tokens directly — no Markdown re-parse per token
+            if first_token_data is not None:
+                token_text = first_token_data[0] if isinstance(first_token_data, tuple) else first_token_data
+                full_answer += token_text
+                console.print(token_text, end="", highlight=False)
+
+            for token_data in stream_gen:
+                token_text = token_data[0] if isinstance(token_data, tuple) else token_data
+                full_answer += token_text
+                console.print(token_text, end="", highlight=False)
+
+            console.print()  # newline after final token
+
         except Exception as e:
+            log.debug("Error during generation: %s", e, exc_info=True)
             console.print(f"[error]Error during generation: {e}[/error]")
             
         t_gen_ms = (time.monotonic() - t_gen_start) * 1000
