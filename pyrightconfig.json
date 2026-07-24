@@ -1,7 +1,6 @@
 {
   "pythonVersion": "3.12",
   "pythonPlatform": "Windows",
-  "pythonInterpreter": "C:/Program Files/Python312/python.exe",
   "extraPaths": [
     "C:/Program Files/Python312/Lib/site-packages",
     "C:/Users/omen/AppData/Roaming/Python/Python312/site-packages"
