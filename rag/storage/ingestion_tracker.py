@@ -89,9 +89,12 @@ class IngestionTracker:
     """
 
     def __init__(self, config: RAGConfig) -> None:  # noqa: F821
-        from rag.storage.db_manager import DatabaseManager
         self._config = config
-        self._conn: sqlite3.Connection | None = DatabaseManager.get_connection(config)
+
+    @property
+    def conn(self) -> sqlite3.Connection:
+        from rag.storage.db_manager import DatabaseManager
+        return DatabaseManager.get_connection(self._config)
 
     def __enter__(self) -> IngestionTracker:
         return self
@@ -106,7 +109,7 @@ class IngestionTracker:
     def is_indexed(self, path: Path) -> bool:
         """Return True if this path has been indexed at least once."""
         key = str(path.resolve())
-        row = self._conn.execute(
+        row = self.conn.execute(
             "SELECT 1 FROM file_tracker WHERE filepath = ?", (key,)
         ).fetchone()
         return row is not None
@@ -116,7 +119,7 @@ class IngestionTracker:
         Return the content hash recorded for this path, or None if not tracked.
         """
         key = str(path.resolve())
-        row = self._conn.execute(
+        row = self.conn.execute(
             "SELECT content_hash FROM file_tracker WHERE filepath = ?", (key,)
         ).fetchone()
         return row[0] if row else None
@@ -128,7 +131,7 @@ class IngestionTracker:
         Each dict has keys: filepath, content_hash, indexed_at, chunk_count.
         Used by sync_directory() to compute the diff against the filesystem.
         """
-        rows = self._conn.execute(
+        rows = self.conn.execute(
             "SELECT filepath, content_hash, indexed_at, chunk_count FROM file_tracker"
         ).fetchall()
         return [
@@ -155,15 +158,15 @@ class IngestionTracker:
         key = str(path.resolve())
         now = datetime.now(UTC).isoformat()
         log.debug("IngestionTracker.update filepath=%s hash=%s", key, content_hash)
-        self._conn.execute(_UPSERT, (key, content_hash, now, chunk_count))
-        self._conn.commit()
+        self.conn.execute(_UPSERT, (key, content_hash, now, chunk_count))
+        self.conn.commit()
 
     def remove(self, path: Path) -> None:
         """Remove the tracking record for a given path. No-op if not tracked."""
         key = str(path.resolve())
         log.debug("IngestionTracker.remove filepath=%s", key)
-        self._conn.execute("DELETE FROM file_tracker WHERE filepath = ?", (key,))
-        self._conn.commit()
+        self.conn.execute("DELETE FROM file_tracker WHERE filepath = ?", (key,))
+        self.conn.commit()
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -171,4 +174,4 @@ class IngestionTracker:
 
     def close(self) -> None:
         """Close/release this tracker instance reference (lifecycle managed by DatabaseManager)."""
-        self._conn = None
+        pass

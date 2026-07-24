@@ -154,9 +154,12 @@ class ChunkStore:
     """
 
     def __init__(self, config: RAGConfig) -> None:  # noqa: F821
-        from rag.storage.db_manager import DatabaseManager
         self._config = config
-        self._conn: sqlite3.Connection | None = DatabaseManager.get_connection(config)
+
+    @property
+    def conn(self) -> sqlite3.Connection:
+        from rag.storage.db_manager import DatabaseManager
+        return DatabaseManager.get_connection(self._config)
 
     def __enter__(self) -> ChunkStore:
         return self
@@ -171,8 +174,8 @@ class ChunkStore:
     def insert(self, chunk: Chunk) -> None:
         """Insert or replace a single Chunk."""
         log.debug("ChunkStore.insert id=%s", chunk.id)
-        self._conn.execute(_INSERT, _chunk_to_row(chunk))
-        self._conn.commit()
+        self.conn.execute(_INSERT, _chunk_to_row(chunk))
+        self.conn.commit()
 
     def insert_batch(self, chunks: list[Chunk]) -> None:
         """
@@ -185,8 +188,8 @@ class ChunkStore:
         log.debug("ChunkStore.insert_batch count=%d", len(chunks))
         rows = [_chunk_to_row(c) for c in chunks]
         try:
-            with self._conn:  # context manager: commit on success, rollback on error
-                self._conn.executemany(_INSERT, rows)
+            with self.conn:  # context manager: commit on success, rollback on error
+                self.conn.executemany(_INSERT, rows)
         except sqlite3.Error:
             log.exception("ChunkStore.insert_batch failed — transaction rolled back")
             raise
@@ -198,7 +201,7 @@ class ChunkStore:
     def fetch(self, chunk_id: str) -> Chunk | None:
         """Return the Chunk with the given id, or None if not found."""
         log.debug("ChunkStore.fetch id=%s", chunk_id)
-        row = self._conn.execute(
+        row = self.conn.execute(
             "SELECT * FROM chunks WHERE id = ?", (chunk_id,)
         ).fetchone()
         return _row_to_chunk(row) if row else None
@@ -221,7 +224,7 @@ class ChunkStore:
         if not chunk_ids:
             return []
         placeholders = ",".join("?" * len(chunk_ids))
-        rows = self._conn.execute(
+        rows = self.conn.execute(
             f"SELECT * FROM chunks WHERE id IN ({placeholders})", chunk_ids
         ).fetchall()
         return [_row_to_chunk(r) for r in rows]
@@ -229,7 +232,7 @@ class ChunkStore:
     def fetch_by_source(self, source: str) -> list[Chunk]:
         """Return all Chunks whose source equals the given path string."""
         log.debug("ChunkStore.fetch_by_source source=%s", source)
-        rows = self._conn.execute(
+        rows = self.conn.execute(
             "SELECT * FROM chunks WHERE source = ?", (source,)
         ).fetchall()
         return [_row_to_chunk(r) for r in rows]
@@ -244,10 +247,10 @@ class ChunkStore:
         Returns the number of rows deleted.
         """
         log.debug("ChunkStore.delete_by_source source=%s", source)
-        cur = self._conn.execute(
+        cur = self.conn.execute(
             "DELETE FROM chunks WHERE source = ?", (source,)
         )
-        self._conn.commit()
+        self.conn.commit()
         return cur.rowcount
 
     # ------------------------------------------------------------------
@@ -256,22 +259,22 @@ class ChunkStore:
 
     def count(self) -> int:
         """Return total number of chunks in the store."""
-        return self._conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+        return self.conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
 
     def count_documents(self) -> int:
         """Return number of distinct source documents."""
-        return self._conn.execute(
+        return self.conn.execute(
             "SELECT COUNT(DISTINCT source) FROM chunks"
         ).fetchone()[0]
 
     def list_ids(self) -> list[str]:
         """Return a list of all chunk IDs in the store."""
-        rows = self._conn.execute("SELECT id FROM chunks").fetchall()
+        rows = self.conn.execute("SELECT id FROM chunks").fetchall()
         return [r[0] for r in rows]
 
     def list_sources(self) -> list[str]:
         """Return sorted list of distinct source paths. Used by /status and /sync."""
-        rows = self._conn.execute(
+        rows = self.conn.execute(
             "SELECT DISTINCT source FROM chunks ORDER BY source"
         ).fetchall()
         return [r[0] for r in rows]
@@ -282,4 +285,4 @@ class ChunkStore:
 
     def close(self) -> None:
         """Close/release this chunk store instance reference (lifecycle managed by DatabaseManager)."""
-        self._conn = None
+        pass
