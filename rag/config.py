@@ -59,11 +59,8 @@ if platform.system() == "Windows" and hasattr(os, "add_dll_directory"):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_app_dir() -> Path:
-    """Return the global application directory using OS conventions."""
-    # On Linux: ~/.local/share/motif
-    # On Windows: %LOCALAPPDATA%/motif
-    # On macOS: ~/Library/Application Support/motif
-    return Path(platformdirs.user_data_dir("motif", appauthor=False)).resolve()
+    """Return the deterministic application data directory (~/.motif)."""
+    return Path(os.path.expanduser("~/.motif")).resolve()
 
 def migrate_if_needed(app_dir: Path | None = None) -> None:
     """Migrate legacy ~/.ragdb to the new <APP_DIR> structure atomically."""

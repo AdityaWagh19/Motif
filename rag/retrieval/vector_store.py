@@ -21,6 +21,7 @@ Dependency graph position:
 """
 from __future__ import annotations
 
+import atexit
 import logging
 import uuid as _uuid_module
 from typing import TYPE_CHECKING, Any
@@ -37,6 +38,19 @@ VECTOR_SIZE: int = 768
 
 
 _client_registry: dict[str, tuple[Any, int]] = {}
+
+
+def _cleanup_all_clients() -> None:
+    """Close all open QdrantClient connections prior to interpreter shutdown."""
+    for path_str, (client, _) in list(_client_registry.items()):
+        try:
+            client.close()
+        except Exception:
+            pass
+    _client_registry.clear()
+
+
+atexit.register(_cleanup_all_clients)
 
 
 # ---------------------------------------------------------------------------

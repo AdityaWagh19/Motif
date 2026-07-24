@@ -136,7 +136,7 @@ class QueryPipeline:
             self._intent_classifier = IntentClassifier()
             
         from rag.intent import Intent
-        intent = self._intent_classifier.classify(query)
+        intent = self._intent_classifier.classify(query, embedder=embedder)
         if intent == Intent.GREETING_FAST:
             import random
             greetings = [
@@ -204,13 +204,17 @@ class QueryPipeline:
         filter_dict = self._build_filter(file_filter, type_filter, page_range)
 
         with console.status(f"[accent]{phrase}[/accent]", spinner="dots"):
-            # Query rewrite
-            try:
-                llm = get_model_manager().get_llm(cfg)
-                from rag.generation.query_rewriter import rewrite_query
-                search_query = rewrite_query(query, llm)
-            except Exception as exc:
-                log.debug("LLM not available for query rewrite (%s).", exc)
+            # Conditional query rewrite (skip short queries < 10 words)
+            query_words = query.strip().split()
+            if len(query_words) >= 10:
+                try:
+                    llm = get_model_manager().get_llm(cfg)
+                    from rag.generation.query_rewriter import rewrite_query
+                    search_query = rewrite_query(query, llm)
+                except Exception as exc:
+                    log.debug("LLM not available for query rewrite (%s).", exc)
+                    search_query = query
+            else:
                 search_query = query
 
             # Expand & retrieve
@@ -370,18 +374,19 @@ class QueryPipeline:
             except StopIteration:
                 pass
 
-            # ── Stream tokens directly to console — no Markdown re-parse per token ─
-            # Streaming plain text is near-instant; we render Markdown ONCE at the end.
+            import sys
             if first_token_data is not None:
                 ttft_ms = (time.monotonic() - t_gen_start) * 1000
                 token_text = first_token_data[0] if isinstance(first_token_data, tuple) else first_token_data
                 full_answer += token_text
-                console.print(token_text, end="", highlight=False)
+                sys.stdout.write(token_text)
+                sys.stdout.flush()
 
             for token_data in stream_gen:
                 token_text = token_data[0] if isinstance(token_data, tuple) else token_data
                 full_answer += token_text
-                console.print(token_text, end="", highlight=False)
+                sys.stdout.write(token_text)
+                sys.stdout.flush()
 
             console.print()  # newline after final token
 
@@ -471,16 +476,18 @@ class QueryPipeline:
             except StopIteration:
                 pass
 
-            # Stream tokens directly — no Markdown re-parse per token
+            import sys
             if first_token_data is not None:
                 token_text = first_token_data[0] if isinstance(first_token_data, tuple) else first_token_data
                 full_answer += token_text
-                console.print(token_text, end="", highlight=False)
+                sys.stdout.write(token_text)
+                sys.stdout.flush()
 
             for token_data in stream_gen:
                 token_text = token_data[0] if isinstance(token_data, tuple) else token_data
                 full_answer += token_text
-                console.print(token_text, end="", highlight=False)
+                sys.stdout.write(token_text)
+                sys.stdout.flush()
 
             console.print()  # newline after final token
 
