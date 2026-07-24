@@ -37,48 +37,46 @@ import warnings
 warnings.filterwarnings("ignore")
 import logging
 
-logging.getLogger("ppocr").setLevel(logging.ERROR)
+def setup_cli_logging() -> None:
+    """Redirect internal technical logs & tracebacks to ~/.motif/logs/motif.log."""
+    try:
+        log_dir = Path.home() / ".motif" / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / "motif.log"
+
+        handler = logging.FileHandler(log_file, encoding="utf-8")
+        handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s"))
+
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.INFO)
+        root_logger.addHandler(handler)
+    except Exception:
+        pass
+
+    for noisy in ["ppocr", "rag.retrieval.calibrate", "qdrant_client", "onnxruntime", "urllib3", "httpx", "httpcore"]:
+        logging.getLogger(noisy).setLevel(logging.ERROR)
+
+
+setup_cli_logging()
 log = logging.getLogger(__name__)
 
-
-import shlex
-import sys
-from pathlib import Path
-
-from prompt_toolkit import PromptSession
-from prompt_toolkit.completion import NestedCompleter, PathCompleter, WordCompleter
-from prompt_toolkit.formatted_text import HTML
-from prompt_toolkit.history import InMemoryHistory
-from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.styles import Style
-from rich.panel import Panel
-
-from typing import TYPE_CHECKING
-
-from rag import __version__
-from rag.commands import SLASH_COMMANDS, get_command
-from rag.config import RAGConfig, load_config
-from rag.session import Session
-from rag.theme import console
-
-if TYPE_CHECKING:
-    from rag.pipeline import QueryPipeline
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Welcome Screen
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _render_welcome(config: RAGConfig, session: Session) -> None:
-    """Render the startup welcome panel with system info, Mochi mascot, and session state."""
+    """Render the startup welcome panel with clean system info and session state."""
 
-    tier_label = config.resolved_tier
-    backend_label = getattr(config.hardware, "backend", "cpu").upper()
-    llm_name = Path(config.models.llm_path).stem
+    accel_name = getattr(config.hardware, "backend", "cpu").upper()
+    accel_label = f"GPU ({accel_name})" if accel_name != "CPU" else "CPU"
+    llm_stem = Path(config.models.llm_path).stem
+    llm_label = "Qwen2.5 7B" if "qwen" in llm_stem.lower() else llm_stem.split("-")[0]
     cwd = Path.cwd()
 
     # Try to get index stats (returns None if no index yet)
     chunk_count, doc_count = _get_index_stats(config)
-    index_str = f"{chunk_count:,} chunks | {doc_count:,} docs" if chunk_count is not None else "0 docs (run /ingest)"
+    index_str = f"{doc_count:,} documents ({chunk_count:,} chunks)" if chunk_count is not None and doc_count else "0 documents (run /ingest)"
 
     logo_art = (
         "[accent_bold]  ███╗   ███╗ ██████╗ ████████╗██╗███████╗[/accent_bold]\n"
@@ -92,8 +90,8 @@ def _render_welcome(config: RAGConfig, session: Session) -> None:
     info_lines: list[str] = [
         logo_art,
         "",
-        f"  [accent_bold]Mochi[/accent_bold] [structure]v{__version__}[/structure]  [structure]|[/structure]  Local RAG AI Assistant",
-        f"  Tier    [bold]{tier_label}[/bold]  [structure]|[/structure]  {llm_name}  [structure]({backend_label})[/structure]",
+        f"  [accent_bold]Motif[/accent_bold] [structure]v{__version__}[/structure]  [structure]|[/structure]  Offline Local RAG AI Assistant",
+        f"  Model   [bold]{llm_label}[/bold]  [structure]|[/structure]  Mode: {accel_label}",
         f"  Index   [bold]{index_str}[/bold]",
         f"  Dir     [structure]{cwd}[/structure]",
     ]
@@ -129,7 +127,7 @@ def _render_welcome(config: RAGConfig, session: Session) -> None:
 
     from rich.live import Live
     with Live(Panel("\n".join(info_lines), border_style="structure", padding=(1, 2)), console=console, refresh_per_second=10, transient=False) as live:
-        time.sleep(0.6)
+        time.sleep(0.4)
         info_lines[-1] = cat_awake
         live.update(Panel("\n".join(info_lines), border_style="structure", padding=(1, 2)))
         
@@ -175,9 +173,10 @@ def _handle_slash_command(raw: str, session: Session, config: RAGConfig) -> None
     try:
         handler(args=args, session=session, config=config, console=console)
     except KeyboardInterrupt:
-        console.print("\n[structure]Command interrupted.[/structure]")
+        console.print("\n[subtle]^C [Command cancelled][/subtle]")
     except Exception as exc:
-        console.print(f"[error]Command error:[/error] {exc}")
+        log.exception("Slash command exception during execution of %s: %s", command_name, exc)
+        console.print(f"[error]✖ Command error:[/error] {exc}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -240,9 +239,10 @@ def _handle_query(raw: str, session: Session, config: RAGConfig, pipeline: Query
 
     except KeyboardInterrupt:
         console.print()
-        console.print("[structure]Generation interrupted.[/structure]")
+        console.print("[subtle]^C [Query cancelled][/subtle]")
     except Exception as exc:
-        console.print(f"[error]Error:[/error] {exc}")
+        log.exception("Query error for input '%s': %s", raw, exc)
+        console.print(f"[error]✖ Notice:[/error] {exc}")
     finally:
         if close_pipeline_on_finish and hasattr(pipeline, "close"):
             pipeline.close()

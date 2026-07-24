@@ -82,7 +82,17 @@ def handle_workspace(args, session, config, console) -> None:
         session.clear()
         session.load()
         session.flush_cache()
-        console.print(f"[success]Switched to workspace '{name}'.[/success]")
+
+        chunk_count, doc_count = 0, 0
+        try:
+            from rag.storage.chunk_store import ChunkStore
+            with ChunkStore(config) as store:
+                chunk_count = store.count()
+                doc_count = store.count_documents()
+        except Exception:
+            pass
+
+        console.print(f"[success]✓ Switched to workspace '{name}' ({doc_count} docs, {chunk_count:,} chunks).[/success]")
         
     elif subcmd == "delete":
         if len(args) < 2:

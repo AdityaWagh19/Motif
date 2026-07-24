@@ -41,48 +41,35 @@ def handle_status(args, session, config, console) -> None:
 
     # Index
     if chunk_count is not None:
-        table.add_row("Documents", str(doc_count))
-        table.add_row("Chunks", f"{chunk_count:,}")
-        table.add_row("BM25 indexed", str(bm25_count) if bm25_count is not None else "—")
+        table.add_row("Knowledge Base", f"{doc_count} document{'s' if doc_count != 1 else ''} ({chunk_count:,} passages)")
     else:
-        table.add_row("Index", "[warning]No index found — run /ingest to add documents[/warning]")
+        table.add_row("Knowledge Base", "[warning]Empty — run /ingest to add documents[/warning]")
 
     if index_size_mb is not None:
-        table.add_row("Index size", f"{index_size_mb:.1f} MB")
+        table.add_row("Storage Used", f"{index_size_mb:.1f} MB")
 
-    table.add_row("Session history", f"{session.turn_count} exchange{'s' if session.turn_count != 1 else ''}")
+    table.add_row("Session Turns", f"{session.turn_count} exchange{'s' if session.turn_count != 1 else ''}")
     table.add_section()
 
-    # Hardware & Models (UX-09)
+    # Hardware & Models (Human-Centered UI)
     from rag.config import resolve_model_path
     from rag.models.model_manager import get_model_manager
     manager = get_model_manager()
     llm_path = resolve_model_path(config.models.llm_path)
-    embed_path = resolve_model_path(config.models.embed_model)
-    rerank_path = resolve_model_path(config.models.reranker)
 
     llm_loaded = manager._llm is not None and getattr(manager._llm, "is_loaded", lambda: True)()
-    embed_loaded = manager._embedder is not None and getattr(manager._embedder, "is_loaded", lambda: True)()
-    rerank_loaded = manager._reranker is not None and getattr(manager._reranker, "is_loaded", lambda: True)()
+    status_str = "[green]Ready[/green]" if llm_loaded else "[dim]Standby[/dim]"
 
-    llm_str = "[green]✓ loaded[/green]" if llm_loaded else ("[dim]on disk[/dim]" if llm_path.exists() else "[red]✗ missing[/red]")
-    embed_str = "[green]✓ loaded[/green]" if embed_loaded else ("[dim]on disk[/dim]" if embed_path.exists() else "[red]✗ missing[/red]")
-    rerank_str = "[green]✓ loaded[/green]" if rerank_loaded else ("[dim]on disk[/dim]" if rerank_path.exists() else "[red]✗ missing[/red]")
+    backend_name = getattr(config.hardware, "backend", "cpu").upper()
+    accel_str = f"GPU ({backend_name})" if backend_name != "CPU" else "CPU"
 
     table.add_row("Workspace", config.storage.workspace)
-    table.add_row("Tier", config.resolved_tier)
-    table.add_row("LLM", f"{llm_path.name} ({llm_str})")
-    table.add_row("Embedder", f"{embed_path.name} ({embed_str})")
-    table.add_row("Reranker", f"{rerank_path.name} ({rerank_str})")
-    table.add_row("GPU layers", str(config.llm.n_gpu_layers))
-    table.add_row("Context window", f"{config.llm.ctx_size} tokens")
-    table.add_row("Retrieval top-k", f"{config.retrieval.top_k_retrieval} -> rerank -> {config.retrieval.top_k_rerank}")
-    table.add_row("Query expansion", config.retrieval.query_expansion)
-    table.add_row("Semantic chunking", "on" if config.chunking.use_semantic else "off")
+    table.add_row("AI Model", f"Qwen2.5 7B ({status_str})")
+    table.add_row("Hardware Mode", f"{accel_str}")
+    table.add_row("Search Mode", "Hybrid Semantic Search")
     table.add_section()
 
-    # Storage
-    table.add_row("DB root", str(config.db_root))
+    table.add_row("Location", str(config.db_root))
 
     console.print()
     console.print(table)

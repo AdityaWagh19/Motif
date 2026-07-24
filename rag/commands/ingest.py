@@ -22,6 +22,15 @@ def handle_ingest(args, session, config, console) -> None:
     parser.add_argument("path", nargs="?", help="Path to file or directory")
     parser.add_argument("-r", "--recursive", action="store_true")
 
+    # Smart Path Auto-Joiner for unquoted paths containing spaces
+    if len(args) > 1:
+        non_flag_tokens = [a for a in args if not a.startswith("-")]
+        flag_tokens = [a for a in args if a.startswith("-")]
+        if non_flag_tokens:
+            joined_path = " ".join(non_flag_tokens)
+            if Path(joined_path).expanduser().exists():
+                args = [joined_path] + flag_tokens
+
     try:
         parsed = parser.parse_args(args)
     except SystemExit:

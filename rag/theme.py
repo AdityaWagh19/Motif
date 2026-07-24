@@ -25,6 +25,9 @@ motif_theme = Theme({
     "success": SUCCESS_GREEN,
     "warning": WARNING_YELLOW,
     "error": ERROR_RED,
+    "muted": "dim default",
+    "subtle": STRUCTURAL_GRAY,
+    "excerpt": f"dim {STRUCTURAL_GRAY}",
 
     # Markdown specific overrides to remove rainbow colors
     "markdown.code": "default on #2a2a2a",

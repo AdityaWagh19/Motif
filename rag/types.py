@@ -93,19 +93,27 @@ class Citation:
     excerpt: str = ""                    # First ~150 characters of chunk text
 
     def format(self) -> str:
-        """Render the citation as a single-line string."""
+        """Render the citation as a single-line string with optional passage snippet."""
         base = f"[{self.number}] {self.filename}"
         if self.source_type == "audio" and self.start_time is not None:
             s_time = self.start_time
             e_time = self.end_time or 0.0  # end_time may be None; 0.0 is a safe default
             s = f"{int(s_time // 60):02d}:{int(s_time % 60):02d}"
             e = f"{int(e_time // 60):02d}:{int(e_time % 60):02d}"
-            return f"{base} @ {s}–{e}"
-        if self.source_type in ("pdf", "docx"):
+            base += f" @ {s}–{e}"
+        elif self.source_type in ("pdf", "docx"):
             if self.page:
                 base += f" (p.{self.page})"
             if self.section:
                 base += f" — {self.section}"
+
+        if self.excerpt:
+            clean_excerpt = " ".join(self.excerpt.split()).strip()
+            if len(clean_excerpt) > 90:
+                clean_excerpt = clean_excerpt[:87] + "..."
+            if clean_excerpt:
+                base += f" — [excerpt]\"{clean_excerpt}\"[/excerpt]"
+
         return base
 
 

@@ -404,8 +404,12 @@ class QueryPipeline:
                     token_text = token_data[0] if isinstance(token_data, tuple) else token_data
                     full_answer += token_text
                     live.update(Markdown(full_answer))
+        except KeyboardInterrupt:
+            full_answer += "\n\n*[Cancelled]*"
+            console.print("\n[subtle]^C [Generation cancelled][/subtle]")
         except Exception as e:
-            console.print(f"[error]Error during generation: {e}[/error]")
+            log.exception("Error during generation: %s", e)
+            console.print(f"[error]✖ Generation notice:[/error] {e}")
 
         t_gen_ms = (time.monotonic() - t_gen_start) * 1000
 
