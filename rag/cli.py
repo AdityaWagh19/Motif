@@ -36,6 +36,28 @@ import warnings
 
 warnings.filterwarnings("ignore")
 import logging
+import shlex
+import sys
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from prompt_toolkit import PromptSession
+from prompt_toolkit.completion import NestedCompleter, PathCompleter, WordCompleter
+from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.history import InMemoryHistory
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.styles import Style
+from rich.panel import Panel
+
+from rag import __version__
+from rag.commands import SLASH_COMMANDS, get_command
+from rag.config import RAGConfig, load_config
+from rag.session import Session
+from rag.theme import console
+
+if TYPE_CHECKING:
+    from rag.pipeline import QueryPipeline
+
 
 def setup_cli_logging() -> None:
     """Redirect internal technical logs & tracebacks to ~/.motif/logs/motif.log."""
