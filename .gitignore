@@ -69,3 +69,4 @@ tests/evaluation/definitive_test_data/
 
 # ── Old Plans ─────────────────────────────────────────────────────────────────
 plans/
+scripts/ffmpeg.exe
