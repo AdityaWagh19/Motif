@@ -233,7 +233,7 @@ class RAGConfig:
     @property
     def db_root(self) -> Path:
         """Expanded, absolute path to the database root directory."""
-        if self.storage.db_path and self.storage.db_path != "~/.ragdb":
+        if self.storage.db_path and self.storage.db_path not in ("~/.ragdb", "~/.motif"):
             base = Path(os.path.expanduser(self.storage.db_path)).resolve()
             return base / self.storage.workspace
         return get_app_dir() / "workspaces" / self.storage.workspace

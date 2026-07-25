@@ -121,7 +121,7 @@ def calibrate_threshold(
     try:
         from rag.models.model_manager import get_model_manager
         from rag.retrieval.bm25_index import BM25Index
-        from rag.retrieval.fusion import rrf_fuse, rrf_to_scored_passages
+        from rag.retrieval.fusion import fused_to_scored_passages, normalized_weighted_sum
         from rag.retrieval.vector_store import VectorStore
         from rag.storage.chunk_store import ChunkStore
 
@@ -159,8 +159,8 @@ def calibrate_threshold(
                     qvec = embedder.encode(query, prefix="search_query: ")
                     dense = vector_store.search_dense(qvec, top_k=15)
                     bm25_res = bm25.search(query, top_k=15)
-                    fused = rrf_fuse([dense, bm25_res], top_k=15)
-                    candidates = rrf_to_scored_passages(fused, chunk_store)
+                    fused = normalized_weighted_sum([dense, bm25_res], top_k=15)
+                    candidates = fused_to_scored_passages(fused, chunk_store)
                     if not candidates:
                         continue
 
