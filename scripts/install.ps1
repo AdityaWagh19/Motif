@@ -144,7 +144,7 @@ if ($CudaVersion) {
     } -ArgumentList $pythonExe, $LlamaCppIndex, $CudaTag
 
     Write-Spinner $gpuJob "Installing GPU-accelerated llama-cpp-python ($CudaTag)..."
-    $gpuOut = Receive-Job $gpuJob
+    Receive-Job $gpuJob | Out-Null
     Remove-Job $gpuJob
 
     if ($LASTEXITCODE -eq 0) {
