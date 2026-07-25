@@ -73,22 +73,8 @@ RERANKER_MODELS = [
     ),
 ]
 
-WHISPER_MODELS = [
-    (
-        "ggerganov/whisper.cpp",
-        "ggml-tiny-q5_1.bin",
-        "ggml-tiny-q5_1.bin",
-        {"T1", "T2"},
-        "75 MB",
-    ),
-    (
-        "ggerganov/whisper.cpp",
-        "ggml-small-q5_1.bin",
-        "ggml-small-q5_1.bin",
-        {"T3"},
-        "244 MB",
-    ),
-]
+# WhisperX caches models dynamically via HuggingFace hub on first run (faster-whisper).
+WHISPER_MODELS = []
 
 CAPTIONING_MODELS = [
     (

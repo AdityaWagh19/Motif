@@ -56,6 +56,20 @@ class AudioParser(BaseParser):
         model = whisper_data["model"]
         device = whisper_data["device"]
             
+        import imageio_ffmpeg
+        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        import os, sys, shutil
+        from pathlib import Path
+        venv_scripts = Path(sys.executable).parent
+        ffmpeg_dest = venv_scripts / "ffmpeg.exe"
+        if not ffmpeg_dest.exists():
+            log.info("Copying imageio-ffmpeg binary to %s", ffmpeg_dest)
+            shutil.copy(ffmpeg_exe, ffmpeg_dest)
+            
+        venv_scripts_str = str(venv_scripts)
+        if venv_scripts_str not in os.environ.get("PATH", ""):
+            os.environ["PATH"] = venv_scripts_str + os.pathsep + os.environ.get("PATH", "")
+            
         log.info("Transcribing %s", audio_path.name)
         audio = whisperx.load_audio(str(audio_path))
         result = model.transcribe(audio, batch_size=16)
@@ -72,7 +86,7 @@ class AudioParser(BaseParser):
         if hf_token:
             try:
                 from whisperx.diarize import DiarizationPipeline
-                diarize_model = DiarizationPipeline(use_auth_token=hf_token, device=device)
+                diarize_model = DiarizationPipeline(token=hf_token, device=device)
                 diarize_segments = diarize_model(audio)
                 result = whisperx.assign_word_speakers(diarize_segments, result)
             except Exception as e:

@@ -1,8 +1,21 @@
 import os
+import sys
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding='utf-8')
 import json
 import csv
 import time
 from pathlib import Path
+
+if os.name == "nt":
+    try:
+        import torch
+        torch_lib = Path(torch.__file__).parent / "lib"
+        if torch_lib.exists():
+            os.add_dll_directory(str(torch_lib))
+            os.environ["PATH"] = str(torch_lib) + os.pathsep + os.environ.get("PATH", "")
+    except Exception:
+        pass
 from rag.config import load_config
 from rag.pipeline import QueryPipeline
 from rag.storage.db_manager import DatabaseManager

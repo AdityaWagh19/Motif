@@ -18,13 +18,14 @@ def get_ocr():
     global _ocr_instance
     if _ocr_instance is None:
         try:
-            from paddleocr import PaddleOCR
+            import easyocr
         except ImportError as exc:
             raise RuntimeError(
-                "PaddleOCR is not installed. Run: pip install paddleocr"
+                "easyocr is not installed. Run: pip install easyocr"
             ) from exc
 
-        log.info("Initialising PaddleOCR...")
-        _ocr_instance = PaddleOCR(use_angle_cls=True, lang="en")
+        log.info("Initialising EasyOCR...")
+        # Since EasyOCR needs to download models initially, we use English only
+        _ocr_instance = easyocr.Reader(['en'])
         
     return _ocr_instance

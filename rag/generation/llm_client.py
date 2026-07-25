@@ -85,6 +85,17 @@ class LLMClient:
             RuntimeError:     If llama.cpp fails to initialise.
         """
         try:
+            import os
+            if os.name == "nt":
+                try:
+                    import torch
+                    from pathlib import Path
+                    torch_lib = Path(torch.__file__).parent / "lib"
+                    if torch_lib.exists():
+                        os.add_dll_directory(str(torch_lib))
+                        os.environ["PATH"] = str(torch_lib) + os.pathsep + os.environ.get("PATH", "")
+                except Exception:
+                    pass
             from llama_cpp import Llama  # type: ignore[import]
         except (ImportError, RuntimeError, OSError) as exc:
             raise RuntimeError(

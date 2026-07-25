@@ -73,21 +73,20 @@ class ImageParser(BaseParser):
         ocr = get_ocr()
             
         try:
-            result = ocr.ocr(str(path))
-            if not result or not result[0]:
+            result = ocr.readtext(str(path))
+            if not result:
                 return ""
                 
             lines = []
-            for line in result[0]:
-                text_confidence = line[1]
-                text = text_confidence[0]
-                confidence = text_confidence[1]
+            for item in result:
+                text = item[1]
+                confidence = item[2]
                 if confidence >= 0.6:  # drop low-confidence OCR lines
                     lines.append(text)
                     
             return " ".join(lines)
         except (Exception, NotImplementedError) as e:
-            log.warning("PaddleOCR execution failed: %s", e)
+            log.warning("EasyOCR execution failed: %s", e)
             return ""
 
     def _run_caption(self, path: Path) -> str:

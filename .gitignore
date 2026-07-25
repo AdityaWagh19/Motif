@@ -63,3 +63,9 @@ benchmark_corpus/
 test_data_multimodal/
 /*.md
 !/README.md
+!/EVALUATION_REPORT.md
+evaluation_report.csv
+tests/evaluation/definitive_test_data/
+
+# ── Old Plans ─────────────────────────────────────────────────────────────────
+plans/

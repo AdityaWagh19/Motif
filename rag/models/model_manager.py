@@ -226,7 +226,9 @@ class ModelManager:
 
             # whisperx downloads models via huggingface hub if not present.
             # In a fully offline setup, we rely on HF_HOME being populated.
-            log.info("Loading WhisperX model (base)...")
+            # In a fully offline setup, we rely on HF_HOME being populated.
+            model_size = getattr(config.models, "whisper", "tiny")
+            log.info("Loading WhisperX model (%s)...", model_size)
             device = "cuda" if config.hardware.backend in ("cuda", "rocm") else "cpu"
             import torch
             if device == "cuda" and not torch.cuda.is_available():
@@ -236,7 +238,7 @@ class ModelManager:
             compute_type = "float16" if device == "cuda" else "int8"
             
             try:
-                model = whisperx.load_model("base", device, compute_type=compute_type)
+                model = whisperx.load_model(model_size, device, compute_type=compute_type)
                 self._whisper = {"model": model, "device": device, "compute_type": compute_type}
             except Exception as e:
                 log.error(f"Failed to load WhisperX model: {e}")
