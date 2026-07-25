@@ -51,7 +51,7 @@ if ($uvCmd) {
 Write-Info "Installing motif..."
 $InstallSpec = if ($MotifRepo -eq "." -or (Test-Path $MotifRepo)) { $MotifRepo } elseif ($MotifRepo -like "git+*") { $MotifRepo } else { "git+$MotifRepo" }
 $PythonArgs = if ($env:PYTHON) { @("--python", $env:PYTHON) } else { @() }
-& uv tool install "$InstallSpec" @PythonArgs --find-links "$LlamaCppIndex/cpu/llama-cpp-python/" --upgrade
+& uv tool install "$InstallSpec" @PythonArgs --find-links "$LlamaCppIndex/cpu/llama-cpp-python/" --upgrade --quiet
 if ($LASTEXITCODE -ne 0) { Write-Fail "Motif installation failed." }
 Write-Ok "motif installed"
 
@@ -99,15 +99,20 @@ if ([string]::IsNullOrWhiteSpace($MotifEnv) -or -not (Test-Path $MotifEnv)) {
 $CudaVersion = ""
 try {
     $NvSmiOut = & nvidia-smi 2>$null
-    if ($NvSmiOut -match "CUDA Version:\s+([\d.]+)") {
+    if ($NvSmiOut -match "CUDA(?: UMD)? Version:\s+([\d.]+)") {
         $CudaVersion = $matches[1]
     }
 } catch { }
 
 if ($CudaVersion) {
     # Bug #7 fix: Take only major.minor components to build the wheel tag.
-    # "12.4.0" → "12.4" → "cu124"  (cu1240 is invalid and causes silent fallback to CPU)
-    $CudaShort = ($CudaVersion -split '\.')[0..1] -join '.'
+    # Also fallback CUDA 13.x+ to 12.4 since prebuilt wheels stop at 12.5 and drivers are backward compatible.
+    $CudaMajor = [int]($CudaVersion -split '\.')[0]
+    if ($CudaMajor -ge 13) {
+        $CudaShort = "12.4"
+    } else {
+        $CudaShort = ($CudaVersion -split '\.')[0..1] -join '.'
+    }
     $CudaTag = "cu" + $CudaShort.Replace(".", "")
 
     Write-Info "NVIDIA GPU detected - CUDA $CudaVersion (wheel tag: $CudaTag)."

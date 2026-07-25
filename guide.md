@@ -92,12 +92,10 @@ To wipe all downloaded models and workspace state before re-running the installe
 
 ### Windows (PowerShell)
 ```powershell
-Remove-Item -Path "models\*" -Recurse -Force -Exclude ".gitkeep" -ErrorAction SilentlyContinue
-Remove-Item -Path "$env:LOCALAPPDATA\motif" -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item -Path "$HOME\.ragdb" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$HOME\.motif" -Recurse -Force -ErrorAction SilentlyContinue
 ```
 
 ### Linux / macOS
 ```bash
-rm -rf ~/.ragdb ~/.local/share/motif
+rm -rf ~/.motif
 ```

@@ -43,14 +43,14 @@ else
     INSTALL_SPEC="git+${MOTIF_REPO}"
 fi
 if [ "$(uname)" = "Darwin" ]; then
-    uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --no-binary-package llama-cpp-python --force
+    uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --no-binary-package llama-cpp-python --force --quiet
 else
     if command -v nvidia-smi >/dev/null 2>&1; then
-        uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --find-links "https://abetlen.github.io/llama-cpp-python/whl/cu124/llama-cpp-python/" --force
+        uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --find-links "https://abetlen.github.io/llama-cpp-python/whl/cu124/llama-cpp-python/" --force --quiet
     elif [ -d "/opt/rocm" ] || lsmod 2>/dev/null | grep -q amdgpu; then
-        uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --find-links "https://abetlen.github.io/llama-cpp-python/whl/rocm/llama-cpp-python/" --force
+        uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --find-links "https://abetlen.github.io/llama-cpp-python/whl/rocm/llama-cpp-python/" --force --quiet
     else
-        uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --find-links "https://abetlen.github.io/llama-cpp-python/whl/cpu/llama-cpp-python/" --force
+        uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --find-links "https://abetlen.github.io/llama-cpp-python/whl/cpu/llama-cpp-python/" --force --quiet
     fi
 fi
 success "motif installed"
@@ -65,14 +65,19 @@ MOTIF_ENV="$(uv tool dir 2>/dev/null)/motif-rag"
 CUDA_VERSION=""
 if command -v nvidia-smi &>/dev/null; then
     CUDA_VERSION=$(nvidia-smi 2>/dev/null \
-        | grep -oP "CUDA Version: \K[\d.]+" \
+        | grep -oP "CUDA(?: UMD)? Version:\s*\K[\d.]+" \
         || echo "")
 fi
 
 if [ -n "$CUDA_VERSION" ]; then
     # Bug #6 fix: Take only major.minor (e.g. "12.4" not "12.4.0")
-    # nvidia-smi sometimes reports a 3-part version string; cu1240 is invalid.
-    CUDA_MAJOR_MINOR=$(echo "$CUDA_VERSION" | cut -d. -f1,2)
+    # Also fallback CUDA 13.x+ to 12.4 since prebuilt wheels stop at 12.5 and drivers are backward compatible.
+    CUDA_MAJOR=$(echo "$CUDA_VERSION" | cut -d. -f1)
+    if [ "$CUDA_MAJOR" -ge 13 ]; then
+        CUDA_MAJOR_MINOR="12.4"
+    else
+        CUDA_MAJOR_MINOR=$(echo "$CUDA_VERSION" | cut -d. -f1,2)
+    fi
     CUDA_TAG="cu$(echo "$CUDA_MAJOR_MINOR" | tr -d '.')"
 
     info "NVIDIA GPU detected - CUDA ${CUDA_VERSION} (wheel tag: ${CUDA_TAG})."

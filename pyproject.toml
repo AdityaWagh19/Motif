@@ -30,7 +30,7 @@ dependencies = [
     "prompt_toolkit>=3.0",
     "rich>=13.0",
     # Vector store (local embedded mode, no server)
-    "qdrant-client[local]>=1.10",
+    "qdrant-client>=1.10",
     # Lexical search
     "rank-bm25>=0.2",
     # Embedding + reranker inference (ONNX, no torch at query time)
