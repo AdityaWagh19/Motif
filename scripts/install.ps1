@@ -119,7 +119,7 @@ $NvSmiPaths = @(
 $CudaVersion = ""
 foreach ($nvSmi in $NvSmiPaths) {
     try {
-        $NvSmiOut = & $nvSmi 2>$null
+        $NvSmiOut = & $nvSmi 2>$null | Out-String
         if ($NvSmiOut -match "CUDA(?: UMD)? Version:\s+([\d.]+)") {
             $CudaVersion = $Matches[1]
             break
