@@ -78,8 +78,8 @@ class RichTqdm:
         self.close()
 
 # Apply patches so HuggingFace uses our Rich progress bars
-huggingface_hub.utils.tqdm = RichTqdm
-huggingface_hub.file_download.tqdm = RichTqdm
+huggingface_hub.utils.tqdm = RichTqdm  # type: ignore
+huggingface_hub.file_download.tqdm = RichTqdm  # type: ignore
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Model catalogue
