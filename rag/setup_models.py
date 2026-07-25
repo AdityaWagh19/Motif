@@ -85,13 +85,13 @@ CAPTIONING_MODELS = [
         "vikhyatk/moondream2",
         None,
         "moondream2",
-        {"T3"},
+        {"T1", "T2", "T3"},
         "~900 MB",
     ),
 ]
 
 # Total size reference per tier
-TIER_SIZES = {"T1": "2.8 GB", "T2": "4.9 GB", "T3": "5.2 GB"}
+TIER_SIZES = {"T1": "3.7 GB", "T2": "5.8 GB", "T3": "6.1 GB"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -206,14 +206,12 @@ def _download_model(entry: tuple, tier: str, dry_run: bool = False) -> bool:
 # Verify
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _verify(tier: str, captioning: bool) -> None:
+def _verify(tier: str) -> None:
     """Check which models are present and print a verification table."""
     from rich import box
     from rich.table import Table
 
-    all_models = LLM_MODELS + EMBED_MODELS + RERANKER_MODELS + WHISPER_MODELS
-    if captioning:
-        all_models += CAPTIONING_MODELS
+    all_models = LLM_MODELS + EMBED_MODELS + RERANKER_MODELS + WHISPER_MODELS + CAPTIONING_MODELS
 
     table = Table(box=box.SIMPLE, show_header=True, padding=(0, 2))
     table.add_column("Model", style="dim")
@@ -254,11 +252,6 @@ def main() -> None:
         help="Hardware tier (default: auto-detect from GPU VRAM)",
     )
     parser.add_argument(
-        "--captioning",
-        action="store_true",
-        help="Also download moondream2 Q4 for image captioning (T3 opt-in, ~900 MB)",
-    )
-    parser.add_argument(
         "--verify",
         action="store_true",
         help="Check which models are present without downloading",
@@ -279,7 +272,7 @@ def main() -> None:
     os.makedirs(str(MODELS_DIR), exist_ok=True)
 
     if args.verify:
-        _verify(args.tier, args.captioning)
+        _verify(args.tier)
         return
 
     console.print(
@@ -287,22 +280,14 @@ def main() -> None:
         f"({TIER_SIZES.get(args.tier, '?')} total)\n"
     )
 
-    for entry in LLM_MODELS + EMBED_MODELS + RERANKER_MODELS + WHISPER_MODELS:
+    for entry in LLM_MODELS + EMBED_MODELS + RERANKER_MODELS + WHISPER_MODELS + CAPTIONING_MODELS:
         try:
             _download_model(entry, args.tier, dry_run=args.dry_run)
         except Exception as exc:
             console.print(f"  [red]fail[/red]  {entry[2]}: {exc}")
 
-    if args.captioning:
-        console.print("\n[dim]Downloading image captioning model (moondream2)…[/dim]")
-        for entry in CAPTIONING_MODELS:
-            try:
-                _download_model(entry, args.tier, dry_run=args.dry_run)
-            except Exception as exc:
-                console.print(f"  [red]fail[/red]  {entry[2]}: {exc}")
-
     console.print()
-    _verify(args.tier, args.captioning)
+    _verify(args.tier)
 
 
 if __name__ == "__main__":
