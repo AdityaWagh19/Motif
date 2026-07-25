@@ -8,33 +8,49 @@ UV_INSTALL_URL="https://astral.sh/uv/install.sh"
 LLAMA_CPP_CUDA_INDEX="https://abetlen.github.io/llama-cpp-python/whl"
 LLAMA_CPP_ROCM_INDEX="https://abetlen.github.io/llama-cpp-python/whl/rocm"
 
-# ── Formatting helpers ────────────────────────────────────────────────────────
-bold()    { printf "\033[1m%s\033[0m\n" "$*"; }
-info()    { printf "\033[34m-->\033[0m %s\n" "$*"; }
-success() { printf "\033[32m  ok\033[0m %s\n" "$*"; }
-warn()    { printf "\033[33m warn\033[0m %s\n" "$*"; }
-die()     { printf "\033[31merror\033[0m %s\n" "$*" >&2; exit 1; }
+# ── Colour helpers ────────────────────────────────────────────────────────────
+BOLD="\033[1m"; RESET="\033[0m"; GREEN="\033[32m"; CYAN="\033[36m"
+YELLOW="\033[33m"; RED="\033[31m"; GRAY="\033[90m"; WHITE="\033[97m"
 
-# ── Header ────────────────────────────────────────────────────────────────────
-echo ""
-bold "Motif - offline multimodal RAG"
-echo "  https://github.com/AdityaWagh19/Motif"
-echo ""
+step()    { printf "\n  ${GRAY}[${WHITE}%s${GRAY}]${RESET} ${CYAN}%s${RESET}\n" "$1" "$2"; }
+ok()      { printf "  ${GRAY}[${GREEN}ok${GRAY}]${RESET} %s\n" "$*"; }
+warn()    { printf "  ${GRAY}[${YELLOW}!!${GRAY}]${RESET} ${YELLOW}%s${RESET}\n" "$*"; }
+die()     { printf "\n  ${GRAY}[${RED}!!${GRAY}]${RESET} ${RED}%s${RESET}\n" "$*" >&2; exit 1; }
 
-# ── Step 1: Ensure uv is present ──────────────────────────────────────────────
+spinner() {
+    # Usage: spinner <pid> <message>
+    local pid=$1 msg=$2
+    local frames=("   [  ]" "   [. ]" "   [..]" "   [...]")
+    local i=0
+    while kill -0 "$pid" 2>/dev/null; do
+        printf "\r${GRAY}%s${RESET} ${CYAN}%s${RESET}" "${frames[$((i % 4))]}" "$msg"
+        sleep 0.12
+        (( i++ )) || true
+    done
+    # Erase the spinner line
+    printf "\r%*s\r" $(( ${#msg} + 12 )) ""
+}
+
+# ── Banner ────────────────────────────────────────────────────────────────────
+printf "\n  ${BOLD}${WHITE}Motif${RESET}  ${GRAY}—  offline multimodal RAG${RESET}\n"
+printf "  ${GRAY}https://github.com/AdityaWagh19/Motif${RESET}\n"
+printf "  ${GRAY}─────────────────────────────────────${RESET}\n"
+
+# ── Step 1: Ensure uv ────────────────────────────────────────────────────────
+step "1/3" "Checking package manager (uv)..."
 if command -v uv &>/dev/null; then
-    success "uv already installed: $(uv --version)"
+    ok "uv already installed  ($(uv --version))"
 else
-    info "Installing uv (Python package manager)..."
+    printf "      ${GRAY}Downloading uv...${RESET}\n"
     curl -LsSf "$UV_INSTALL_URL" | sh
-    # Make uv available in this shell session
     export PATH="${HOME}/.cargo/bin:${HOME}/.local/bin:${PATH}"
-    command -v uv &>/dev/null || die "uv installation failed. Please install manually: https://docs.astral.sh/uv/"
-    success "uv installed: $(uv --version)"
+    command -v uv &>/dev/null || die "uv installation failed. See: https://docs.astral.sh/uv/"
+    ok "uv installed  ($(uv --version))"
 fi
 
-# ── Step 2: Install Motif ─────────────────────────────────────────────────────
-info "Installing motif..."
+# ── Step 2: Install Motif ────────────────────────────────────────────────────
+step "2/3" "Installing Motif..."
+
 if [ "${MOTIF_REPO}" = "." ] || [ -d "${MOTIF_REPO}" ]; then
     INSTALL_SPEC="${MOTIF_REPO}"
 elif [[ "${MOTIF_REPO}" == git+* ]]; then
@@ -42,26 +58,38 @@ elif [[ "${MOTIF_REPO}" == git+* ]]; then
 else
     INSTALL_SPEC="git+${MOTIF_REPO}"
 fi
+
+PYTHON_BIN="${PYTHON:-python3}"
+
 if [ "$(uname)" = "Darwin" ]; then
-    uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --no-binary-package llama-cpp-python --force --quiet
+    uv tool install "${INSTALL_SPEC}" --python "${PYTHON_BIN}" \
+        --no-binary-package llama-cpp-python --force --quiet &
 else
     if command -v nvidia-smi >/dev/null 2>&1; then
-        uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --find-links "https://abetlen.github.io/llama-cpp-python/whl/cu124/llama-cpp-python/" --force --quiet
+        uv tool install "${INSTALL_SPEC}" --python "${PYTHON_BIN}" \
+            --find-links "${LLAMA_CPP_CUDA_INDEX}/cu124/llama-cpp-python/" --force --quiet &
     elif [ -d "/opt/rocm" ] || lsmod 2>/dev/null | grep -q amdgpu; then
-        uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --find-links "https://abetlen.github.io/llama-cpp-python/whl/rocm/llama-cpp-python/" --force --quiet
+        uv tool install "${INSTALL_SPEC}" --python "${PYTHON_BIN}" \
+            --find-links "${LLAMA_CPP_ROCM_INDEX}/llama-cpp-python/" --force --quiet &
     else
-        uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --find-links "https://abetlen.github.io/llama-cpp-python/whl/cpu/llama-cpp-python/" --force --quiet
+        uv tool install "${INSTALL_SPEC}" --python "${PYTHON_BIN}" \
+            --find-links "${LLAMA_CPP_CUDA_INDEX}/cpu/llama-cpp-python/" --force --quiet &
     fi
 fi
-success "motif installed"
 
-# Ensure uv tool bin dir is on PATH
+INSTALL_PID=$!
+spinner $INSTALL_PID "Resolving and installing packages  (this takes ~1–2 min on first run)..."
+wait $INSTALL_PID || die "Motif installation failed."
+ok "Motif installed"
+
 uv tool update-shell 2>/dev/null || true
-
-# ── Step 3: GPU / accelerator detection ──────────────────────────────────────
+export PATH="${HOME}/.local/bin:${HOME}/.cargo/bin:${PATH}"
 MOTIF_ENV="$(uv tool dir 2>/dev/null)/motif-rag"
 
-# ── 3a. NVIDIA CUDA ───────────────────────────────────────────────────────────
+# ── Step 3: GPU / accelerator setup ─────────────────────────────────────────
+step "3/3" "Detecting GPU accelerator..."
+
+# ── 3a. NVIDIA CUDA ──────────────────────────────────────────────────────────
 CUDA_VERSION=""
 if command -v nvidia-smi &>/dev/null; then
     CUDA_VERSION=$(nvidia-smi 2>/dev/null \
@@ -70,8 +98,6 @@ if command -v nvidia-smi &>/dev/null; then
 fi
 
 if [ -n "$CUDA_VERSION" ]; then
-    # Bug #6 fix: Take only major.minor (e.g. "12.4" not "12.4.0")
-    # Also fallback CUDA 13.x+ to 12.4 since prebuilt wheels stop at 12.5 and drivers are backward compatible.
     CUDA_MAJOR=$(echo "$CUDA_VERSION" | cut -d. -f1)
     if [ "$CUDA_MAJOR" -ge 13 ]; then
         CUDA_MAJOR_MINOR="12.4"
@@ -80,83 +106,60 @@ if [ -n "$CUDA_VERSION" ]; then
     fi
     CUDA_TAG="cu$(echo "$CUDA_MAJOR_MINOR" | tr -d '.')"
 
-    info "NVIDIA GPU detected - CUDA ${CUDA_VERSION} (wheel tag: ${CUDA_TAG})."
-    info "Installing GPU-enabled llama-cpp-python (${CUDA_TAG} pre-built wheel)..."
+    ok "NVIDIA GPU detected  (CUDA ${CUDA_VERSION} → wheel tag: ${CUDA_TAG})"
 
     if [ -n "$MOTIF_ENV" ]; then
         uv pip install llama-cpp-python \
             --python "${MOTIF_ENV}/bin/python" \
             --extra-index-url "${LLAMA_CPP_CUDA_INDEX}/${CUDA_TAG}" \
-            --force-reinstall \
-            --only-binary llama-cpp-python \
-            --quiet 2>/dev/null && \
-        success "llama-cpp-python with CUDA ${CUDA_VERSION} support installed" || \
-        warn "Pre-built CUDA wheel not found for ${CUDA_TAG}. Falling back to CPU inference."
+            --force-reinstall --only-binary llama-cpp-python --quiet &
+        GPU_PID=$!
+        spinner $GPU_PID "Installing GPU-accelerated llama-cpp-python (${CUDA_TAG})..."
+        wait $GPU_PID && ok "GPU-accelerated llama-cpp-python installed" \
+            || warn "GPU wheel not found for ${CUDA_TAG} — falling back to CPU inference"
     else
-        warn "Could not locate Motif tool environment. CUDA wheel not installed."
-        warn "Re-run with: uv pip install llama-cpp-python --extra-index-url ${LLAMA_CPP_CUDA_INDEX}/${CUDA_TAG} --force-reinstall"
+        warn "Could not locate Motif environment. CUDA wheel not installed."
     fi
 
-# ── 3b. Apple Silicon (Metal) ─────────────────────────────────────────────────
+# ── 3b. Apple Silicon (Metal) ────────────────────────────────────────────────
 elif [ "$(uname)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
-    info "Apple Silicon detected - llama.cpp will use Metal (GPU) automatically."
-    info "The standard llama-cpp-python wheel includes Metal support on macOS arm64."
-    info "No additional install step needed."
-    success "Metal GPU inference enabled (llama.cpp built-in)"
-
-    # Retrieve unified memory size for user info
+    ok "Apple Silicon  —  Metal GPU enabled automatically"
     RAM_BYTES=$(sysctl -n hw.memsize 2>/dev/null || echo 0)
     RAM_GB=$(( RAM_BYTES / 1073741824 ))
-    if [ "$RAM_GB" -ge 16 ]; then
-        info "Detected ${RAM_GB} GB unified memory → Tier T3 (full Metal offload)"
-    elif [ "$RAM_GB" -ge 8 ]; then
-        info "Detected ${RAM_GB} GB unified memory → Tier T2 (partial Metal offload)"
-    else
-        info "Detected ${RAM_GB} GB unified memory → Tier T1 (CPU only recommended)"
+    if   [ "$RAM_GB" -ge 16 ]; then ok "Unified memory: ${RAM_GB} GB  →  Tier T3 (full Metal offload)"
+    elif [ "$RAM_GB" -ge 8  ]; then ok "Unified memory: ${RAM_GB} GB  →  Tier T2 (partial Metal offload)"
+    else                             ok "Unified memory: ${RAM_GB} GB  →  Tier T1 (CPU)"
     fi
 
-# ── 3c. AMD ROCm ──────────────────────────────────────────────────────────────
+# ── 3c. AMD ROCm ─────────────────────────────────────────────────────────────
 elif command -v rocm-smi &>/dev/null; then
-    info "AMD ROCm GPU detected."
-    info "Installing ROCm-enabled llama-cpp-python..."
-
+    ok "AMD ROCm GPU detected"
     if [ -n "$MOTIF_ENV" ]; then
         uv pip install llama-cpp-python \
             --python "${MOTIF_ENV}/bin/python" \
             --extra-index-url "${LLAMA_CPP_ROCM_INDEX}" \
-            --force-reinstall \
-            --only-binary llama-cpp-python \
-            --quiet 2>/dev/null && \
-        success "llama-cpp-python with ROCm support installed" || \
-        warn "Pre-built ROCm wheel not found. Falling back to CPU inference."
+            --force-reinstall --only-binary llama-cpp-python --quiet &
+        ROCM_PID=$!
+        spinner $ROCM_PID "Installing ROCm llama-cpp-python..."
+        wait $ROCM_PID && ok "ROCm llama-cpp-python installed" \
+            || warn "ROCm wheel not found — falling back to CPU inference"
     else
-        warn "Could not locate Motif tool environment. ROCm wheel not installed."
+        warn "Could not locate Motif environment. ROCm wheel not installed."
     fi
 
-# ── 3d. CPU fallback ──────────────────────────────────────────────────────────
+# ── 3d. CPU fallback ─────────────────────────────────────────────────────────
 else
-    info "No GPU accelerator detected. CPU inference will be used (Tier T1)."
-    info "Generation will work but will be slower (~2-3 min P50 for 7B models)."
-    info "Phi-3.5-mini (T1 model) is much faster: ~11 s P95 on modern CPUs."
+    warn "No GPU detected  —  CPU inference (Tier T1)"
+    warn "Expect ~2–3 min per answer for 7B models. Phi-3.5-mini is ~11 s."
 fi
 
 # ── Done ──────────────────────────────────────────────────────────────────────
-echo ""
-bold "Installation complete."
-echo ""
-echo "  Download models for your hardware:"
-echo ""
-echo "    motif setup"
-echo ""
-echo "  Then start using Motif:"
-echo ""
-echo "    motif"
-echo ""
+printf "\n  ${GRAY}─────────────────────────────────────${RESET}\n"
+printf "  ${GREEN}${BOLD}Installation complete.${RESET}\n\n"
+printf "  ${WHITE}Next steps:${RESET}\n"
+printf "    ${CYAN}motif setup${RESET}  ${GRAY}—  download models for your hardware${RESET}\n"
+printf "    ${CYAN}motif${RESET}        ${GRAY}—  start chatting${RESET}\n\n"
 
-# Warn if motif is not yet on PATH (needs shell restart)
 if ! command -v motif &>/dev/null; then
-    warn "'motif' not found in current PATH."
-    warn "Restart your terminal, or run one of:"
-    warn "  source ~/.bashrc    (bash)"
-    warn "  source ~/.zshrc     (zsh)"
+    warn "Restart your terminal to pick up the new PATH, then run  motif setup"
 fi
