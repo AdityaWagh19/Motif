@@ -15,6 +15,10 @@ import os
 import shutil
 from pathlib import Path
 
+# Disable HuggingFace's messy multi-line tqdm progress bars
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+
 from huggingface_hub import hf_hub_download, snapshot_download
 from rich.console import Console
 
@@ -107,13 +111,13 @@ def _download_file(repo_id: str, filename: str, local_name: str, size_label: str
         dest.touch()
         return dest
 
-    console.print(f"  [cyan]down[/cyan]  {local_name} ({size_label})")
-    path = hf_hub_download(
-        repo_id=repo_id,
-        filename=filename,
-        local_dir=str(MODELS_DIR),
-        token=False,
-    )
+    with console.status(f"  [cyan]down[/cyan]  {local_name} ({size_label})", spinner="dots"):
+        path = hf_hub_download(
+            repo_id=repo_id,
+            filename=filename,
+            local_dir=str(MODELS_DIR),
+            token=False,
+        )
     # Rename to local_name if different
     actual = Path(path)
     target = MODELS_DIR / local_name
@@ -122,6 +126,7 @@ def _download_file(repo_id: str, filename: str, local_name: str, size_label: str
             shutil.copy2(str(actual.resolve()), str(target))
         else:
             shutil.copy2(str(actual), str(target))
+    console.print(f"  [green]ok[/green]    {local_name}")
     return target
 
 
@@ -169,17 +174,18 @@ def _download_snapshot(repo_id: str, local_name: str, size_label: str, dry_run: 
         (dest / "mock_file.txt").touch()
         return dest
 
-    console.print(f"  [cyan]down[/cyan]  {local_name}/ ({size_label})")
-    snapshot_kwargs: dict = {}
-    if "nomic" in repo_id:
-        snapshot_kwargs["allow_patterns"] = _get_nomic_onnx_patterns()
-
-    snapshot_download(
-        repo_id=repo_id,
-        local_dir=dest,
-        token=False,
-        **snapshot_kwargs
-    )
+    with console.status(f"  [cyan]down[/cyan]  {local_name}/ ({size_label})", spinner="dots"):
+        snapshot_kwargs: dict = {}
+        if "nomic" in repo_id:
+            snapshot_kwargs["allow_patterns"] = _get_nomic_onnx_patterns()
+    
+        snapshot_download(
+            repo_id=repo_id,
+            local_dir=dest,
+            token=False,
+            **snapshot_kwargs
+        )
+    console.print(f"  [green]ok[/green]    {local_name}/")
     return dest
 
 
