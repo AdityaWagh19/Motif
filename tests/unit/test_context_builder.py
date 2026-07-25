@@ -5,7 +5,7 @@ No models required.
 """
 from __future__ import annotations
 
-from rag.generation.context_builder import ContextBuilder, _anti_middle_order
+from rag.generation.context_builder import ContextBuilder, _chronological_order
 from rag.types import Chunk, ScoredPassage
 
 # ---------------------------------------------------------------------------
@@ -27,47 +27,46 @@ def _passage(score: float, text: str, id: str = "id") -> ScoredPassage:
 
 
 # ---------------------------------------------------------------------------
-# _anti_middle_order
+# _chronological_order
 # ---------------------------------------------------------------------------
 
-class TestAntiMiddleOrder:
+class TestChronologicalOrder:
     def test_empty_list(self) -> None:
-        assert _anti_middle_order([]) == []
+        assert _chronological_order([]) == []
 
     def test_single_element(self) -> None:
         p1 = _passage(1.0, "p1")
-        assert _anti_middle_order([p1]) == [p1]
+        assert _chronological_order([p1]) == [p1]
 
-    def test_two_elements_preserves_order(self) -> None:
-        p1 = _passage(1.0, "best")
-        p2 = _passage(0.5, "second")
-        assert _anti_middle_order([p1, p2]) == [p1, p2]
+    def test_sorts_by_source_and_page(self) -> None:
+        p1 = _passage(1.0, "text", id="p1")
+        p1.chunk.source = "/a.pdf"
+        p1.chunk.page = 2
+        
+        p2 = _passage(1.0, "text", id="p2")
+        p2.chunk.source = "/a.pdf"
+        p2.chunk.page = 1
+        
+        p3 = _passage(1.0, "text", id="p3")
+        p3.chunk.source = "/b.pdf"
+        p3.chunk.page = 1
 
-    def test_five_elements_ordered_correctly(self) -> None:
-        p1 = _passage(5.0, "first", id="p1")
-        p2 = _passage(4.0, "second", id="p2")
-        p3 = _passage(3.0, "third", id="p3")
-        p4 = _passage(2.0, "fourth", id="p4")
-        p5 = _passage(1.0, "fifth", id="p5")
+        # Input order: p1, p2, p3
+        # Expected chronological order: p2 (/a.pdf pg 1), p1 (/a.pdf pg 2), p3 (/b.pdf pg 1)
+        ordered = _chronological_order([p1, p2, p3])
+        assert [p.chunk.id for p in ordered] == ["p2", "p1", "p3"]
 
-        passages = [p1, p2, p3, p4, p5]
-        ordered = _anti_middle_order(passages)
+    def test_sorts_by_char_start_if_same_page(self) -> None:
+        p1 = _passage(1.0, "text", id="p1")
+        p1.chunk.page = 1
+        p1.chunk.char_start = 100
 
-        ids = [p.chunk.id for p in ordered]
-        # Expected: Best at 0, 2nd best at -1, others fill middle
-        assert ids == ["p1", "p3", "p4", "p5", "p2"]
+        p2 = _passage(1.0, "text", id="p2")
+        p2.chunk.page = 1
+        p2.chunk.char_start = 0
 
-    def test_handles_unsorted_input_by_sorting_first(self) -> None:
-        p2 = _passage(4.0, "second", id="p2")
-        p1 = _passage(5.0, "first", id="p1")
-        p3 = _passage(3.0, "third", id="p3")
-
-        # Input is scrambled
-        ordered = _anti_middle_order([p2, p1, p3])
-
-        # Best (p1) goes first, second (p2) goes last
-        ids = [p.chunk.id for p in ordered]
-        assert ids == ["p1", "p3", "p2"]
+        ordered = _chronological_order([p1, p2])
+        assert [p.chunk.id for p in ordered] == ["p2", "p1"]
 
 
 # ---------------------------------------------------------------------------

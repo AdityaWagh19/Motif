@@ -210,5 +210,5 @@ class TestChunkerConfig:
 
     def test_custom_config_applied(self) -> None:
         chunker = SentenceChunker(ChunkerConfig(target_tokens=50, overlap_tokens=5))
-        # target_words = int(50 / 0.75) = 66
-        assert chunker._target_words == 66
+        # target_chars = 50 * 4 = 200
+        assert chunker._target_chars == 200
