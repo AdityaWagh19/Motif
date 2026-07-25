@@ -17,7 +17,7 @@ Algorithm:
   6. Clamp to [0.15, 0.55] — the TRD-required range.
   7. Persist the calibrated threshold in the StorageConfig so it survives restart.
 
-The calibrated threshold is stored in `~/.ragdb/calibration.json`.
+The calibrated threshold is stored in `~/.motif/calibration.json`.
 It is only recomputed when:
   - The file does not exist.
   - `force=True` is passed.

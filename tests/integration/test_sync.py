@@ -10,7 +10,7 @@ from rag.storage.chunk_store import ChunkStore
 @pytest.fixture
 def minimal_config(tmp_path):
     config = RAGConfig()
-    config.storage.db_path = str(tmp_path / ".ragdb")
+    config.storage.db_path = str(tmp_path / ".motif")
     config.resolved_tier = "T1"
     config.chunking.use_semantic = False
     return config

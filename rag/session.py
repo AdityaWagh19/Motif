@@ -2,7 +2,7 @@
 rag/session.py — Conversation session management.
 
 Manages the in-session conversation history (a rolling list of Q&A turns),
-persists it to ~/.ragdb/history.json on exit, and loads it on restart.
+persists it to ~/.motif/history.json on exit, and loads it on restart.
 
 Design decisions (see context.md):
 - Single-user, local, offline — no session IDs, no database, no server.
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from rag.config import RAGConfig
 
 # Default storage location (mirrors StorageConfig.db_path default)
-_DEFAULT_DB_ROOT = Path("~/.ragdb").expanduser()  # type: ignore[union-attr]
+_DEFAULT_DB_ROOT = Path("~/.motif").expanduser()  # type: ignore[union-attr]
 _HISTORY_FILENAME = "history.json"
 
 
@@ -64,7 +64,7 @@ class Session:
         history:  List of {"role": "user"|"assistant", "content": str} dicts.
                   Ordered oldest-first. Append via add_turn().
         config:   Loaded RAGConfig (set by caller after load_config()).
-        db_root:  Path to ~/.ragdb (or override from config).
+        db_root:  Path to ~/.motif (or override from config).
     """
 
     def __init__(self, config: RAGConfig | None = None) -> None:
@@ -134,7 +134,7 @@ class Session:
 
     def save(self) -> None:
         """
-        Write the current history to ~/.ragdb/history.json.
+        Write the current history to ~/.motif/history.json.
         Creates the db_root directory if it does not exist.
         Safe to call on an empty history (writes an empty list).
         """
@@ -144,7 +144,7 @@ class Session:
 
     def load(self) -> bool:
         """
-        Load history from ~/.ragdb/history.json if it exists.
+        Load history from ~/.motif/history.json if it exists.
 
         Returns:
             True if history was loaded successfully, False if the file
@@ -164,7 +164,7 @@ class Session:
 
     def clear(self) -> None:
         """
-        Clear in-memory history and delete ~/.ragdb/<workspace>/history.json.
+        Clear in-memory history and delete ~/.motif/<workspace>/history.json.
         Implements the /clear slash command.
         """
         self.history = []
