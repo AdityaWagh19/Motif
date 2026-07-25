@@ -51,7 +51,7 @@ if ($uvCmd) {
 Write-Info "Installing motif..."
 $InstallSpec = if ($MotifRepo -eq "." -or (Test-Path $MotifRepo)) { $MotifRepo } elseif ($MotifRepo -like "git+*") { $MotifRepo } else { "git+$MotifRepo" }
 $PythonArgs = if ($env:PYTHON) { @("--python", $env:PYTHON) } else { @() }
-& uv tool install "$InstallSpec" @PythonArgs --find-links "$LlamaCppIndex/cpu" --upgrade
+& uv tool install "$InstallSpec" @PythonArgs --find-links "$LlamaCppIndex/cpu/llama-cpp-python/" --upgrade
 if ($LASTEXITCODE -ne 0) { Write-Fail "Motif installation failed." }
 Write-Ok "motif installed"
 

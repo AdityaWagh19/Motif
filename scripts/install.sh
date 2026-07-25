@@ -43,9 +43,15 @@ else
     INSTALL_SPEC="git+${MOTIF_REPO}"
 fi
 if [ "$(uname)" = "Darwin" ]; then
-    uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --no-binary-package llama-cpp-python --force
+    uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --find-links "https://abetlen.github.io/llama-cpp-python/whl/metal/llama-cpp-python/" --force
 else
-    uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --find-links "https://abetlen.github.io/llama-cpp-python/whl/cpu" --force
+    if command -v nvidia-smi >/dev/null 2>&1; then
+        uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --find-links "https://abetlen.github.io/llama-cpp-python/whl/cu124/llama-cpp-python/" --force
+    elif [ -d "/opt/rocm" ] || lsmod 2>/dev/null | grep -q amdgpu; then
+        uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --find-links "https://abetlen.github.io/llama-cpp-python/whl/rocm/llama-cpp-python/" --force
+    else
+        uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --find-links "https://abetlen.github.io/llama-cpp-python/whl/cpu/llama-cpp-python/" --force
+    fi
 fi
 success "motif installed"
 
