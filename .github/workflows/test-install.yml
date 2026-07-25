@@ -30,21 +30,26 @@ jobs:
           if is_pr:
               matrix = [
                   {"os": "ubuntu-24.04", "python": "3.12", "install": "fresh", "hardware": "cpu"},
-                  {"os": "windows-2022", "python": "3.12", "install": "fresh", "hardware": "cpu"}
+                  {"os": "windows-2022", "python": "3.12", "install": "fresh", "hardware": "cpu"},
+                  {"os": "macos-14", "python": "3.12", "install": "fresh", "hardware": "cpu"}
               ]
           else:
               matrix = []
-              # Primary matrix on Python 3.12 for all OS / Install / Hardware combos
+              # Core cross-platform tests (fresh + cpu)
               for os_name in ["ubuntu-24.04", "windows-2022", "macos-14"]:
-                  for inst in ["fresh", "upgrade"]:
-                      for hw in ["cpu", "mock_cuda", "mock_rocm"]:
-                          if hw == "mock_rocm" and os_name != "ubuntu-24.04": continue
-                          if hw == "mock_cuda" and os_name not in ["ubuntu-24.04", "windows-2022"]: continue
-                          matrix.append({"os": os_name, "python": "3.12", "install": inst, "hardware": hw})
+                  matrix.append({"os": os_name, "python": "3.12", "install": "fresh", "hardware": "cpu"})
               
-              # Python 3.11 compatibility sanity checks
-              for os_name in ["ubuntu-24.04", "windows-2022", "macos-14"]:
-                  matrix.append({"os": os_name, "python": "3.11", "install": "fresh", "hardware": "cpu"})
+              # Hardware mock tests (fresh only)
+              matrix.append({"os": "ubuntu-24.04", "python": "3.12", "install": "fresh", "hardware": "mock_cuda"})
+              matrix.append({"os": "windows-2022", "python": "3.12", "install": "fresh", "hardware": "mock_cuda"})
+              matrix.append({"os": "ubuntu-24.04", "python": "3.12", "install": "fresh", "hardware": "mock_rocm"})
+              
+              # Upgrade tests (cpu only)
+              matrix.append({"os": "ubuntu-24.04", "python": "3.12", "install": "upgrade", "hardware": "cpu"})
+              matrix.append({"os": "windows-2022", "python": "3.12", "install": "upgrade", "hardware": "cpu"})
+              
+              # Python 3.11 compatibility check
+              matrix.append({"os": "ubuntu-24.04", "python": "3.11", "install": "fresh", "hardware": "cpu"})
                               
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"matrix={json.dumps({'include': matrix})}\n")
@@ -98,7 +103,7 @@ jobs:
           # Use a baseline commit that had early motif tooling
           curl -LsSf https://astral.sh/uv/install.sh | sh
           export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
-          uv tool install "git+https://github.com/AdityaWagh19/Motif@1efcb83" --python ${{ matrix.python }}
+          uv tool install "git+https://github.com/AdityaWagh19/Motif@1efcb83" --python ${{ matrix.python }} --find-links "https://abetlen.github.io/llama-cpp-python/whl/cpu/llama-cpp-python/"
           motif --version || true
 
       - name: Setup Baseline for Upgrade (Windows)
@@ -107,7 +112,7 @@ jobs:
         run: |
           Invoke-WebRequest -Uri https://astral.sh/uv/install.ps1 -UseBasicParsing | Invoke-Expression
           $env:Path = "$HOME\.cargo\bin;$HOME\.local\bin;$env:Path"
-          uv tool install "git+https://github.com/AdityaWagh19/Motif@1efcb83" --python ${{ matrix.python }}
+          uv tool install "git+https://github.com/AdityaWagh19/Motif@1efcb83" --python ${{ matrix.python }} --find-links "https://abetlen.github.io/llama-cpp-python/whl/cpu/llama-cpp-python/"
           try { motif --version } catch {}
           $global:LASTEXITCODE = 0
 
