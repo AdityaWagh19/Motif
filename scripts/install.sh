@@ -43,7 +43,7 @@ else
     INSTALL_SPEC="git+${MOTIF_REPO}"
 fi
 if [ "$(uname)" = "Darwin" ]; then
-    uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --find-links "https://abetlen.github.io/llama-cpp-python/whl/metal" --find-links "https://abetlen.github.io/llama-cpp-python/whl/cpu" --force
+    uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --no-binary-package llama-cpp-python --force
 else
     uv tool install "${INSTALL_SPEC}" --python "${PYTHON:-python3}" --find-links "https://abetlen.github.io/llama-cpp-python/whl/cpu" --force
 fi
