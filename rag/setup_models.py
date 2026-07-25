@@ -15,14 +15,71 @@ import os
 import shutil
 from pathlib import Path
 
-# Disable HuggingFace's messy multi-line tqdm progress bars
-os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+# We intercept HuggingFace tqdm to use Rich
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
 from huggingface_hub import hf_hub_download, snapshot_download
 from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, DownloadColumn, TransferSpeedColumn
+import huggingface_hub.utils
+import huggingface_hub.file_download
+import concurrent.futures
 
 console = Console()
+
+# Global UI for concurrent downloads
+progress_ui = Progress(
+    SpinnerColumn(),
+    TextColumn("[bold cyan]{task.description}"),
+    BarColumn(),
+    DownloadColumn(),
+    TransferSpeedColumn(),
+    console=console
+)
+
+class RichTqdm:
+    def __init__(self, iterable=None, desc=None, total=None, leave=True, disable=False, **kwargs):
+        self.disable = disable
+        self.total = total or 100
+        if iterable is not None:
+            try:
+                self.total = len(iterable)
+            except Exception:
+                pass
+        self.desc = desc or "Downloading"
+        self.iterable = iterable
+        
+        if not self.disable:
+            self.task_id = progress_ui.add_task(self.desc, total=self.total)
+            
+    def update(self, n=1):
+        if not self.disable:
+            progress_ui.update(self.task_id, advance=n)
+            
+    def close(self):
+        if not self.disable:
+            progress_ui.stop_task(self.task_id)
+            
+    def set_description(self, desc):
+        if not self.disable:
+            progress_ui.update(self.task_id, description=desc)
+            
+    def __iter__(self):
+        if self.iterable is None:
+            return
+        for obj in self.iterable:
+            yield obj
+            self.update(1)
+            
+    def __enter__(self):
+        return self
+        
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+# Apply patches so HuggingFace uses our Rich progress bars
+huggingface_hub.utils.tqdm = RichTqdm
+huggingface_hub.file_download.tqdm = RichTqdm
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Model catalogue
@@ -35,7 +92,7 @@ MODELS_DIR: Path = _get_models_dir()
 # (repo_id, filename, local_name, tiers, size_label)
 LLM_MODELS = [
     (
-        "microsoft/Phi-3.5-mini-instruct-GGUF",
+        "bartowski/Phi-3.5-mini-instruct-GGUF",
         "Phi-3.5-mini-instruct-Q4_K_M.gguf",
         "Phi-3.5-mini-instruct-Q4_K_M.gguf",
         {"T1"},
@@ -102,22 +159,21 @@ def _download_file(repo_id: str, filename: str, local_name: str, size_label: str
     """Download a single file from HuggingFace Hub to models/."""
     dest = MODELS_DIR / local_name
     if dest.exists() and dest.stat().st_size > 0:
-        console.print(f"  [dim]skip[/dim]  {local_name} (already downloaded)")
+        progress_ui.console.print(f"  [dim]skip[/dim]  {local_name} (already downloaded)")
         return dest
         
     if dry_run:
-        console.print(f"  [yellow]mock[/yellow]  {local_name} ({size_label})")
+        progress_ui.console.print(f"  [yellow]mock[/yellow]  {local_name} ({size_label})")
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.touch()
         return dest
 
-    with console.status(f"  [cyan]down[/cyan]  {local_name} ({size_label})", spinner="dots"):
-        path = hf_hub_download(
-            repo_id=repo_id,
-            filename=filename,
-            local_dir=str(MODELS_DIR),
-            token=False,
-        )
+    path = hf_hub_download(
+        repo_id=repo_id,
+        filename=filename,
+        local_dir=str(MODELS_DIR),
+        token=False,
+    )
     # Rename to local_name if different
     actual = Path(path)
     target = MODELS_DIR / local_name
@@ -126,7 +182,7 @@ def _download_file(repo_id: str, filename: str, local_name: str, size_label: str
             shutil.copy2(str(actual.resolve()), str(target))
         else:
             shutil.copy2(str(actual), str(target))
-    console.print(f"  [green]ok[/green]    {local_name}")
+    progress_ui.console.print(f"  [green]ok[/green]    {local_name}")
     return target
 
 
@@ -165,27 +221,26 @@ def _download_snapshot(repo_id: str, local_name: str, size_label: str, dry_run: 
         return p.exists() and p.is_dir() and any(f.name != "mock_file.txt" for f in p.iterdir())
         
     if is_real_download(dest):
-        console.print(f"  [dim]skip[/dim]  {local_name}/ (already downloaded)")
+        progress_ui.console.print(f"  [dim]skip[/dim]  {local_name}/ (already downloaded)")
         return dest
         
     if dry_run:
-        console.print(f"  [yellow]mock[/yellow]  {local_name}/ ({size_label})")
+        progress_ui.console.print(f"  [yellow]mock[/yellow]  {local_name}/ ({size_label})")
         dest.mkdir(parents=True, exist_ok=True)
         (dest / "mock_file.txt").touch()
         return dest
 
-    with console.status(f"  [cyan]down[/cyan]  {local_name}/ ({size_label})", spinner="dots"):
-        snapshot_kwargs: dict = {}
-        if "nomic" in repo_id:
-            snapshot_kwargs["allow_patterns"] = _get_nomic_onnx_patterns()
-    
-        snapshot_download(
-            repo_id=repo_id,
-            local_dir=dest,
-            token=False,
-            **snapshot_kwargs
-        )
-    console.print(f"  [green]ok[/green]    {local_name}/")
+    snapshot_kwargs: dict = {}
+    if "nomic" in repo_id:
+        snapshot_kwargs["allow_patterns"] = _get_nomic_onnx_patterns()
+
+    snapshot_download(
+        repo_id=repo_id,
+        local_dir=dest,
+        token=False,
+        **snapshot_kwargs
+    )
+    progress_ui.console.print(f"  [green]ok[/green]    {local_name}/")
     return dest
 
 
@@ -280,11 +335,30 @@ def main() -> None:
         f"({TIER_SIZES.get(args.tier, '?')} total)\n"
     )
 
-    for entry in LLM_MODELS + EMBED_MODELS + RERANKER_MODELS + WHISPER_MODELS + CAPTIONING_MODELS:
-        try:
-            _download_model(entry, args.tier, dry_run=args.dry_run)
-        except Exception as exc:
-            console.print(f"  [red]fail[/red]  {entry[2]}: {exc}")
+    all_models = LLM_MODELS + EMBED_MODELS + RERANKER_MODELS + WHISPER_MODELS + CAPTIONING_MODELS
+    
+    # Sort models by size (GB > MB) so the largest GGUF downloads first
+    def size_value(entry):
+        label = entry[4]
+        if "GB" in label:
+            return float(label.replace("~", "").replace("GB", "").strip()) * 1000
+        if "MB" in label:
+            return float(label.replace("~", "").replace("MB", "").strip())
+        return 0
+
+    all_models.sort(key=size_value, reverse=True)
+
+    with progress_ui:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            futures = []
+            for entry in all_models:
+                futures.append(executor.submit(_download_model, entry, args.tier, args.dry_run))
+                
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()
+                except Exception as exc:
+                    progress_ui.console.print(f"  [red]fail[/red]  {exc}")
 
     console.print()
     _verify(args.tier)
