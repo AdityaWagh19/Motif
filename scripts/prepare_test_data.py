@@ -5,7 +5,7 @@ from pathlib import Path
 import docx
 
 DATA_DIR = Path("tests/evaluation/definitive_test_data")
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+os.makedirs(str(DATA_DIR), exist_ok=True)
 
 def download_file(url: str, filename: str):
     path = DATA_DIR / filename
@@ -42,15 +42,46 @@ def create_audio(filename: str):
         tts.save(str(path))
     return path
 
+def create_synthetic_files():
+    import csv
+    import numpy as np
+    import cv2
+    
+    # MD
+    md_path = DATA_DIR / "project_zeta.md"
+    if not md_path.exists():
+        with open(md_path, "w", encoding="utf-8") as f:
+            f.write("# Project Zeta\n\n## Dependencies\nWe rely on ZetaLib v2.0 for all our core processing. It is strictly required.")
+            
+    # HTML
+    html_path = DATA_DIR / "corporate_policy.html"
+    if not html_path.exists():
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write("<html><head><title>Acme Corp Policy HTML Document</title></head><body><h1>Financial Guidelines</h1><p>The Chief Financial Officer (CFO) is Jane Doe. The maximum reimbursable daily expense limit is exactly $50.</p></body></html>")
+            
+    # CSV
+    csv_path = DATA_DIR / "synthetic_sales.csv"
+    if not csv_path.exists():
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Date", "Item", "Amount", "Status"])
+            writer.writerow(["2024-01-01", "Widget A", "150", "Completed"])
+            writer.writerow(["2024-01-02", "Widget B", "200", "Pending"])
+            writer.writerow(["2024-01-03", "Widget C", "99", "Completed"])
+            
+    # Image (Text Image for OCR)
+    img_path = DATA_DIR / "test_text.png"
+    if not img_path.exists():
+        img = np.ones((200, 1000, 3), dtype=np.uint8) * 255
+        cv2.putText(img, "The word written on this image is CONFIDENTIAL", (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 0), 3)
+        cv2.imwrite(str(img_path), img)
+
 def main():
     download_file("https://arxiv.org/pdf/1810.04805.pdf", "bert_paper.pdf")
-    download_file("https://raw.githubusercontent.com/facebook/react/main/README.md", "react_readme.md")
-    download_file("https://raw.githubusercontent.com/datasciencedojo/datasets/master/titanic.csv", "titanic.csv")
-    download_file("https://en.wikipedia.org/wiki/Machine_learning", "machine_learning.html")
-    download_file("https://upload.wikimedia.org/wikipedia/en/thumb/8/80/Wikipedia-logo-v2.svg/500px-Wikipedia-logo-v2.svg.png", "wikipedia_logo.png")
     
     create_docx("project_alpha.docx")
     create_audio("audio_test.mp3")
+    create_synthetic_files()
 
     ground_truth = [
         # PDF (BERT Paper)
@@ -69,68 +100,68 @@ def main():
             "expected_answer": "Masked language model (MLM) and next sentence prediction (NSP)",
             "format": "pdf"
         },
-        # MD (React README)
+        # MD (Project Zeta)
         {
-            "query": "According to the React README, how can you add React to an HTML page?",
-            "expected_answer": "You can add React to an HTML page with a <script> tag.",
+            "query": "What version of ZetaLib does Project Zeta rely on?",
+            "expected_answer": "ZetaLib v2.0",
             "format": "md"
         },
         {
-            "query": "What is the primary URL for React's documentation?",
-            "expected_answer": "https://react.dev/",
+            "query": "Is ZetaLib strictly required for Project Zeta?",
+            "expected_answer": "Yes",
             "format": "md"
         },
         {
-            "query": "Does React use a Virtual DOM?",
-            "expected_answer": "Yes, React relies on a Virtual DOM for efficient updates.",
+            "query": "What is the name of the project?",
+            "expected_answer": "Project Zeta",
             "format": "md"
         },
-        # CSV (Titanic Dataset)
+        # CSV (Synthetic Sales)
         {
-            "query": "In the Titanic dataset, what is the passenger class (Pclass) for the passenger named 'Cumings, Mrs. John Bradley'?",
-            "expected_answer": "1",
+            "query": "What is the amount for Widget B?",
+            "expected_answer": "200",
             "format": "csv"
         },
         {
-            "query": "Did passenger 'Braund, Mr. Owen Harris' survive?",
-            "expected_answer": "No, he did not survive (Survived=0).",
+            "query": "What is the status of Widget C?",
+            "expected_answer": "Completed",
             "format": "csv"
         },
         {
-            "query": "How many siblings/spouses aboard (SibSp) did 'Heikkinen, Miss. Laina' have?",
-            "expected_answer": "0",
+            "query": "Which item was sold on 2024-01-01?",
+            "expected_answer": "Widget A",
             "format": "csv"
         },
-        # HTML (Machine Learning Wikipedia)
+        # HTML (Corporate Policy)
         {
-            "query": "In the Machine Learning HTML document, how is machine learning broadly defined?",
-            "expected_answer": "Machine learning is a field of study in artificial intelligence concerned with the development and study of statistical algorithms that can learn from data and generalize to unseen data.",
+            "query": "Who is the Chief Financial Officer?",
+            "expected_answer": "Jane Doe",
             "format": "html"
         },
         {
-            "query": "What are the three main categories of machine learning?",
-            "expected_answer": "Supervised learning, unsupervised learning, and reinforcement learning.",
+            "query": "What is the maximum reimbursable daily expense limit?",
+            "expected_answer": "$50",
             "format": "html"
         },
         {
-            "query": "According to the Machine Learning HTML, who coined the term 'machine learning'?",
-            "expected_answer": "Arthur Samuel in 1959.",
+            "query": "What is the title of the HTML policy document?",
+            "expected_answer": "Acme Corp Policy",
             "format": "html"
         },
-        # Image (Wikipedia Logo)
+        # Image (Test Text)
         {
-            "query": "What words are written on the Wikipedia logo image?",
-            "expected_answer": "The Free Encyclopedia",
+            "query": "What word is written on the image?",
+            "expected_answer": "CONFIDENTIAL",
             "format": "image"
         },
         {
-            "query": "Is the word 'WIKIPEDIA' in all caps on the Wikipedia logo?",
+            "query": "Is the word CONFIDENTIAL written in all caps?",
             "expected_answer": "Yes",
             "format": "image"
         },
         {
-            "query": "What language is the Wikipedia logo representing in English?",
-            "expected_answer": "English",
+            "query": "Does the image contain any financial data?",
+            "expected_answer": "I cannot find an answer to this in the available documents.",
             "format": "image"
         },
         # Audio (gTTS Audio Test)

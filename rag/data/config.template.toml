@@ -12,10 +12,15 @@
 #   qdrant-client       1.10+   (local embedded mode)
 #   rank-bm25           0.2.x
 #   pymupdf             1.24+   (PDF parser)
+#   easyocr             1.7+    (Image OCR parser)
+#   beautifulsoup4      4.12+   (HTML parser)
+#   lxml                5.1+    (HTML parser engine)
+#   opencv-python-headless 4.9+ (Prevents GUI/DLL crashes on Windows)
+#   whisperx            3.1+    (Audio transcription)
+#   imageio-ffmpeg      0.6+    (Required for whisperx audio decoding)
 #   ragas               0.1.x   (NOT 0.2 — breaking API changes in v0.2)
 #   huggingface-hub     0.23+
 #   python-docx         1.1+
-#
 # Tier auto-detection priority:
 #   1. NVIDIA GPU (nvidia-smi)
 #   2. Apple Silicon (sysctl hw.memsize — uses Metal)
@@ -53,9 +58,9 @@ embed_model = "models/nomic-embed-text-v1.5"
 # Tier defaults: T1/T2 → MiniLM-L12-v2 | T3 → bge-reranker-base
 # reranker = "models/MiniLM-L12-v2"
 
-# Whisper model file (audio ingestion)
-# T1/T2: tiny quantised (~30 MB, fast) | T3: small quantised (~125 MB, better accuracy)
-whisper = "models/ggml-tiny-q5_1.bin"
+# WhisperX model (audio ingestion)
+# T1/T2: tiny (~39M parameters, fast) | T3: small (~244M parameters, better accuracy)
+whisper = "tiny"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LLM Inference
@@ -147,7 +152,7 @@ history_turns = 3
 # ─────────────────────────────────────────────────────────────────────────────
 [storage]
 # Root directory for Qdrant, SQLite, and session history. ~ = home dir.
-db_path = "~/.ragdb"
+db_path = "~/.motif"
 
 # Query result cache: identical queries return cached answers in <50 ms.
 # Cache stores up to 500 query-answer pairs (LRU eviction).

@@ -34,8 +34,9 @@ if TYPE_CHECKING:
 # {query}   → the user's question.
 RAG_PROMPT = """\
 You are a precise research assistant. Answer the question using ONLY the \
-information in the provided context passages. Do not speculate or use outside \
-knowledge.
+information in the provided context passages. Do not use outside knowledge. \
+Answer strictly using the provided context. If the context does not contain \
+the answer, say 'I cannot find an answer to this in the available documents.'
 
 Rules:
 - Answer in 1-3 sentences maximum. Be direct and concise.
@@ -61,7 +62,7 @@ You are a precise research assistant continuing a conversation. Prior context:
 {history}
 
 Answer the current question using ONLY the provided document passages. \
-Maintain consistency with your previous answers. \
+Do not use outside knowledge. Maintain consistency with your previous answers. \
 Answer in 1-3 sentences. Cite each source with its passage number in square brackets, e.g. [1]. Use each citation number at most once."""
 
 

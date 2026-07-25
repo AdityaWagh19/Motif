@@ -59,6 +59,11 @@ dependencies = [
     "simhash>=2.1",
     "tqdm>=4.66",
     "platformdirs>=4.10.1",
+    "imageio-ffmpeg>=0.6.0",
+    "opencv-python-headless>=4.9.0",
+    "easyocr>=1.7.2",
+    "beautifulsoup4>=4.12.0",
+    "lxml>=5.1.0",
 ]
 
 [project.optional-dependencies]
@@ -74,6 +79,7 @@ gpu = [
 eval = [
     "ragas>=0.1,<0.2",
     "datasets>=2.0",
+    "gtts>=2.5.0",
 ]
 
 # Audio ingestion
@@ -117,5 +123,22 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-    "slow: marks tests as slow — requires models downloaded (deselect with '-m not slow')",
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu124" }
+torchvision = { index = "pytorch-cu124" }
+torchaudio = { index = "pytorch-cu124" }
+
+[[tool.uv.index]]
+name = "llama-cu124"
+url = "https://abetlen.github.io/llama-cpp-python/whl/cu124"
+explicit = true
+
+[tool.uv.sources.llama-cpp-python]
+index = "llama-cu124"
