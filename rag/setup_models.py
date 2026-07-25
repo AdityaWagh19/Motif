@@ -3,7 +3,6 @@ rag/setup_models.py — Download models for a given hardware tier.
 
 Usage:
     python -m rag.setup_models --tier T2
-    python -m rag.setup_models --tier T3 --captioning
     python -m rag.setup_models --verify
 
 Also callable as the `motif setup` CLI command.
@@ -13,19 +12,131 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+import sys
+from dataclasses import dataclass
 from pathlib import Path
 
-# We intercept HuggingFace tqdm to use Rich
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
 from huggingface_hub import hf_hub_download, snapshot_download
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, DownloadColumn, TransferSpeedColumn
+from rich.progress import (
+    BarColumn,
+    DownloadColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TransferSpeedColumn,
+)
 import huggingface_hub.utils
 import huggingface_hub.file_download
 import concurrent.futures
 
 console = Console()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Download Accelerator Detection
+# ─────────────────────────────────────────────────────────────────────────────
+
+@dataclass
+class _AcceleratorMode:
+    fast: bool          # True = hf_transfer enabled
+    label: str          # Short label for the UX banner, e.g. "fast" or "safe"
+    reason: str         # One-line human-readable reason (shown in dim text)
+
+
+def _detect_accelerator() -> _AcceleratorMode:
+    """
+    Decide whether to enable hf_transfer (parallel chunk downloads).
+
+    Decision tree:
+      1. hf_transfer not installed  → safe mode (no error, silent fallback)
+      2. Models dir is on an HDD    → safe mode (parallel writes thrash spindles)
+      3. Everything OK              → fast mode
+    """
+    # Step 1: Check hf_transfer is importable
+    try:
+        import hf_transfer  # noqa: F401
+    except ImportError:
+        return _AcceleratorMode(
+            fast=False,
+            label="safe",
+            reason="hf_transfer not installed — using standard download",
+        )
+
+    # Step 2: Detect drive type via psutil
+    try:
+        import psutil
+
+        models_root = str(MODELS_DIR.resolve())
+        # Find the partition whose mountpoint best matches the models directory
+        best_partition = None
+        best_len = -1
+        for part in psutil.disk_partitions(all=False):
+            mp = part.mountpoint
+            if models_root.startswith(mp) and len(mp) > best_len:
+                best_partition = part
+                best_len = len(mp)
+
+        if best_partition is not None:
+            disk = psutil.disk_io_counters(perdisk=True)
+            # On Windows, device names look like "PhysicalDrive0"
+            # psutil doesn't expose rotational flag directly, so we check
+            # via the Windows WMI MediaType (0 = HDD, 3 = SSD, 4 = NVMe)
+            if sys.platform == "win32":
+                import subprocess
+                try:
+                    result = subprocess.run(
+                        [
+                            "powershell", "-NoProfile", "-Command",
+                            "Get-PhysicalDisk | Select-Object MediaType | ConvertTo-Json"
+                        ],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    output = result.stdout.lower()
+                    # If ANY disk is HDD, play it safe (mixed drive systems)
+                    if "hdd" in output or "unspecified" in output:
+                        return _AcceleratorMode(
+                            fast=False,
+                            label="safe",
+                            reason="mechanical drive detected — sequential write mode",
+                        )
+                except Exception:
+                    # Can't determine — be conservative
+                    return _AcceleratorMode(
+                        fast=False,
+                        label="safe",
+                        reason="drive type unknown — using sequential write mode",
+                    )
+            else:
+                # Linux: check /sys/block/<dev>/queue/rotational
+                try:
+                    dev = best_partition.device.replace("/dev/", "").rstrip("0123456789")
+                    rotational_path = Path(f"/sys/block/{dev}/queue/rotational")
+                    if rotational_path.exists() and rotational_path.read_text().strip() == "1":
+                        return _AcceleratorMode(
+                            fast=False,
+                            label="safe",
+                            reason="mechanical drive detected — sequential write mode",
+                        )
+                except Exception:
+                    pass  # Unknown — proceed to fast mode
+
+    except ImportError:
+        pass  # psutil not available — proceed to fast mode (SSD is common)
+
+    # Step 3: All checks passed — enable hf_transfer
+    os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+    return _AcceleratorMode(
+        fast=True,
+        label="fast",
+        reason="SSD detected — parallel chunk download enabled",
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Rich Progress UI (intercepts HuggingFace's internal tqdm)
+# ─────────────────────────────────────────────────────────────────────────────
 
 # Global UI for concurrent downloads
 progress_ui = Progress(
@@ -34,10 +145,13 @@ progress_ui = Progress(
     BarColumn(),
     DownloadColumn(),
     TransferSpeedColumn(),
-    console=console
+    console=console,
 )
 
+
 class RichTqdm:
+    """Drop-in tqdm replacement that pipes HuggingFace download events into Rich."""
+
     def __init__(self, iterable=None, desc=None, total=None, leave=True, disable=False, **kwargs):
         self.disable = disable
         self.total = total or 100
@@ -48,36 +162,37 @@ class RichTqdm:
                 pass
         self.desc = desc or "Downloading"
         self.iterable = iterable
-        
+
         if not self.disable:
             self.task_id = progress_ui.add_task(self.desc, total=self.total)
-            
+
     def update(self, n=1):
         if not self.disable:
             progress_ui.update(self.task_id, advance=n)
-            
+
     def close(self):
         if not self.disable:
             progress_ui.stop_task(self.task_id)
-            
+
     def set_description(self, desc):
         if not self.disable:
             progress_ui.update(self.task_id, description=desc)
-            
+
     def __iter__(self):
         if self.iterable is None:
             return
         for obj in self.iterable:
             yield obj
             self.update(1)
-            
+
     def __enter__(self):
         return self
-        
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
-# Apply patches so HuggingFace uses our Rich progress bars
+
+# Patch HuggingFace internals to use our Rich progress bars
 huggingface_hub.utils.tqdm = RichTqdm  # type: ignore
 huggingface_hub.file_download.tqdm = RichTqdm  # type: ignore
 
@@ -335,9 +450,22 @@ def main() -> None:
         f"({TIER_SIZES.get(args.tier, '?')} total)\n"
     )
 
+    # ── Detect download mode (hf_transfer vs safe fallback) ──────────────────
+    accel = _detect_accelerator()
+
+    if accel.fast:
+        console.print(
+            f"  [bold green][fast][/bold green]  [dim]{accel.reason}[/dim]"
+        )
+    else:
+        console.print(
+            f"  [bold yellow][safe][/bold yellow]  [dim]{accel.reason}[/dim]"
+        )
+    console.print()
+
+    # ── Sort models: largest first so big LLM starts immediately ─────────────
     all_models = LLM_MODELS + EMBED_MODELS + RERANKER_MODELS + WHISPER_MODELS + CAPTIONING_MODELS
-    
-    # Sort models by size (GB > MB) so the largest GGUF downloads first
+
     def size_value(entry):
         label = entry[4]
         if "GB" in label:
@@ -348,17 +476,44 @@ def main() -> None:
 
     all_models.sort(key=size_value, reverse=True)
 
+    # ── Concurrent downloads with 429 rate-limit fallback ────────────────────
+    def _safe_download(entry: tuple) -> None:
+        """Download one model entry, falling back to safe mode on rate-limit."""
+        from huggingface_hub.errors import HfHubHTTPError
+        import time
+
+        try:
+            _download_model(entry, args.tier, args.dry_run)
+        except HfHubHTTPError as exc:
+            if "429" in str(exc):
+                progress_ui.console.print(
+                    f"  [yellow]rate-limit[/yellow]  {entry[2]} — retrying in 30 s..."
+                )
+                # Disable hf_transfer for this retry only
+                old_val = os.environ.pop("HF_HUB_ENABLE_HF_TRANSFER", None)
+                time.sleep(30)
+                try:
+                    _download_model(entry, args.tier, args.dry_run)
+                finally:
+                    if old_val is not None:
+                        os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = old_val
+            else:
+                raise
+
     with progress_ui:
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-            futures = []
-            for entry in all_models:
-                futures.append(executor.submit(_download_model, entry, args.tier, args.dry_run))
-                
+            futures = {
+                executor.submit(_safe_download, entry): entry
+                for entry in all_models
+            }
             for future in concurrent.futures.as_completed(futures):
+                entry = futures[future]
                 try:
                     future.result()
                 except Exception as exc:
-                    progress_ui.console.print(f"  [red]fail[/red]  {exc}")
+                    progress_ui.console.print(
+                        f"  [red]fail[/red]  {entry[2]}: {exc}"
+                    )
 
     console.print()
     _verify(args.tier)

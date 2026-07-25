@@ -50,6 +50,8 @@ dependencies = [
     "python-docx>=1.1",
     # Model download
     "huggingface-hub>=0.23",
+    "hf-transfer>=0.1.4",   # Rust-based parallel chunk downloader (SSD only, auto-detected)
+    "psutil>=5.9",           # Drive-type detection (HDD vs SSD) for safe hf_transfer activation
     # LLM inference — CPU wheel by default.
     # The installer script (install.sh / install.ps1) upgrades this to the
     # appropriate CUDA pre-built wheel when a CUDA-capable GPU is detected.
