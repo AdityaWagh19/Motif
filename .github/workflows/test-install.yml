@@ -99,7 +99,11 @@ jobs:
           # Use a baseline commit that had early motif tooling
           curl -LsSf https://astral.sh/uv/install.sh | sh
           export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
-          uv tool install "git+https://github.com/AdityaWagh19/Motif@1efcb83" --python ${{ matrix.python }} --find-links "https://abetlen.github.io/llama-cpp-python/whl/cpu/llama-cpp-python/"
+          if [ "$(uname)" = "Darwin" ]; then
+             uv tool install "git+https://github.com/AdityaWagh19/Motif@1efcb83" --python ${{ matrix.python }} --no-binary-package llama-cpp-python
+          else
+             uv tool install "git+https://github.com/AdityaWagh19/Motif@1efcb83" --python ${{ matrix.python }} --find-links "https://abetlen.github.io/llama-cpp-python/whl/cpu/llama-cpp-python/"
+          fi
           motif --version || true
 
       - name: Setup Baseline for Upgrade (Windows)
