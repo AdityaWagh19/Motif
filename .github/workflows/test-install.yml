@@ -58,6 +58,11 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
         
       - name: Install System Dependencies (Linux)
         if: runner.os == 'Linux'
@@ -146,6 +151,7 @@ jobs:
         shell: pwsh
         env:
           MOTIF_REPO: "."
+          PYTHON: ${{ matrix.python }}
         run: |
           # The execution policy test: pipe from local server
           Invoke-RestMethod "http://127.0.0.1:8000/scripts/install.ps1" | Invoke-Expression
@@ -155,6 +161,7 @@ jobs:
         shell: bash
         env:
           MOTIF_REPO: "."
+          PYTHON: ${{ matrix.python }}
         run: |
           # For Unix, we test direct execution of the bash script
           bash scripts/install.sh
