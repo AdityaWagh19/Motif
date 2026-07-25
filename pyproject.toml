@@ -54,12 +54,14 @@ dependencies = [
     # The installer script (install.sh / install.ps1) upgrades this to the
     # appropriate CUDA pre-built wheel when a CUDA-capable GPU is detected.
     # Minimum 0.3.0 required for Qwen2.5 and Phi-3.5 GGUF Q4_K_M support.
-    "llama-cpp-python>=0.3.0",
+    "llama-cpp-python>=0.2.89",
     # Progress display during model download
     "simhash>=2.1",
     "tqdm>=4.66",
     "platformdirs>=4.10.1",
     "imageio-ffmpeg>=0.6.0",
+    "opencv-python-headless>=4.9.0",
+    "easyocr>=1.7.2",
     "beautifulsoup4>=4.12.0",
     "lxml>=5.1.0",
 ]
@@ -70,13 +72,6 @@ dependencies = [
 # Requires CUDA 11.8+ or ROCm 5.6+.
 gpu = [
     "onnxruntime-gpu>=1.18",
-]
-
-# Image OCR support.
-# Install with: pip install motif-rag[ocr]
-ocr = [
-    "opencv-python-headless>=4.9.0",
-    "easyocr>=1.7.2",
 ]
 
 # Offline evaluation

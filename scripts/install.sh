@@ -43,7 +43,7 @@ else
     INSTALL_SPEC="git+${MOTIF_REPO}"
 fi
 if [ "$(uname)" = "Darwin" ]; then
-    uv tool install "${INSTALL_SPEC}" --force
+    uv tool install "${INSTALL_SPEC}" --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/metal" --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/cpu" --force
 else
     uv tool install "${INSTALL_SPEC}" --extra-index-url "https://abetlen.github.io/llama-cpp-python/whl/cpu" --force
 fi
