@@ -20,6 +20,8 @@
 #   imageio-ffmpeg      0.6+    (Required for whisperx audio decoding)
 #   ragas               0.1.x   (NOT 0.2 — breaking API changes in v0.2)
 #   huggingface-hub     0.23+
+#   hf-transfer         0.1.4+  (Rust parallel chunk downloader — auto-enabled on SSD)
+#   psutil              5.9+    (Drive-type detection for safe hf_transfer activation)
 #   python-docx         1.1+
 # Tier auto-detection priority:
 #   1. NVIDIA GPU (nvidia-smi)
@@ -165,9 +167,11 @@ query_cache_ttl_hours = 24
 # Parsers
 # ─────────────────────────────────────────────────────────────────────────────
 [parsers]
-# T3 opt-in: caption image-heavy pages with moondream2 during ingestion.
-# Requires: motif setup --tier T3 --captioning   (~900 MB extra download)
-use_moondream = false
+# Moondream2 (~900 MB) is downloaded by default for all tiers during `motif setup`.
+# It is used to generate rich visual captions for images during ingestion,
+# enabling semantic image search without any manual annotation.
+# Set to false only if you have not run `motif setup` yet or want to skip image captioning.
+use_moondream = true
 
 # Pages with image area > this fraction of total page area trigger captioning.
 image_density_threshold = 0.3

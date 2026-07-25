@@ -56,7 +56,7 @@ def _detect_accelerator() -> _AcceleratorMode:
     """
     # Step 1: Check hf_transfer is importable
     try:
-        import hf_transfer  # noqa: F401
+        import hf_transfer  # type: ignore[import-untyped]  # noqa: F401
     except ImportError:
         return _AcceleratorMode(
             fast=False,
@@ -66,7 +66,7 @@ def _detect_accelerator() -> _AcceleratorMode:
 
     # Step 2: Detect drive type via psutil
     try:
-        import psutil
+        import psutil  # type: ignore[import-untyped]
 
         models_root = str(MODELS_DIR.resolve())
         # Find the partition whose mountpoint best matches the models directory
