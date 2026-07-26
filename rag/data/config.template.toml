@@ -100,7 +100,8 @@ temperature = 0.1
 # Passages with relevance score below this threshold are dropped.
 # Range 0.0-1.0. Increase (0.4) for stricter grounding. Decrease (0.2) if
 # the system says "I cannot find an answer" too often.
-relevance_threshold = 0.3
+# Default 0.25 is a good balance — niche domain terms score lower than common vocabulary.
+relevance_threshold = 0.25
 
 # Query expansion strategy.
 # "none"  — disabled (recommended default; faster)
