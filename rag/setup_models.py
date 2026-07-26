@@ -30,7 +30,6 @@ from rich.progress import (
     TextColumn,
     TransferSpeedColumn,
 )
-import contextlib
 import logging
 import huggingface_hub.utils
 import huggingface_hub.file_download
@@ -156,30 +155,6 @@ progress_ui = Progress(
     TransferSpeedColumn(),
     console=console,
 )
-
-
-@contextlib.contextmanager
-def _quiet_stdout():
-    """
-    Redirect fd-level stdout and stderr to devnull for the duration of the block.
-
-    hf_transfer's Rust extension writes chunk-batch progress directly to the
-    file descriptor (bypassing Python's sys.stdout), so a simple sys.stdout
-    redirect is not enough — we need to dup2 the underlying fd.
-    """
-    devnull_fd = os.open(os.devnull, os.O_WRONLY)
-    saved_stdout = os.dup(1)
-    saved_stderr = os.dup(2)
-    try:
-        os.dup2(devnull_fd, 1)
-        os.dup2(devnull_fd, 2)
-        yield
-    finally:
-        os.dup2(saved_stdout, 1)
-        os.dup2(saved_stderr, 2)
-        os.close(devnull_fd)
-        os.close(saved_stdout)
-        os.close(saved_stderr)
 
 
 class RichTqdm:
@@ -316,13 +291,12 @@ def _download_file(repo_id: str, filename: str, local_name: str, size_label: str
         dest.touch()
         return dest
 
-    with _quiet_stdout():
-        path = hf_hub_download(
-            repo_id=repo_id,
-            filename=filename,
-            local_dir=str(MODELS_DIR),
-            token=False,
-        )
+    path = hf_hub_download(
+        repo_id=repo_id,
+        filename=filename,
+        local_dir=str(MODELS_DIR),
+        token=False,
+    )
     # Rename to local_name if different
     actual = Path(path)
     target = MODELS_DIR / local_name
@@ -383,13 +357,12 @@ def _download_snapshot(repo_id: str, local_name: str, size_label: str, dry_run: 
     if "nomic" in repo_id:
         snapshot_kwargs["allow_patterns"] = _get_nomic_onnx_patterns()
 
-    with _quiet_stdout():
-        snapshot_download(
-            repo_id=repo_id,
-            local_dir=dest,
-            token=False,
-            **snapshot_kwargs
-        )
+    snapshot_download(
+        repo_id=repo_id,
+        local_dir=dest,
+        token=False,
+        **snapshot_kwargs
+    )
     progress_ui.console.print(f"  [green]ok[/green]    {local_name}/")
     return dest
 
