@@ -1,8 +1,5 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/AdityaWagh19/Motif/main/logo.png" style="filter: invert(1) brightness(2);">
-    <img src="https://raw.githubusercontent.com/AdityaWagh19/Motif/main/logo.png" alt="Motif" width="120">
-  </picture>
+  <img src="https://raw.githubusercontent.com/AdityaWagh19/Motif/main/logo.png" alt="Motif" width="280">
 </p>
 
 # Motif
