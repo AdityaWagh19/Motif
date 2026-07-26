@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/AdityaWagh19/Motif/main/logo.png" style="filter: invert(1) brightness(2);">
+    <img src="https://raw.githubusercontent.com/AdityaWagh19/Motif/main/logo.png" alt="Motif" width="120">
+  </picture>
+</p>
+
 # Motif
 
 **Motif** is an offline, multimodal Retrieval-Augmented Generation (RAG) system for querying your local documents. It runs entirely on-device -- no API keys, no cloud dependencies, no internet connection required after setup -- and automatically configures itself to your hardware.
