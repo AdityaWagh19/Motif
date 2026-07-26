@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/AdityaWagh19/Motif/main/logo.png" alt="Motif" width="400">
+  <img src="https://raw.githubusercontent.com/AdityaWagh19/Motif/main/logo-motif.jpg" alt="Motif" width="400">
 </p>
 
 # Motif
