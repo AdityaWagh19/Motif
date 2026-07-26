@@ -22,6 +22,8 @@ keywords = ["rag", "llm", "offline", "local", "documents", "multimodal"]
 # rank-bm25:             0.2.x
 # pymupdf:               1.24+
 # huggingface-hub:       0.23+
+# pandas:                2.0+  (CSV/TSV parser)
+# whisperx:              3.1+  (audio transcription, core feature)
 # ragas:                 0.1.x  (v0.2 has breaking API changes)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -66,6 +68,10 @@ dependencies = [
     "easyocr>=1.7.2",
     "beautifulsoup4>=4.12.0",
     "lxml>=5.1.0",
+    # CSV/tabular parser
+    "pandas>=2.0",
+    # Audio transcription (used by default — motif setup downloads the Whisper model)
+    "whisperx>=3.1.1",
 ]
 
 [project.optional-dependencies]
@@ -84,7 +90,8 @@ eval = [
     "gtts>=2.5.0",
 ]
 
-# Audio ingestion
+# Audio ingestion (whisperx is now a core dependency above;
+# this extra is kept for backwards compatibility)
 audio = [
     "whisperx>=3.1.1",
 ]
